@@ -18,26 +18,41 @@ For more information on running and configuring the Azure Service Bus Emulator, 
 - View message details and properties.
 - Send messages to queues or topics.
 
----
+## Running the Service Bus Viewer
 
-## Running the Service Bus Emulator Viewer
+### Running from GitHub Container Registry
 
-### Running with Docker
-Use the provided `Dockerfile` to build the Service Bus Viewer image. Run the build command in the solution directory (where the solution file is located):
-
-Build the container image using Docker
+You can use the container image from the GitHub Container Registry to run the Service Bus Viewer with Docker:
 ```bash
-docker build -f ServiceBusViewer/Dockerfile -t service-bus-viewer .
+docker run --name ServiceBusViewer -p 5000:8080 -d ghcr.io/veselovandrey/servicebusviewer:latest
 ```
 
-or build the container image using Podman
+Or with Podman:
 ```bash
-podman build -f ServiceBusViewer/Dockerfile -t service-bus-viewer .
+podman run --name ServiceBusViewer -p 5000:8080 -d ghcr.io/veselovandrey/servicebusviewer:latest
 ```
 
-No special parameters are required to run the container. E.g. to run the container using Docker, use the following command:
+### Build the container image using Docker / Podman
+
+Use the provided `Dockerfile` to build the Service Bus Viewer image. Run the build command from the solution directory (where the solution file is located):
+With Docker:
 ```bash
-docker run --name ServiceBusViewer -p 5000:8080 -d service-bus-viewer
+docker build -f ServiceBusViewer/Dockerfile -t servicebusviewer .
+```
+
+Or with Podman:
+```bash
+podman build -f ServiceBusViewer/Dockerfile -t servicebusviewer .
+```
+
+No special parameters are required to run the container. For example, to run the container using Docker:
+```bash
+docker run --name ServiceBusViewer -p 5000:8080 -d servicebusviewer
+```
+
+Or using Podman:
+```bash
+podman run --name ServiceBusViewer -p 5000:8080 -d servicebusviewer
 ```
 
 ### Running from source
@@ -53,7 +68,13 @@ to restore dependencies and start the application.
 ## Accessing the Service Bus Emulator
 
 - Use the `localhost` address when running the emulator on the same host as the viewer.
-- Use `host.docker.internal` to connect from a container to a Service Bus emulator running on the host machine. 
+```
+Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+``` 
+- Use `host.docker.internal` to connect from a container to a Service Bus emulator running on the host machine.
+```
+Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+``` 
 - Use the host machine's network address when connecting from a container to a Service Bus emulator running on the host.
 - Use the service name defined in your `docker-compose.yaml` when both the emulator and Service Bus Viewer are running in containers on the same network.
 - Use the connection string from the Azure Portal for cloud Azure Service Bus instances (but it is recommended to use [Service Bus Explorer](https://github.com/paolosalvatori/ServiceBusExplorer) or the Azure Portal built-in tool to work with cloud resources).
@@ -61,4 +82,7 @@ to restore dependencies and start the application.
 Hint: add port to the connection string if needed, e.g. if you are running multiple Service Bus emulators on the same host, use
 ```
 Endpoint=sb://localhost:[PORT];SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+```
+```
+Endpoint=sb://host.docker.internal:[PORT];SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
 ```
