@@ -3,6 +3,7 @@ USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
+ENV SERVICEBUS_CONNECTION_STRING=""
 
 
 # This stage is used to build the service project
