@@ -1,13 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
-
-		<LangVersion>13.0</LangVersion>
+		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 
-		<Version>0.5.0</Version>
+		<Version>0.5.1</Version>
 		<Product>ServiceBusViewer</Product>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025 Andrey Veselov</Copyright>
@@ -17,8 +15,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.19.0" />
-		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.2" />
+		<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
+		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
 	</ItemGroup>
 
 </Project>
