@@ -21,7 +21,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	private readonly ServiceBusService _serviceBusService = serviceBusService;
 
 	[BindProperty(SupportsGet = true)]
-	public string? ConnectionString { get; set; } = Environment.GetEnvironmentVariable("SERVICEBUS_CONNECTION_STRING")
+	public string? ConnectionString { get; set; } = Environment.GetEnvironmentVariable("CONNECTION_STRING")
 		?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"; // Use development connection string by default
 
 	[BindProperty(SupportsGet = true)]
@@ -57,20 +57,17 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostConnect()
 	{
-		if (string.IsNullOrWhiteSpace(ConnectionString) || string.IsNullOrWhiteSpace(EntityName))
-		{
+		if (string.IsNullOrWhiteSpace(ConnectionString) || string.IsNullOrWhiteSpace(EntityName)) {
 			ModelState.AddModelError(string.Empty, "Connection string and Queue/Topic name are required.");
 			return Page();
 		}
 
-		try
-		{
+		try	{
 			_serviceBusService.ConnectTo(ConnectionString, EntityName, SubscriptionName);
 
 			Messages = await _serviceBusService.PeekMessagesAsync();
 		}
-		catch (Exception ex)
-		{
+		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Connection failed: {ex.Message}");
 		}
 
@@ -88,12 +85,10 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostRefresh()
 	{
-		try
-		{
+		try	{
 			Messages = await _serviceBusService.PeekMessagesAsync();
 		}
-		catch (Exception ex)
-		{
+		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Refresh failed: {ex.Message}");
 		}
 
@@ -103,21 +98,18 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostPeek(string messageId)
 	{
-		if (string.IsNullOrEmpty(MessageId))
-		{
+		if (string.IsNullOrEmpty(MessageId)) {
 			ModelState.AddModelError(string.Empty, "Message ID is required to peek.");
 			return Page();
 		}
 
-		try
-		{
+		try	{
 			DisplayedMessage = await _serviceBusService.PeekMessageAsync(messageId);
 			DisplayType = MessageDisplayType.Peeked;
 
 			Messages = await _serviceBusService.PeekMessagesAsync();
 		}
-		catch (Exception ex)
-		{
+		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Peek failed: {ex.Message}");
 		}
 
@@ -127,15 +119,13 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostReceive()
 	{
-		try
-		{
+		try	{
 			DisplayedMessage = await _serviceBusService.ReceiveMessageAsync();
 			DisplayType = MessageDisplayType.Received;
 
 			Messages = await _serviceBusService.PeekMessagesAsync();
 		}
-		catch (Exception ex)
-		{
+		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Receive failed: {ex.Message}");
 		}
 
@@ -145,16 +135,14 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostSend()
 	{
-		if (string.IsNullOrWhiteSpace(SendMessageBody))
-		{
+		if (string.IsNullOrWhiteSpace(SendMessageBody))	{
 			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
 			Messages = await _serviceBusService.PeekMessagesAsync();
 
 			return Page();
 		}
 
-		try
-		{
+		try	{
 			Dictionary<string, object> properties = SendMessageProperties.ToDictionary(x => x.Key, x => (object)x.Value);
 
 			await _serviceBusService.SendMessageAsync(SendMessageBody, "application/json", properties);
@@ -164,8 +152,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 			Messages = await _serviceBusService.PeekMessagesAsync();
 		}
-		catch (Exception ex)
-		{
+		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Send failed: {ex.Message}");
 		}
 
