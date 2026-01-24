@@ -21,7 +21,8 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	private readonly ServiceBusService _serviceBusService = serviceBusService;
 
 	[BindProperty(SupportsGet = true)]
-	public string? ConnectionString { get; set; } = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"; // Use development connection string by default
+	public string? ConnectionString { get; set; } = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+		?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"; // Use development connection string by default
 
 	[BindProperty(SupportsGet = true)]
 	public string? EntityName { get; set; }
