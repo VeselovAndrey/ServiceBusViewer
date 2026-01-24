@@ -103,7 +103,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			return Page();
 		}
 
-		try	{
+		try {
 			DisplayedMessage = await _serviceBusService.PeekMessageAsync(messageId);
 			DisplayType = MessageDisplayType.Peeked;
 
@@ -119,7 +119,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostReceive()
 	{
-		try	{
+		try {
 			DisplayedMessage = await _serviceBusService.ReceiveMessageAsync();
 			DisplayType = MessageDisplayType.Received;
 
@@ -135,14 +135,14 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostSend()
 	{
-		if (string.IsNullOrWhiteSpace(SendMessageBody))	{
+		if (string.IsNullOrWhiteSpace(SendMessageBody)) {
 			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
 			Messages = await _serviceBusService.PeekMessagesAsync();
 
 			return Page();
 		}
 
-		try	{
+		try {
 			Dictionary<string, object> properties = SendMessageProperties.ToDictionary(x => x.Key, x => (object)x.Value);
 
 			await _serviceBusService.SendMessageAsync(SendMessageBody, "application/json", properties);
