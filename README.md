@@ -45,7 +45,7 @@ Or with Podman:
 podman build -f ServiceBusViewer/Dockerfile -t servicebusviewer .
 ```
 
-Provide the Service Bus connection string via `SERVICEBUS_CONNECTION_STRING` (recommended). Examples:
+You can provide the Service Bus connection string via `SERVICEBUS_CONNECTION_STRING`. Examples:
 
 Docker:
 ```bash
