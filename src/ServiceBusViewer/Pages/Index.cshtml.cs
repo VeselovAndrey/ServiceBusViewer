@@ -62,7 +62,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			return Page();
 		}
 
-		try	{
+		try {
 			_serviceBusService.ConnectTo(ConnectionString, EntityName, SubscriptionName);
 
 			Messages = await _serviceBusService.PeekMessagesAsync();
@@ -85,7 +85,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostRefresh()
 	{
-		try	{
+		try {
 			Messages = await _serviceBusService.PeekMessagesAsync();
 		}
 		catch (Exception ex) {
