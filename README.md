@@ -45,23 +45,23 @@ Or with Podman:
 podman build -f ServiceBusViewer/Dockerfile -t servicebusviewer .
 ```
 
-You can provide the Service Bus connection string via `SERVICEBUS_CONNECTION_STRING`. Examples:
+You can provide the Service Bus connection string via `CONNECTION_STRING`. Examples:
 
 Docker:
 ```bash
 docker run --name ServiceBusViewer -p 5000:8080 \
-	-e SERVICEBUS_CONNECTION_STRING="Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" \
+	-e CONNECTION_STRING="Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" \
 	-d servicebusviewer
 ```
 
 Podman:
 ```bash
 podman run --name ServiceBusViewer -p 5000:8080 \
-	-e SERVICEBUS_CONNECTION_STRING="Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" \
+	-e CONNECTION_STRING="Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" \
 	-d servicebusviewer
 ```
 
-If `SERVICEBUS_CONNECTION_STRING` is not set, the app falls back to its built-in development emulator connection string.
+If `CONNECTION_STRING` is not set, the app falls back to its built-in development emulator connection string.
 
 ### Running from source
 To run the Service Bus Viewer from source, you need to have the following prerequisites installed:
