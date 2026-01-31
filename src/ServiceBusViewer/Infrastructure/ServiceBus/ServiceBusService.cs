@@ -1,14 +1,17 @@
-using Azure.Messaging.ServiceBus;
-using ServiceBusViewer.Infrastructure.ServiceBus.Models;
-
 namespace ServiceBusViewer.Infrastructure.ServiceBus;
+
+using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
+using ServiceBusViewer.Infrastructure.ServiceBus.Models;
 
 /// <summary>Provides methods to interact with Azure Service Bus, including connecting, sending, receiving, and peeking messages.</summary>
 public class ServiceBusService
 {
-	const int _maxMessagesToPeek = 100;
+	private const int _maxMessagesToPeek = 100;
 
 	private ServiceBusClient? _client;
+	private ServiceBusAdministrationClient? _adminClient;
+	private readonly List<EntityInfo> _availableEntities = new List<EntityInfo>();
 
 	/// <summary>Gets a value indicating whether the service is connected to a Service Bus instance.</summary>
 	public bool Connected { get; private set; }
@@ -22,22 +25,49 @@ public class ServiceBusService
 	/// <summary>Gets the subscription name if connected to a topic subscription; otherwise, null.</summary>
 	public string? SubscriptionName { get; private set; }
 
+	/// <summary>Gets a value indicating whether connected using a root connection string with admin privileges.</summary>
+	public bool IsRootConnection => _adminClient is not null;
+
+	/// <summary>Gets the list of available entities when connected in root mode.</summary>
+	public IReadOnlyList<EntityInfo> AvailableEntities => _availableEntities;
+
 	/// <summary>Connects to the specified Service Bus entity.</summary>
 	/// <param name="connectionString">The Service Bus connection string.</param>
 	/// <param name="entityName">The queue or topic name.</param>
 	/// <param name="subscriptionName">The subscription name, or null for queues.</param>
+	/// <param name="rootConnectionString">Optional root connection string for admin operations.</param>
 	/// <exception cref="InvalidOperationException">Thrown if already connected.</exception>
-	public void ConnectTo(string connectionString, string entityName, string? subscriptionName)
+	public async Task ConnectToAsync(string connectionString, string? rootConnectionString, string? entityName, string? subscriptionName)
 	{
 		if (Connected)
 			throw new InvalidOperationException("Already connected to a Service Bus instance.");
 
 		_client = new ServiceBusClient(connectionString);
 
+		if (!string.IsNullOrWhiteSpace(rootConnectionString))
+			_adminClient = new ServiceBusAdministrationClient(rootConnectionString);
+
 		Host = GetServiceBusHost(connectionString);
-		EntityName = entityName;
+		EntityName = entityName ?? string.Empty;
 		SubscriptionName = subscriptionName;
 		Connected = true;
+
+		// Populate available entities list
+		if (!IsRootConnection) {
+			// Prepopulate entities list
+			if (string.IsNullOrWhiteSpace(entityName))
+				throw new InvalidOperationException("The topic or subscription name required.");
+
+			if (!string.IsNullOrWhiteSpace(subscriptionName)) {
+				_availableEntities.Add(new TopicEntityInfo(entityName));
+				_availableEntities.Add(new SubscriptionEntityInfo(subscriptionName, entityName));
+			}
+			else {
+				_availableEntities.Add(new QueueEntityInfo(entityName));
+			}
+		}
+
+		await UpdateAvailableEntitiesListAsync();
 	}
 
 	/// <summary>Disconnects asynchronously from the current Service Bus instance.</summary>
@@ -51,6 +81,9 @@ public class ServiceBusService
 			await _client.DisposeAsync();
 
 		_client = null;
+		_adminClient = null;
+		_availableEntities.Clear();
+
 		Host = string.Empty;
 		EntityName = string.Empty;
 		SubscriptionName = null;
@@ -62,8 +95,11 @@ public class ServiceBusService
 	/// <returns>A list of <see cref="PeekedMessageInfo"/> representing the peeked messages.</returns>
 	public async Task<List<PeekedMessageInfo>> PeekMessagesAsync(int maxMessages = _maxMessagesToPeek)
 	{
-		await using var receiver = GetReceiver();
-		var messages = await receiver.PeekMessagesAsync(maxMessages);
+		if (string.IsNullOrWhiteSpace(EntityName))
+			return [];
+
+		await using ServiceBusReceiver receiver = GetReceiver();
+		IReadOnlyList<ServiceBusReceivedMessage>? messages = await receiver.PeekMessagesAsync(maxMessages);
 
 		return messages.Select(m => new PeekedMessageInfo(m.MessageId, m.EnqueuedTime))
 			.ToList();
@@ -74,10 +110,10 @@ public class ServiceBusService
 	/// <returns>The <see cref="MessageDetails"/> if found; otherwise, null.</returns>
 	public async Task<MessageDetails?> PeekMessageAsync(string messageId)
 	{
-		await using var receiver = GetReceiver();
-		var messages = await receiver.PeekMessagesAsync(_maxMessagesToPeek);
+		await using ServiceBusReceiver receiver = GetReceiver();
+		IReadOnlyList<ServiceBusReceivedMessage>? messages = await receiver.PeekMessagesAsync(_maxMessagesToPeek);
 
-		var targetMessage = messages.FirstOrDefault(m => m.MessageId == messageId);
+		ServiceBusReceivedMessage? targetMessage = messages.FirstOrDefault(m => m.MessageId == messageId);
 		if (targetMessage is null)
 			return null;
 
@@ -93,9 +129,9 @@ public class ServiceBusService
 	/// <returns>The <see cref="MessageDetails"/> of the received message, or null if no message is available.</returns>
 	public async Task<MessageDetails?> ReceiveMessageAsync()
 	{
-		await using var receiver = GetReceiver();
+		await using ServiceBusReceiver receiver = GetReceiver();
 
-		var message = await receiver.ReceiveMessageAsync(TimeSpan.FromMilliseconds(100));
+		ServiceBusReceivedMessage? message = await receiver.ReceiveMessageAsync(TimeSpan.FromMilliseconds(100));
 
 		if (message is null)
 			return null;
@@ -116,14 +152,14 @@ public class ServiceBusService
 	/// <param name="properties">The application properties to include with the message.</param>
 	public async Task SendMessageAsync(string content, string contentType, Dictionary<string, object> properties)
 	{
-		await using var sender = GetSender();
+		await using ServiceBusSender sender = GetSender();
 
-		var message = new ServiceBusMessage(content) {
+		ServiceBusMessage message = new ServiceBusMessage(content) {
 			ContentType = contentType,
 			MessageId = Guid.NewGuid().ToString()
 		};
 
-		foreach (var property in properties) {
+		foreach (KeyValuePair<string, object> property in properties) {
 			if (!string.IsNullOrEmpty(property.Key))
 				message.ApplicationProperties[property.Key] = property.Value;
 		}
@@ -172,12 +208,64 @@ public class ServiceBusService
 		if (!connectionString.StartsWith(connectionStringPrefix, StringComparison.OrdinalIgnoreCase))
 			throw new ArgumentException("Invalid Service Bus connection string.", nameof(connectionString));
 
-		var endIndex = connectionString.IndexOf(';', connectionStringPrefix.Length);
+		int endIndex = connectionString.IndexOf(';', connectionStringPrefix.Length);
 
-		var span = connectionString.AsSpan();
-		var host = span.Slice(connectionStringPrefix.Length, endIndex - connectionStringPrefix.Length);
+		ReadOnlySpan<char> span = connectionString.AsSpan();
+		ReadOnlySpan<char> host = span.Slice(connectionStringPrefix.Length, endIndex - connectionStringPrefix.Length);
 		host = host.TrimEnd('/');
 
 		return host.ToString();
+	}
+
+	/// <summary>Retrieves all available entities (queues, topics, and subscriptions) from the Service Bus namespace.</summary>
+	/// <returns>A list of <see cref="EntityInfo" /> representing all entities.</returns>
+	/// <exception cref="InvalidOperationException">Thrown if not connected in root mode.</exception>
+	public async Task UpdateAvailableEntitiesListAsync()
+	{
+		if (_adminClient is null) // Keep pre-configured entity list if admin client was not configured
+			return;
+
+		_availableEntities.Clear();
+
+		// Get all queues
+		await foreach (QueueProperties? queue in _adminClient.GetQueuesAsync())
+			_availableEntities.Add(new QueueEntityInfo(queue.Name));
+
+
+		// Get all topics and their subscriptions
+		await foreach (TopicProperties? topic in _adminClient.GetTopicsAsync()) {
+			_availableEntities.Add(new TopicEntityInfo(topic.Name));
+
+			await foreach (SubscriptionProperties? subscription in _adminClient.GetSubscriptionsAsync(topic.Name))
+				_availableEntities.Add(new SubscriptionEntityInfo(subscription.SubscriptionName, topic.Name));
+		}
+	}
+
+	/// <summary>Switches the active entity without disconnecting from the Service Bus.</summary>
+	/// <param name="entity">The entity to switch to.</param>
+	/// <exception cref="InvalidOperationException">Thrown if not connected.</exception>
+	public async void SwitchEntity(EntityInfo entity)
+	{
+		if (!Connected || _client is null)
+			throw new InvalidOperationException("Not connected to any Service Bus instance.");
+
+		// No need to create a new client, just update the entity information
+		switch (entity) {
+			case QueueEntityInfo queue:
+				EntityName = queue.Name;
+				SubscriptionName = null;
+				break;
+
+			case SubscriptionEntityInfo subscription:
+				EntityName = subscription.TopicName;
+				SubscriptionName = subscription.Name;
+				break;
+
+			case TopicEntityInfo topic:
+				throw new InvalidOperationException($"Please select the subscription for the topic {topic.Name}");
+
+			default:
+				throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}");
+		}
 	}
 }
