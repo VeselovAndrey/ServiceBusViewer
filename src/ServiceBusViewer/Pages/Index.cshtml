@@ -1,244 +1,306 @@
 @page
+@using ServiceBusViewer.Infrastructure.ServiceBus.Models
 @model ServiceBusViewer.Pages.IndexModel
 @{
-	ViewData["Title"] = "Service Bus Viewer";
+    ViewData["Title"] = "Service Bus Viewer";
 }
 
 @section CSS {
-	<style>
-		.animation-effect {
-			transition: opacity 0.3s ease, max-height 0.3s ease;
-		}
+    <style>
+        .animation-effect {
+            transition: opacity 0.3s ease, max-height 0.3s ease;
+        }
 
-		#sendFormWrapper {
-			opacity: 1;
-			max-height: 1000px;
-			overflow: hidden;
-		}
+        #sendFormWrapper {
+            opacity: 1;
+            max-height: 1000px;
+            overflow: hidden;
+        }
 
-			#sendFormWrapper.js-send-form-hidden {
-				opacity: 0;
-				max-height: 0;
-				pointer-events: none;
-			}
-	</style>
+            #sendFormWrapper.js-send-form-hidden {
+                opacity: 0;
+                max-height: 0;
+                pointer-events: none;
+            }
+    </style>
 }
 
 
 @if (!Model.IsConnected)
 {
-	<form method="post" asp-page-handler="Connect" class="mb-4">
-		@Html.AntiForgeryToken()
-		<div class="mb-3">
-			<label class="form-label">Connection String</label>
-			<input type="text" name="ConnectionString" value="@Model.ConnectionString" class="form-control" required />
-		</div>
-		<div class="mb-3">
-			<label class="form-label">Queue or Topic Name</label>
-			<input type="text" name="EntityName" value="@Model.EntityName" class="form-control" required />
-		</div>
-		<div class="mb-3">
-			<label class="form-label">Subscription (optional)</label>
-			<input type="text" name="SubscriptionName" value="@Model.SubscriptionName" class="form-control" />
-		</div>
-		<button type="submit" class="btn btn-primary">Connect</button>
-	</form>
+    <form method="post" asp-page-handler="Connect" class="mb-4">
+        @Html.AntiForgeryToken()
+        <div class="mb-3">
+            <label class="form-label">Connection String</label>
+            <input type="text" name="ConnectionString" value="@Model.ConnectionString" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Root Connection String (Optional)</label>
+            <input type="text" name="RootConnectionString" value="@Model.RootConnectionString" class="form-control" placeholder="For browsing all entities in namespace" />
+            <small class="form-text text-muted">
+                If provided, allows browsing all queues and topics. Otherwise, connect to specific entity only.
+            </small>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Queue or Topic Name</label>
+            <input type="text" name="EntityName" value="@Model.EntityName" class="form-control" />
+            <small class="form-text text-muted">
+                Required when not using root connection string.
+            </small>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Subscription (optional)</label>
+            <input type="text" name="SubscriptionName" value="@Model.SubscriptionName" class="form-control" />
+        </div>
+        <button type="submit" class="btn btn-primary">Connect</button>
+    </form>
 }
 else
 {
-	@if (Model.Connection is not null) {
-		<div class="d-flex gap-2 mb-3">
-			<span class="small text-muted">
-				Target host: <em>@Model.Connection.Host</em>,
-				@if (Model.SubscriptionName is not null)
-				{
-					@:topic: <em>@Model.Connection.Entity</em>, subscription: <em>@Model.Connection.Subscription</em>
-				}
-				else
-				{
-					@:queue: <em>@Model.Connection.Entity</em>
-				}
-			</span>
-		</div>
-	}
+    @if (Model.Connection is not null) {
+        <div class="d-flex gap-2 mb-3">
+            <span class="small text-muted">
+                Target host: <em>@Model.Connection.Host</em>,
+                @if (Model.SubscriptionName is not null)
+                {
+                    @:topic: <em>@Model.Connection.Entity</em>, subscription: <em>@Model.Connection.Subscription</em>
+                }
+                else
+                {
+                    @:queue: <em>@Model.Connection.Entity</em>
+                }
+            </span>
+        </div>
+    }
 
-	<div class="d-flex gap-2 mb-3">
-		<form method="post" asp-page-handler="Refresh" class="mb-0">
-			@Html.AntiForgeryToken()
-			<button type="submit" class="btn btn-outline-success">Refresh</button>
-		</form>
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger mt-0 mb-2">
+            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <div>@error.ErrorMessage</div>
+            }
+        </div>
+    }
 
-		<form method="post" asp-page-handler="Receive" class="mb-0">
-			@Html.AntiForgeryToken()
-			<button type="submit" class="btn btn-outline-primary">Receive</button>
-		</form>
+    <div class="row" style="height: calc(100vh - 200px);">
+        <!-- Left Panel: Entity List -->
+        <div class="col-md-3 border-end" style="overflow-y: auto; height: 100%;">
+            <h5>Entities</h5>
+            @if (Model.AvailableEntities.Count > 0)
+            {
+                <div class="list-group">
+                    @foreach (var queue in Model.AvailableEntities.OfType<QueueEntityInfo>())
+                    {
+                        <form method="post" asp-page-handler="SelectEntity" class="mb-0">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="SelectedEntityName" value="@queue.Name" />
+                            <input type="hidden" name="SelectedEntityType" value="Queue" />
+                            <button type="submit" class="list-group-item list-group-item-action @(Model.EntityName == queue.Name && Model.SubscriptionName == null ? "active" : "")">
+                                <img src="~/components/entity-list/queue.svg" alt="Queue" class="icon" /> @queue.Name
+                            </button>
+                        </form>
+                    }
 
-		<button type="button" id="toggleSendFormBtn" class="btn btn-outline-secondary">Show Send Message</button>
+                    @foreach (var topic in Model.AvailableEntities.OfType<TopicEntityInfo>())
+                    {
+                    <div>
+                        <div class="list-group-item bg-light">
+                                <img src="~/components/entity-list/topic.svg" alt="Topic" class="icon" /> @topic.Name
+                        </div>
+                            @foreach (var subscription in Model.AvailableEntities.OfType<SubscriptionEntityInfo>().Where(e => e.TopicName == topic.Name))
+                            {
+                                <form method="post" asp-page-handler="SelectEntity" class="mb-0">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="SelectedEntityName" value="@subscription.Name" />
+                                    <input type="hidden" name="SelectedEntityType" value="Subscription" />
+                                    <input type="hidden" name="SelectedTopicName" value="@subscription.TopicName" />
+                                    <button type="submit" class="list-group-item list-group-item-action ps-4 @(Model.EntityName == topic.Name && Model.SubscriptionName == subscription.Name ? "active" : "")">
+                                        <img src="~/components/entity-list/subscription.svg" alt="Subscription" class="icon" /> @subscription.Name
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">No entities available</p>
+            }
+        </div>
 
-		<form method="post" asp-page-handler="Disconnect" class="mb-0">
-			@Html.AntiForgeryToken()
-			<button type="submit" class="btn btn-outline-danger">Disconnect</button>
-		</form>
-	</div>
+        <!-- Right Panel: Messages and Operations -->
+        <div class="col-md-9" style="overflow-y: auto; height: 100%;">
+            <div class="d-flex gap-2 mb-3">
+                <form method="post" asp-page-handler="Refresh" class="mb-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-success">Refresh</button>
+                </form>
 
-	@if (!ViewData.ModelState.IsValid)
-	{
-		<div class="alert alert-danger mt-0 mb-2">
-			@foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
-			{
-				<div>@error.ErrorMessage</div>
-			}
-		</div>
-	}
+                <form method="post" asp-page-handler="Receive" class="mb-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-primary">Receive</button>
+                </form>
 
-	<div id="sendFormWrapper" class="mt-0 js-send-form-hidden">
-		<form method="post" asp-page-handler="Send" class="mt-0">
-			@Html.AntiForgeryToken()
-			<div class="mb-3">
-				<h3>Send Message (text or JSON)</h3>
-				<textarea name="SendMessageBody" class="form-control" rows="5">@Model.SendMessageBody</textarea>
-			</div>
+                <button type="button" id="toggleSendFormBtn" class="btn btn-outline-secondary">Show Send Message</button>
 
-			<div class="mb-3">
-				<label class="form-label">Message properties</label>
-				<div id="properties-container">
-					@for (int i = 0; i < Model.SendMessageProperties.Count; i++)
-					{
-						<div class="input-group mb-2">
-							<input type="text" name="SendMessageProperties[@i].Key" value="@Model.SendMessageProperties[i].Key" placeholder="Key" />
-							<input type="text" name="SendMessageProperties[@i].Value"value="@Model.SendMessageProperties[i].Value" class="form-control" placeholder="Value" />
-							<button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">×</button>
-						</div>
-					}
-				</div>
-				<button type="button" class="btn btn-outline-secondary btn-sm" onclick="addProperty()">+ Add Property</button>
-			</div>
+                <form method="post" asp-page-handler="Disconnect" class="mb-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-danger">Disconnect</button>
+                </form>
+            </div>
 
-			<button type="submit" class="btn btn-success">Send Message</button>
-		</form>
+            <div id="sendFormWrapper" class="mt-0 js-send-form-hidden">
+                <form method="post" asp-page-handler="Send" class="mt-0">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <h3>Send Message (text or JSON)</h3>
+                        <textarea name="SendMessageBody" class="form-control" rows="5">@Model.SendMessageBody</textarea>
+                    </div>
 
-		@if (!string.IsNullOrEmpty(Model.SendResultMessage))
-		{
-			<div class="alert alert-success mt-3">@Model.SendResultMessage</div>
-		}
-		<hr />
-	</div>
+                    <div class="mb-3">
+                        <label class="form-label">Message properties</label>
+                        <div id="properties-container">
+                            @for (int i = 0; i < Model.SendMessageProperties.Count; i++)
+                            {
+                                <div class="input-group mb-2">
+                                    <input type="text" name="SendMessageProperties[@i].Key" value="@Model.SendMessageProperties[i].Key" placeholder="Key" />
+                                    <input type="text" name="SendMessageProperties[@i].Value"value="@Model.SendMessageProperties[i].Value" class="form-control" placeholder="Value" />
+                                    <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">×</button>
+                                </div>
+                            }
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addProperty()">+ Add Property</button>
+                    </div>
 
-	<h3>Messages</h3>
-	@if (Model.Messages.Count == 0)
-	{
-		<p>No messages found.</p>
-	}
-	else
-	{
-		<ul class="list-group mb-3">
-			@foreach (var message in Model.Messages) {
-				<li class="list-group-item d-flex justify-content-between align-items-center">
-					<strong>@message.MessageId</strong> - <em>@message.EnqueuedTimeUtc.ToLocalTime().ToString("g")</em>
-					<form method="post" asp-page-handler="Peek" class="mb-0">
-						@Html.AntiForgeryToken()
-						<input type="hidden" name="MessageId" value="@message.MessageId" />
-						<button type="submit" class="btn btn-sm btn-outline-primary">Peek</button>
-					</form>
-				</li>
-			}
-		</ul>
-	}
+                    <button type="submit" class="btn btn-success">Send Message</button>
+                </form>
 
-	@if (Model.DisplayedMessage != null)
-	{
-		<hr />
-		<div class="mt-2">
-			<h3>@(Model.DisplayType == MessageDisplayType.Peeked ? "Peeked Message" : "Received Message")</h3>
+                @if (!string.IsNullOrEmpty(Model.SendResultMessage))
+                {
+                    <div class="alert alert-success mt-3">@Model.SendResultMessage</div>
+                }
+                <hr />
+            </div>
 
-			<ul class="list-group mb-3">
-				<li class="list-group-item">
-					<strong>Message ID:</strong> @Model.DisplayedMessage.MessageId
-				</li>
-				<li class="list-group-item">
-					<strong>Content Type:</strong> @Model.DisplayedMessage.ContentType
-				</li>
-				<li class="list-group-item">
-					<strong>Enqueued Time:</strong> @Model.DisplayedMessage.EnqueuedTimeUtc.ToLocalTime()
-				</li>
-				<li class="list-group-item">
-					<strong>Body:</strong>
-					<pre class="mt-2 bg-light p-2 rounded">@Model.DisplayedMessage.Body</pre>
-				</li>
-				@if (Model.DisplayedMessage.ApplicationProperties?.Any() == true)
-				{
-					<li class="list-group-item">
-						<strong>Application Properties:</strong>
-						<table class="table table-bordered table-sm mt-2 mb-0">
-							<thead class="table-light">
-								<tr>
-									<th>Key</th>
-									<th>Value</th>
-								</tr>
-							</thead>
-							<tbody>
-								@foreach (var prop in Model.DisplayedMessage.ApplicationProperties)
-								{
-									<tr>
-										<td>@prop.Key</td>
-										<td>@prop.Value</td>
-									</tr>
-								}
-							</tbody>
-						</table>
-					</li>
-				}
-			</ul>
-		</div>
-	}
+            <h3>Messages</h3>
+            @if (Model.Messages.Count == 0)
+            {
+                <p>No messages found.</p>
+            }
+            else
+            {
+                <ul class="list-group mb-3">
+                    @foreach (var message in Model.Messages) {
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>@message.MessageId</strong> - <em>@message.EnqueuedTimeUtc.ToLocalTime().ToString("g")</em>
+                            <form method="post" asp-page-handler="Peek" class="mb-0">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="MessageId" value="@message.MessageId" />
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Peek</button>
+                            </form>
+                        </li>
+                    }
+                </ul>
+            }
+
+            @if (Model.DisplayedMessage != null)
+            {
+                <hr />
+                <div class="mt-2">
+                    <h3>@(Model.DisplayType == MessageDisplayType.Peeked ? "Peeked Message" : "Received Message")</h3>
+
+                    <ul class="list-group mb-3">
+                        <li class="list-group-item">
+                            <strong>Message ID:</strong> @Model.DisplayedMessage.MessageId
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Content Type:</strong> @Model.DisplayedMessage.ContentType
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Enqueued Time:</strong> @Model.DisplayedMessage.EnqueuedTimeUtc.ToLocalTime()
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Body:</strong>
+                            <pre class="mt-2 bg-light p-2 rounded">@Model.DisplayedMessage.Body</pre>
+                        </li>
+                        @if (Model.DisplayedMessage.ApplicationProperties?.Any() == true)
+                        {
+                            <li class="list-group-item">
+                                <strong>Application Properties:</strong>
+                                <table class="table table-bordered table-sm mt-2 mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Key</th>
+                                            <th>Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var prop in Model.DisplayedMessage.ApplicationProperties)
+                                        {
+                                            <tr>
+                                                <td>@prop.Key</td>
+                                                <td>@prop.Value</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+    </div>
 }
 
 @section Scripts {
-	<script>
-		function addProperty() {
-			const container = document.getElementById('properties-container');
-			const index = container.children.length;
-			const group = document.createElement('div');
-			group.className = 'input-group mb-2';
-			group.innerHTML = `
+    <script>
+        function addProperty() {
+            const container = document.getElementById('properties-container');
+            const index = container.children.length;
+            const group = document.createElement('div');
+            group.className = 'input-group mb-2';
+            group.innerHTML = `
 <input type="text" name="SendMessageProperties[${index}].Key" class="form-control" placeholder="Key" />
 <input type="text" name="SendMessageProperties[${index}].Value" class="form-control" placeholder="Value" />
 <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">×</button>`;
-			container.appendChild(group);
-		}
+            container.appendChild(group);
+        }
 
-		document.addEventListener('DOMContentLoaded', function () {
-			const sendFormWrapper = document.getElementById('sendFormWrapper');
-			const toggleBtn = document.getElementById('toggleSendFormBtn');
+        document.addEventListener('DOMContentLoaded', function () {
+            const sendFormWrapper = document.getElementById('sendFormWrapper');
+            const toggleBtn = document.getElementById('toggleSendFormBtn');
 
-			if (sendFormWrapper != null && toggleBtn != null) {
-				const storageKey = 'sendFormOpen';
-				let isOpen = localStorage.getItem(storageKey);
-				if (isOpen === null) {
-					isOpen = 'true';
-					localStorage.setItem(storageKey, isOpen);
-				}
-				isOpen = isOpen === 'true';
+            if (sendFormWrapper != null && toggleBtn != null) {
+                const storageKey = 'sendFormOpen';
+                let isOpen = localStorage.getItem(storageKey);
+                if (isOpen === null) {
+                    isOpen = 'true';
+                    localStorage.setItem(storageKey, isOpen);
+                }
+                isOpen = isOpen === 'true';
 
-				function updateFormVisibility() {
-					if (isOpen) {
-						sendFormWrapper.classList.remove('js-send-form-hidden');
-						toggleBtn.textContent = 'Hide Send Message';
-					} else {
-						sendFormWrapper.classList.add('js-send-form-hidden');
-						toggleBtn.textContent = 'Show Send Message';
-					}
-				}
+                function updateFormVisibility() {
+                    if (isOpen) {
+                        sendFormWrapper.classList.remove('js-send-form-hidden');
+                        toggleBtn.textContent = 'Hide Send Message';
+                    } else {
+                        sendFormWrapper.classList.add('js-send-form-hidden');
+                        toggleBtn.textContent = 'Show Send Message';
+                    }
+                }
 
-				updateFormVisibility();
+                updateFormVisibility();
 
-				toggleBtn.addEventListener('click', function () {
-					sendFormWrapper.classList.add('animation-effect');
-					isOpen = !isOpen;
-					localStorage.setItem(storageKey, isOpen);
-					updateFormVisibility();
-				});
-			}
-		});
-	</script>
+                toggleBtn.addEventListener('click', function () {
+                    sendFormWrapper.classList.add('animation-effect');
+                    isOpen = !isOpen;
+                    localStorage.setItem(storageKey, isOpen);
+                    updateFormVisibility();
+                });
+            }
+        });
+    </script>
 }

@@ -14,6 +14,7 @@ For more information on running and configuring the Azure Service Bus Emulator, 
 ## Features
 
 - Connect to any Service Bus instance using a connection string.
+- Browse all queues and topics in a namespace using a root connection string.
 - Peek and receive messages from queues or topics.
 - View message details and properties.
 - Send messages to queues or topics.
@@ -45,12 +46,17 @@ Or with Podman:
 podman build -f ServiceBusViewer/Dockerfile -t servicebusviewer .
 ```
 
-You can provide the Service Bus connection string via `CONNECTION_STRING`. Examples:
+You can provide the Service Bus connection string via:
+- **CONNECTION_STRING**: Connects to a specific queue or topic. You must specify the entity name in the UI.
+- **ROOT_CONNECTION_STRING**: Connects with namespace-level permissions, allowing you to browse and select from all available queues and topics. When provided, the entity list is automatically populated, and you can switch between entities without reconnecting.
+
+Example:
 
 Docker:
 ```bash
 docker run --name ServiceBusViewer -p 5000:8080 \
 	-e CONNECTION_STRING="Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" \
+	-e ROOT_CONNECTION_STRING="Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" \
 	-d servicebusviewer
 ```
 
@@ -58,6 +64,7 @@ Podman:
 ```bash
 podman run --name ServiceBusViewer -p 5000:8080 \
 	-e CONNECTION_STRING="Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" \
+	-e ROOT_CONNECTION_STRING="Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" \
 	-d servicebusviewer
 ```
 
@@ -94,3 +101,10 @@ Endpoint=sb://localhost:[PORT];SharedAccessKeyName=RootManageSharedAccessKey;Sha
 ```
 Endpoint=sb://host.docker.internal:[PORT];SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
 ```
+
+## Version history
+
+- 0.6.0 (2025-01-31): Add entity selection feature with visual icons for queues, topics, and subscriptions.
+- 0.5.2 (2026-01-24): Take connection string from an environment variable.
+- 0.5.1 (2026-01-22): Update to .NET 10.
+- 0.5.0 (2025-05-26): Initial version of ServiceBusViewer.

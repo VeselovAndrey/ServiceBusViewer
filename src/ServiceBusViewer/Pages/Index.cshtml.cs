@@ -25,6 +25,9 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"; // Use development connection string by default
 
 	[BindProperty(SupportsGet = true)]
+	public string? RootConnectionString { get; set; } = Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING");
+
+	[BindProperty(SupportsGet = true)]
 	public string? EntityName { get; set; }
 
 	[BindProperty(SupportsGet = true)]
@@ -34,12 +37,24 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public ConnectionInfo? Connection { get; set; }
 
+	public IReadOnlyList<EntityInfo> AvailableEntities { get; set; } = [];
+
+	[BindProperty]
+	public string? SelectedEntityName { get; set; }
+
+	[BindProperty]
+	public string? SelectedEntityType { get; set; }
+
+	[BindProperty]
+	public string? SelectedTopicName { get; set; }
+
 	[BindProperty]
 	public string? MessageId { get; set; }
 
 	public IList<PeekedMessageInfo> Messages { get; set; } = new List<PeekedMessageInfo>();
 
 	public MessageDisplayType DisplayType { get; set; } = MessageDisplayType.None;
+
 	public MessageDetails? DisplayedMessage { get; set; }
 
 	[BindProperty]
@@ -52,26 +67,33 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public void OnGet()
 	{
-		FillHeaderValue();
+		FillPageModel();
 	}
 
 	public async Task<IActionResult> OnPostConnect()
 	{
-		if (string.IsNullOrWhiteSpace(ConnectionString) || string.IsNullOrWhiteSpace(EntityName)) {
-			ModelState.AddModelError(string.Empty, "Connection string and Queue/Topic name are required.");
+		if (string.IsNullOrWhiteSpace(ConnectionString)) {
+			ModelState.AddModelError(string.Empty, "Connection string is required.");
+			return Page();
+		}
+
+		// If not in root mode, entity name is required
+		if (string.IsNullOrWhiteSpace(RootConnectionString) && string.IsNullOrWhiteSpace(EntityName)) {
+			ModelState.AddModelError(string.Empty, "Queue/Topic name is required when not using root connection.");
 			return Page();
 		}
 
 		try {
-			_serviceBusService.ConnectTo(ConnectionString, EntityName, SubscriptionName);
+			await _serviceBusService.ConnectToAsync(ConnectionString, RootConnectionString, EntityName, SubscriptionName);
 
+			AvailableEntities = _serviceBusService.AvailableEntities;
 			Messages = await _serviceBusService.PeekMessagesAsync();
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Connection failed: {ex.Message}");
 		}
 
-		FillHeaderValue();
+		FillPageModel();
 		return Page();
 	}
 
@@ -79,7 +101,35 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	{
 		await _serviceBusService.DisconnectAsync();
 
-		FillHeaderValue();
+		FillPageModel();
+		return Page();
+	}
+
+	public async Task<IActionResult> OnPostSelectEntity()
+	{
+		if (string.IsNullOrWhiteSpace(SelectedEntityName)) {
+			ModelState.AddModelError(string.Empty, "Entity name is required.");
+			return Page();
+		}
+
+		try {
+			EntityInfo entityInfo = SelectedEntityType switch {
+				"Subscription" => new SubscriptionEntityInfo(SelectedEntityName!, SelectedTopicName!),
+				"Topic" => new TopicEntityInfo(SelectedEntityName!),
+				_ => new QueueEntityInfo(SelectedEntityName!)
+			};
+
+			_serviceBusService.SwitchEntity(entityInfo);
+			AvailableEntities = _serviceBusService.AvailableEntities;
+
+			// Load messages for the selected entity
+			Messages = await _serviceBusService.PeekMessagesAsync();
+		}
+		catch (Exception ex) {
+			ModelState.AddModelError(string.Empty, $"Entity selection failed: {ex.Message}");
+		}
+
+		FillPageModel();
 		return Page();
 	}
 
@@ -87,12 +137,15 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	{
 		try {
 			Messages = await _serviceBusService.PeekMessagesAsync();
+
+			// Maintain entity list
+			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Refresh failed: {ex.Message}");
 		}
 
-		FillHeaderValue();
+		FillPageModel();
 		return Page();
 	}
 
@@ -108,12 +161,14 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			DisplayType = MessageDisplayType.Peeked;
 
 			Messages = await _serviceBusService.PeekMessagesAsync();
+
+			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Peek failed: {ex.Message}");
 		}
 
-		FillHeaderValue();
+		FillPageModel();
 		return Page();
 	}
 
@@ -124,12 +179,15 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			DisplayType = MessageDisplayType.Received;
 
 			Messages = await _serviceBusService.PeekMessagesAsync();
+
+			// Maintain entity list
+			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Receive failed: {ex.Message}");
 		}
 
-		FillHeaderValue();
+		FillPageModel();
 		return Page();
 	}
 
@@ -137,7 +195,10 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	{
 		if (string.IsNullOrWhiteSpace(SendMessageBody)) {
 			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
+
 			Messages = await _serviceBusService.PeekMessagesAsync();
+
+			AvailableEntities = _serviceBusService.AvailableEntities;
 
 			return Page();
 		}
@@ -151,19 +212,25 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			SendMessageProperties.Clear();
 
 			Messages = await _serviceBusService.PeekMessagesAsync();
+
+			// Maintain entity list
+			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Send failed: {ex.Message}");
 		}
 
-		FillHeaderValue();
+		FillPageModel();
 		return Page();
 	}
 
-	private void FillHeaderValue()
+	private void FillPageModel()
 	{
 		Connection = _serviceBusService.Connected
 			? new ConnectionInfo(_serviceBusService.Host, _serviceBusService.EntityName, _serviceBusService.SubscriptionName)
 			: null;
+
+		EntityName = _serviceBusService.EntityName;
+		SubscriptionName = _serviceBusService.SubscriptionName;
 	}
 }
