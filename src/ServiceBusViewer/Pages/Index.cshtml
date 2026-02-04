@@ -184,32 +184,10 @@ else
                 <hr />
             </div>
 
-            <h3>Messages</h3>
-            @if (Model.Messages.Count == 0)
+            @if (Model.DisplayedMessage != null && Model.DisplayType == MessageDisplayType.Received)
             {
-                <p>No messages found.</p>
-            }
-            else
-            {
-                <ul class="list-group mb-3">
-                    @foreach (var message in Model.Messages) {
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <strong>@message.MessageId</strong> - <em>@message.EnqueuedTimeUtc.ToLocalTime().ToString("g")</em>
-                            <form method="post" asp-page-handler="Peek" class="mb-0">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="MessageId" value="@message.MessageId" />
-                                <button type="submit" class="btn btn-sm btn-outline-primary">Peek</button>
-                            </form>
-                        </li>
-                    }
-                </ul>
-            }
-
-            @if (Model.DisplayedMessage != null)
-            {
-                <hr />
-                <div class="mt-2">
-                    <h3>@(Model.DisplayType == MessageDisplayType.Peeked ? "Peeked Message" : "Received Message")</h3>
+                <div class="mt-2 mb-3">
+                    <h3>Received Message</h3>
 
                     <ul class="list-group mb-3">
                         <li class="list-group-item">
@@ -249,7 +227,72 @@ else
                             </li>
                         }
                     </ul>
+                    <hr />
                 </div>
+            }
+
+            <h3>Messages @(Model.HasMoreMessages ? $"(first { Model.Messages.Count})" : $"({Model.Messages.Count} total)")</h3>
+            @if (Model.Messages.Count == 0)
+            {
+                <p>No messages found.</p>
+            }
+            else
+            {
+                <ul class="list-group mb-3">
+                    @foreach (var message in Model.Messages) {
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>@message.MessageId</strong> - <em>@message.EnqueuedTimeUtc.ToLocalTime().ToString("g")</em>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary js-toggle-message" data-message-id="@message.MessageId">
+                                    <span class="js-expand-text">▼ Expand</span>
+                                    <span class="js-collapse-text" style="display: none;">▲ Collapse</span>
+                                </button>
+                            </div>
+                            <div class="js-message-details mt-3" data-message-id="@message.MessageId" style="display: none;">
+                                <ul class="list-group">
+                                    <li class="list-group-item">
+                                        <strong>Message ID:</strong> @message.MessageId
+                                    </li>
+                                    <li class="list-group-item">
+                                        <strong>Content Type:</strong> @message.ContentType
+                                    </li>
+                                    <li class="list-group-item">
+                                        <strong>Enqueued Time:</strong> @message.EnqueuedTimeUtc.ToLocalTime()
+                                    </li>
+                                    <li class="list-group-item">
+                                        <strong>Body:</strong>
+                                        <pre class="mt-2 bg-light p-2 rounded">@message.Body</pre>
+                                    </li>
+                                    @if (message.ApplicationProperties?.Any() == true)
+                                    {
+                                        <li class="list-group-item">
+                                            <strong>Application Properties:</strong>
+                                            <table class="table table-bordered table-sm mt-2 mb-0">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>Key</th>
+                                                        <th>Value</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var prop in message.ApplicationProperties)
+                                                    {
+                                                        <tr>
+                                                            <td>@prop.Key</td>
+                                                            <td>@prop.Value</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        </li>
+                    }
+                </ul>
             }
         </div>
     </div>
@@ -301,6 +344,26 @@ else
                     updateFormVisibility();
                 });
             }
+
+            // Message expand/collapse functionality
+            document.querySelectorAll('.js-toggle-message').forEach(button => {
+                button.addEventListener('click', function () {
+                    const messageId = this.getAttribute('data-message-id');
+                    const detailsDiv = document.querySelector(`.js-message-details[data-message-id="${messageId}"]`);
+                    const expandText = this.querySelector('.js-expand-text');
+                    const collapseText = this.querySelector('.js-collapse-text');
+
+                    if (detailsDiv.style.display === 'none') {
+                        detailsDiv.style.display = 'block';
+                        expandText.style.display = 'none';
+                        collapseText.style.display = 'inline';
+                    } else {
+                        detailsDiv.style.display = 'none';
+                        expandText.style.display = 'inline';
+                        collapseText.style.display = 'none';
+                    }
+                });
+            });
         });
     </script>
 }

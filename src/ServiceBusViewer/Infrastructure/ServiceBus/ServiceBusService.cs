@@ -7,7 +7,7 @@ using ServiceBusViewer.Infrastructure.ServiceBus.Models;
 /// <summary>Provides methods to interact with Azure Service Bus, including connecting, sending, receiving, and peeking messages.</summary>
 public class ServiceBusService
 {
-	private const int _maxMessagesToPeek = 100;
+	private const int _maxMessagesToPeek = 50;
 
 	private ServiceBusClient? _client;
 	private ServiceBusAdministrationClient? _adminClient;
@@ -92,37 +92,29 @@ public class ServiceBusService
 
 	/// <summary>Peeks a batch of messages from the connected Service Bus entity.</summary>
 	/// <param name="maxMessages">The maximum number of messages to peek.</param>
-	/// <returns>A list of <see cref="PeekedMessageInfo"/> representing the peeked messages.</returns>
-	public async Task<List<PeekedMessageInfo>> PeekMessagesAsync(int maxMessages = _maxMessagesToPeek)
+	/// <returns>A <see cref="MessageList"/> containing the peeked messages and a flag indicating if more messages exist.</returns>
+	public async Task<MessageList> PeekMessagesAsync(int maxMessages = _maxMessagesToPeek)
 	{
 		if (string.IsNullOrWhiteSpace(EntityName))
-			return [];
+			return MessageList.Empty;
 
 		await using ServiceBusReceiver receiver = GetReceiver();
-		IReadOnlyList<ServiceBusReceivedMessage>? messages = await receiver.PeekMessagesAsync(maxMessages);
 
-		return messages.Select(m => new PeekedMessageInfo(m.MessageId, m.EnqueuedTime))
+		// Load limit+1 messages to detect if there are more
+		IReadOnlyList<ServiceBusReceivedMessage>? messages = await receiver.PeekMessagesAsync(maxMessages + 1);
+
+		bool hasMore = messages.Count > maxMessages;
+		IEnumerable<ServiceBusReceivedMessage> messagesToReturn = hasMore ? messages.Take(maxMessages) : messages;
+
+		var messageDetails = messagesToReturn.Select(m => new MessageDetails(
+			m.MessageId,
+			m.Body.ToString(),
+			m.ContentType ?? "text/plain",
+			m.EnqueuedTime,
+			m.ApplicationProperties.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)))
 			.ToList();
-	}
 
-	/// <summary>Peeks a single message by its message ID.</summary>
-	/// <param name="messageId">The ID of the message to peek.</param>
-	/// <returns>The <see cref="MessageDetails"/> if found; otherwise, null.</returns>
-	public async Task<MessageDetails?> PeekMessageAsync(string messageId)
-	{
-		await using ServiceBusReceiver receiver = GetReceiver();
-		IReadOnlyList<ServiceBusReceivedMessage>? messages = await receiver.PeekMessagesAsync(_maxMessagesToPeek);
-
-		ServiceBusReceivedMessage? targetMessage = messages.FirstOrDefault(m => m.MessageId == messageId);
-		if (targetMessage is null)
-			return null;
-
-		return new MessageDetails(
-			targetMessage.MessageId,
-			targetMessage.Body.ToString(),
-			targetMessage.ContentType ?? "text/plain",
-			targetMessage.EnqueuedTime,
-			targetMessage.ApplicationProperties.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
+		return new MessageList(messageDetails, hasMore);
 	}
 
 	/// <summary>Receives and completes a single message from the connected Service Bus entity.</summary>
@@ -131,7 +123,7 @@ public class ServiceBusService
 	{
 		await using ServiceBusReceiver receiver = GetReceiver();
 
-		ServiceBusReceivedMessage? message = await receiver.ReceiveMessageAsync(TimeSpan.FromMilliseconds(100));
+		ServiceBusReceivedMessage? message = await receiver.ReceiveMessageAsync();
 
 		if (message is null)
 			return null;
