@@ -72,7 +72,7 @@ If `CONNECTION_STRING` is not set, the app falls back to its built-in developmen
 
 ### Running from source
 To run the Service Bus Viewer from source, you need to have the following prerequisites installed:
-- .NET SDK 9.0 or later
+- .NET SDK 10.0 or later
 
 Navigate to the project directory and use 
 ```powershell
@@ -104,7 +104,8 @@ Endpoint=sb://host.docker.internal:[PORT];SharedAccessKeyName=RootManageSharedAc
 
 ## Version history
 
-- 0.6.0 (2025-01-31): Add entity selection feature with visual icons for queues, topics, and subscriptions.
+- 0.7.0 (2026-02-01): Implemented client-side message expansion/collapse for better UX (and eliminated duplicate requests to Service Bus). Minor UI changes.
+- 0.6.0 (2026-01-31): Add entity selection feature with visual icons for queues, topics, and subscriptions.
 - 0.5.2 (2026-01-24): Take connection string from an environment variable.
 - 0.5.1 (2026-01-22): Update to .NET 10.
 - 0.5.0 (2025-05-26): Initial version of ServiceBusViewer.

@@ -5,7 +5,7 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 
-		<Version>0.6.0</Version>
+		<Version>0.7.0</Version>
 		<Product>ServiceBusViewer</Product>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025 Andrey Veselov</Copyright>
@@ -16,7 +16,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
-		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
+		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
 	</ItemGroup>
 
 </Project>

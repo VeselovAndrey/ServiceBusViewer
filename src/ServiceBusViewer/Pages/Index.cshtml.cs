@@ -51,7 +51,9 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	[BindProperty]
 	public string? MessageId { get; set; }
 
-	public IList<PeekedMessageInfo> Messages { get; set; } = new List<PeekedMessageInfo>();
+	public IReadOnlyList<MessageDetails> Messages { get; set; } = [];
+
+	public bool HasMoreMessages { get; set; }
 
 	public MessageDisplayType DisplayType { get; set; } = MessageDisplayType.None;
 
@@ -87,7 +89,9 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			await _serviceBusService.ConnectToAsync(ConnectionString, RootConnectionString, EntityName, SubscriptionName);
 
 			AvailableEntities = _serviceBusService.AvailableEntities;
-			Messages = await _serviceBusService.PeekMessagesAsync();
+			var result = await _serviceBusService.PeekMessagesAsync();
+			Messages = result.Messages;
+			HasMoreMessages = result.HasMore;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Connection failed: {ex.Message}");
@@ -123,7 +127,9 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			AvailableEntities = _serviceBusService.AvailableEntities;
 
 			// Load messages for the selected entity
-			Messages = await _serviceBusService.PeekMessagesAsync();
+			var result = await _serviceBusService.PeekMessagesAsync();
+			Messages = result.Messages;
+			HasMoreMessages = result.HasMore;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Entity selection failed: {ex.Message}");
@@ -136,7 +142,9 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	public async Task<IActionResult> OnPostRefresh()
 	{
 		try {
-			Messages = await _serviceBusService.PeekMessagesAsync();
+			var result = await _serviceBusService.PeekMessagesAsync();
+			Messages = result.Messages;
+			HasMoreMessages = result.HasMore;
 
 			// Maintain entity list
 			AvailableEntities = _serviceBusService.AvailableEntities;
@@ -149,36 +157,15 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		return Page();
 	}
 
-	public async Task<IActionResult> OnPostPeek(string messageId)
-	{
-		if (string.IsNullOrEmpty(MessageId)) {
-			ModelState.AddModelError(string.Empty, "Message ID is required to peek.");
-			return Page();
-		}
-
-		try {
-			DisplayedMessage = await _serviceBusService.PeekMessageAsync(messageId);
-			DisplayType = MessageDisplayType.Peeked;
-
-			Messages = await _serviceBusService.PeekMessagesAsync();
-
-			AvailableEntities = _serviceBusService.AvailableEntities;
-		}
-		catch (Exception ex) {
-			ModelState.AddModelError(string.Empty, $"Peek failed: {ex.Message}");
-		}
-
-		FillPageModel();
-		return Page();
-	}
-
 	public async Task<IActionResult> OnPostReceive()
 	{
 		try {
 			DisplayedMessage = await _serviceBusService.ReceiveMessageAsync();
 			DisplayType = MessageDisplayType.Received;
 
-			Messages = await _serviceBusService.PeekMessagesAsync();
+			var result = await _serviceBusService.PeekMessagesAsync();
+			Messages = result.Messages;
+			HasMoreMessages = result.HasMore;
 
 			// Maintain entity list
 			AvailableEntities = _serviceBusService.AvailableEntities;
@@ -196,7 +183,9 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		if (string.IsNullOrWhiteSpace(SendMessageBody)) {
 			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
 
-			Messages = await _serviceBusService.PeekMessagesAsync();
+			var result = await _serviceBusService.PeekMessagesAsync();
+			Messages = result.Messages;
+			HasMoreMessages = result.HasMore;
 
 			AvailableEntities = _serviceBusService.AvailableEntities;
 
@@ -211,7 +200,9 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			SendMessageBody = string.Empty;
 			SendMessageProperties.Clear();
 
-			Messages = await _serviceBusService.PeekMessagesAsync();
+			var result = await _serviceBusService.PeekMessagesAsync();
+			Messages = result.Messages;
+			HasMoreMessages = result.HasMore;
 
 			// Maintain entity list
 			AvailableEntities = _serviceBusService.AvailableEntities;
