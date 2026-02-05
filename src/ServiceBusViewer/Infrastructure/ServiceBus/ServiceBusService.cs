@@ -26,7 +26,7 @@ public class ServiceBusService
 	public string? SubscriptionName { get; private set; }
 
 	/// <summary>Gets a value indicating whether connected using a root connection string with admin privileges.</summary>
-	public bool IsRootConnection => _adminClient is not null;
+	public bool IsManagementApiAvailable => _adminClient is not null;
 
 	/// <summary>Gets the list of available entities when connected in root mode.</summary>
 	public IReadOnlyList<EntityInfo> AvailableEntities => _availableEntities;
@@ -53,8 +53,7 @@ public class ServiceBusService
 		Connected = true;
 
 		// Populate available entities list
-		if (!IsRootConnection) {
-			// Prepopulate entities list
+		if (!IsManagementApiAvailable) {
 			if (string.IsNullOrWhiteSpace(entityName))
 				throw new InvalidOperationException("The topic or subscription name required.");
 
@@ -68,6 +67,71 @@ public class ServiceBusService
 		}
 
 		await UpdateAvailableEntitiesListAsync();
+	}
+
+	/// <summary>Returns properties for the specified entity using the administration client.</summary>
+	/// <param name="entity">Entity to load properties for.</param>
+	/// <returns>Entity properties with a type matching the requested entity.</returns>
+	/// <exception cref="InvalidOperationException">Thrown if admin client is not configured.</exception>
+	public async Task<EntityProperties> GetEntityPropertiesAsync(EntityInfo entity)
+	{
+		if (_adminClient is null)
+			throw new InvalidOperationException("Entity properties are available only when connected with a root connection string.");
+
+		return entity switch {
+			QueueEntityInfo queue => await GetQueuePropertiesAsync(queue.Name, _adminClient),
+			TopicEntityInfo topic => await GetTopicPropertiesAsync(topic.Name, _adminClient),
+			SubscriptionEntityInfo subscription => await GetSubscriptionPropertiesAsync(subscription.TopicName, subscription.Name, _adminClient),
+			_ => throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}")
+		};
+
+		static async Task<QueueEntityProperties> GetQueuePropertiesAsync(string queueName, ServiceBusAdministrationClient adminClient)
+		{
+			QueueProperties properties = await adminClient.GetQueueAsync(queueName);
+
+			return new QueueEntityProperties(
+				properties.Name,
+				properties.LockDuration,
+				properties.MaxDeliveryCount,
+				properties.DefaultMessageTimeToLive,
+				properties.RequiresDuplicateDetection,
+				properties.DuplicateDetectionHistoryTimeWindow,
+				properties.DeadLetteringOnMessageExpiration,
+				properties.EnableBatchedOperations,
+				properties.RequiresSession,
+				properties.EnablePartitioning,
+				properties.AutoDeleteOnIdle);
+		}
+
+		static async Task<TopicEntityProperties> GetTopicPropertiesAsync(string topicName, ServiceBusAdministrationClient adminClient)
+		{
+			TopicProperties properties = await adminClient.GetTopicAsync(topicName);
+
+			return new TopicEntityProperties(
+				properties.Name,
+				properties.DefaultMessageTimeToLive,
+				properties.RequiresDuplicateDetection,
+				properties.DuplicateDetectionHistoryTimeWindow,
+				properties.EnableBatchedOperations,
+				properties.EnablePartitioning,
+				properties.AutoDeleteOnIdle);
+		}
+
+		static async Task<SubscriptionEntityProperties> GetSubscriptionPropertiesAsync(string topicName, string subscriptionName, ServiceBusAdministrationClient adminClient)
+		{
+			SubscriptionProperties properties = await adminClient.GetSubscriptionAsync(topicName, subscriptionName);
+
+			return new SubscriptionEntityProperties(
+				properties.SubscriptionName,
+				properties.TopicName,
+				properties.LockDuration,
+				properties.MaxDeliveryCount,
+				properties.DefaultMessageTimeToLive,
+				properties.DeadLetteringOnMessageExpiration,
+				properties.RequiresSession,
+				properties.EnableBatchedOperations,
+				properties.AutoDeleteOnIdle);
+		}
 	}
 
 	/// <summary>Disconnects asynchronously from the current Service Bus instance.</summary>
@@ -210,7 +274,7 @@ public class ServiceBusService
 	}
 
 	/// <summary>Retrieves all available entities (queues, topics, and subscriptions) from the Service Bus namespace.</summary>
-	/// <returns>A list of <see cref="EntityInfo" /> representing all entities.</returns>
+	/// <returns>A list of <see cref="EntityInfo"/> representing all entities.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if not connected in root mode.</exception>
 	public async Task UpdateAvailableEntitiesListAsync()
 	{
@@ -222,7 +286,6 @@ public class ServiceBusService
 		// Get all queues
 		await foreach (QueueProperties? queue in _adminClient.GetQueuesAsync())
 			_availableEntities.Add(new QueueEntityInfo(queue.Name));
-
 
 		// Get all topics and their subscriptions
 		await foreach (TopicProperties? topic in _adminClient.GetTopicsAsync()) {
@@ -236,7 +299,7 @@ public class ServiceBusService
 	/// <summary>Switches the active entity without disconnecting from the Service Bus.</summary>
 	/// <param name="entity">The entity to switch to.</param>
 	/// <exception cref="InvalidOperationException">Thrown if not connected.</exception>
-	public async void SwitchEntity(EntityInfo entity)
+	public void SwitchEntity(EntityInfo entity)
 	{
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Not connected to any Service Bus instance.");

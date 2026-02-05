@@ -5,7 +5,7 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 
-		<Version>0.7.0</Version>
+		<Version>0.8.0</Version>
 		<Product>ServiceBusViewer</Product>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025 Andrey Veselov</Copyright>

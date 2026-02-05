@@ -104,6 +104,7 @@ Endpoint=sb://host.docker.internal:[PORT];SharedAccessKeyName=RootManageSharedAc
 
 ## Version history
 
+- 0.8.0 (2026-02-05): Added entity properties view with the same layout as Index and unified entity selection navigation.
 - 0.7.0 (2026-02-01): Implemented client-side message expansion/collapse for better UX (and eliminated duplicate requests to Service Bus). Minor UI changes.
 - 0.6.0 (2026-01-31): Add entity selection feature with visual icons for queues, topics, and subscriptions.
 - 0.5.2 (2026-01-24): Take connection string from an environment variable.

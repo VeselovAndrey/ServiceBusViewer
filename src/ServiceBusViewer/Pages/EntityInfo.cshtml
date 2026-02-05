@@ -1,0 +1,82 @@
+@page
+
+@using ServiceBusViewer.Infrastructure.ServiceBus.Models
+@using ServiceBusViewer.Pages.Shared
+
+@model ServiceBusViewer.Pages.EntityInfoModel
+@{
+    ViewData["Title"] = "Service Bus Viewer";
+    ViewData["ServiceBusHostName"] = Model.ServiceBusHostName;
+}
+
+@if (Model.ErrorMessage is not null) {
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<div class="row" style="height: calc(100vh - 200px);">
+    @await Html.PartialAsync("_EntityList", new EntityListViewModel(Model.AvailableEntities, Model.EntityNameForSelection, Model.SubscriptionNameForSelection, Model.IsManagementApiAvailable))
+
+    <div class="col-md-9" style="overflow-y: auto; height: 100%;">
+        <h5>Properties</h5>
+
+        @if (Model.Properties is not null) {
+            <table class="table table-hover">
+                <thead class="table-secondary">
+                    <tr><th scope="row" class="w-50">Property</th><th>Value</th></tr>
+                </thead>
+
+                <tbody class="table-group-divider">
+                    @switch (Model.Properties) {
+                        case QueueEntityProperties queue:
+                            <tr><th scope="row">Name</th><td>@queue.Name</td></tr>
+                            <tr><th scope="row">Type</th><td>Queue</td></tr>
+                            <tr><th scope="row">Lock Duration</th><td>@queue.LockDuration</td></tr>
+                            <tr><th scope="row">Requires Session</th><td>@queue.RequiresSession</td></tr>
+                            <tr><th scope="row">Enable Partitioning</th><td>@queue.EnablePartitioning</td></tr>
+                            <tr><th scope="row">Enable Batched Operations</th><td>@queue.EnableBatchedOperations</td></tr>
+                            <tr><th scope="row">Max Delivery Count</th><td>@queue.MaxDeliveryCount</td></tr>
+                            <tr><th scope="row">Default TTL</th><td>@queue.DefaultMessageTimeToLive</td></tr>
+                            <tr><th scope="row">Requires Duplicate Detection</th><td>@queue.RequiresDuplicateDetection</td></tr>
+                            <tr><th scope="row">Duplicate Detection Window</th><td>@queue.DuplicateDetectionHistoryTimeWindow</td></tr>
+                            <tr><th scope="row">Dead-letter on Expiration</th><td>@queue.DeadLetteringOnMessageExpiration</td></tr>
+                            <tr><th scope="row">Auto Delete on Idle</th><td>@queue.AutoDeleteOnIdle</td></tr>
+
+                            break;
+
+                        case TopicEntityProperties topic:
+                            <tr><th scope="row">Name</th><td>@topic.Name</td></tr>
+                            <tr><th scope="row">Type</th><td>Topic</td></tr>
+                            <tr><th scope="row">Enable Partitioning</th><td>@topic.EnablePartitioning</td></tr>
+                            <tr><th scope="row">Enable Batched Operations</th><td>@topic.EnableBatchedOperations</td></tr>
+                            <tr><th scope="row">Default TTL</th><td>@topic.DefaultMessageTimeToLive</td></tr>
+                            <tr><th scope="row">Requires Duplicate Detection</th><td>@topic.RequiresDuplicateDetection</td></tr>
+                            <tr><th scope="row">Duplicate Detection Window</th><td>@topic.DuplicateDetectionHistoryTimeWindow</td></tr>
+                            <tr><th scope="row">Auto Delete on Idle</th><td>@topic.AutoDeleteOnIdle</td></tr>
+                            break;
+
+                        case SubscriptionEntityProperties subscription:
+                            <tr><th scope="row">Name</th><td>@subscription.Name</td></tr>
+                            <tr><th scope="row">Type</th><td>Subscription</td></tr>
+                            <tr><th scope="row">Topic</th><td>@subscription.TopicName</td></tr>
+                            <tr><th scope="row">Lock Duration</th><td>@subscription.LockDuration</td></tr>
+                            <tr><th scope="row">Requires Session</th><td>@subscription.RequiresSession</td></tr>
+                            <tr><th scope="row">Enable Batched Operations</th><td>@subscription.EnableBatchedOperations</td></tr>
+                            <tr><th scope="row">Max Delivery Count</th><td>@subscription.MaxDeliveryCount</td></tr>
+                            <tr><th scope="row">Default TTL</th><td>@subscription.DefaultMessageTimeToLive</td></tr>
+                            <tr><th scope="row">Dead-letter on Expiration</th><td>@subscription.DeadLetteringOnMessageExpiration</td></tr>
+                            <tr><th scope="row">Auto Delete on Idle</th><td>@subscription.AutoDeleteOnIdle</td></tr>
+                            break;
+
+                        default:
+                            <tr><td colspan="2">Unsupported entity type: @Model.Properties.GetType().FullName.</td></tr>
+                            break;
+                    }
+                </tbody>
+
+            </table>
+        }
+        else {
+            <div>Property list is empty.</div>
+        }
+    </div>
+</div>

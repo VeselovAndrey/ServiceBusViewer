@@ -1,29 +1,35 @@
 @{
-	var title = ViewData["Title"] ?? "Service Bus Viewer";
+    var title = ViewData["Title"] ?? "Service Bus Viewer";
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="utf-8" />
-	<title>@title</title>
-	<link rel="stylesheet" href="~/lib/bootstrap/5.3.6/css/bootstrap.min.css" />
-	<link rel="stylesheet" href="~/components/entity-list/styles.css" />
+    <meta charset="utf-8" />
+    <title>@title</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/5.3.6/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/components/entity-list/styles.css" />
 
-	@await RenderSectionAsync("CSS", required: false)
-	<style>
-		.page-cloak {
-			display: none !important;
-		}
-	</style>
+    @await RenderSectionAsync("CSS", required: false)
+    <style>
+        .page-cloak {
+            display: none !important;
+        }
+    </style>
 </head>
 <body class="container my-4 page-cloak">
-	<h1>@ViewData["Title"]</h1>
-	@RenderBody()
+    <h1>@ViewData["Title"]</h1>
+    @if (!string.IsNullOrEmpty(ViewData["ServiceBusHostName"]?.ToString())) {
+        <div class="d-flex gap-2 mb-3">
+            <span class="small text-muted">Target host: <em>@ViewData["ServiceBusHostName"]</em></span>
+        </div>
+    }
 
-	<script src="~/lib/bootstrap/5.3.6/js/bootstrap.bundle.min.js"></script>
-	@await RenderSectionAsync("Scripts", required: false)
-	<script>
-		document.body.classList.remove('page-cloak');
-	</script>
+    @RenderBody()
+
+    <script src="~/lib/bootstrap/5.3.6/js/bootstrap.bundle.min.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+    <script>
+        document.body.classList.remove('page-cloak');
+    </script>
 </body>
 </html>
