@@ -6,7 +6,7 @@ on:
     branches: [ "main" ]
     paths-ignore:
     - 'README.md'
-    
+
 jobs:
 
   build-and-push:
@@ -20,17 +20,42 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Extract version
+      id: version
+      run: |
+        VERSION=$(dotnet msbuild src/ServiceBusViewer/ServiceBusViewer.csproj -getProperty:Version -nologo 2>/dev/null | tail -n 1 | xargs)
+
+        if [ -z "$VERSION" ]; then
+          echo "Failed to extract version from csproj" >&2
+          exit 1
+        fi
+
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Invalid version format: $VERSION" >&2
+          exit 1
+        fi
+
+        echo "Extracted version: $VERSION"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: ./src
         file: ./src/ServiceBusViewer/Dockerfile
         push: true
-        tags: ghcr.io/veselovandrey/servicebusviewer:latest
+        tags: |
+          ghcr.io/veselovandrey/servicebusviewer:latest
+          ghcr.io/veselovandrey/servicebusviewer:${{ steps.version.outputs.version }}
