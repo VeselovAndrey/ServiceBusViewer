@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.2.11415.280 d18.0
+VisualStudioVersion = 18.2.11415.280
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServiceBusViewer", "ServiceBusViewer\ServiceBusViewer.csproj", "{2BFC9B6C-C944-3029-80E8-A28CD620017A}"
 EndProject
@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		..\LICENSE = ..\LICENSE
 		..\README.md = ..\README.md
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServiceBusViewer.AppHost", "ServiceBusViewer.AppHost\ServiceBusViewer.AppHost.csproj", "{87401ACB-DBC3-4584-ADD7-7B8726FE0BEE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -22,6 +24,10 @@ Global
 		{2BFC9B6C-C944-3029-80E8-A28CD620017A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2BFC9B6C-C944-3029-80E8-A28CD620017A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2BFC9B6C-C944-3029-80E8-A28CD620017A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87401ACB-DBC3-4584-ADD7-7B8726FE0BEE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87401ACB-DBC3-4584-ADD7-7B8726FE0BEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87401ACB-DBC3-4584-ADD7-7B8726FE0BEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87401ACB-DBC3-4584-ADD7-7B8726FE0BEE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
