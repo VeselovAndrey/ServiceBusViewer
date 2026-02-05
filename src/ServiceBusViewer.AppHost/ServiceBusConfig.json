@@ -1,0 +1,232 @@
+{
+  "userConfig": {
+    "namespaces": [
+      {
+
+        "name": "sbemulatorns",
+
+        "queues": [
+          {
+            "name": "queue1",
+            "properties": {
+              "lockDuration": "PT5M",
+              "requiresDuplicateDetection": false,
+              "requiresSession": false,
+              "defaultMessageTimeToLive": "PT1H",
+              "deadLetteringOnMessageExpiration": true,
+              "enableBatchedOperations": true,
+              "duplicateDetectionHistoryTimeWindow": "PT5M",
+              "maxDeliveryCount": 10,
+              "status": "Active"
+            }
+          },
+
+          {
+            "name": "queue2-with-session",
+            "properties": {
+              "lockDuration": "PT5M",
+              "requiresDuplicateDetection": false,
+              "requiresSession": true,
+              "defaultMessageTimeToLive": "PT1H",
+              "deadLetteringOnMessageExpiration": true,
+              "enableBatchedOperations": true,
+              "duplicateDetectionHistoryTimeWindow": "PT5M",
+              "maxDeliveryCount": 10,
+              "status": "Active"
+            }
+          }
+        ],
+
+        "Topics": [
+          {
+            "name": "topic1",
+            "properties": {
+              "requiresDuplicateDetection": false,
+              "requiresSession": false,
+              "defaultMessageTimeToLive": "PT1H",
+              "enableBatchedOperations": true,
+              "duplicateDetectionHistoryTimeWindow": "PT5M",
+              "status": "Active"
+            },
+            "Subscriptions": [
+              {
+                "Name": "topic1-subscription1",
+                "Properties": {
+                  "lockDuration": "PT5M",
+                  "requiresDuplicateDetection": false,
+                  "requiresSession": false,
+                  "defaultMessageTimeToLive": "PT1H",
+                  "deadLetteringOnMessageExpiration": true,
+                  "enableBatchedOperations": true,
+                  "duplicateDetectionHistoryTimeWindow": "PT5M",
+                  "maxDeliveryCount": 10,
+                  "status": "Active"
+                },
+                "rules": [
+                  {
+                    "name": "topic1-subscription1-filter",
+                    "properties": {
+                      "filterType": "Sql",
+                      "sqlFilter": {
+                        "sqlExpression": "group = 1"
+                      },
+                      "action": {}
+                    }
+                  }
+                ]
+              },
+              {
+                "Name": "topic1-subscription2",
+                "Properties": {
+                  "lockDuration": "PT5M",
+                  "requiresDuplicateDetection": false,
+                  "requiresSession": false,
+                  "defaultMessageTimeToLive": "PT1H",
+                  "deadLetteringOnMessageExpiration": true,
+                  "enableBatchedOperations": true,
+                  "duplicateDetectionHistoryTimeWindow": "PT5M",
+                  "maxDeliveryCount": 10,
+                  "status": "Active"
+                },
+                "rules": [
+                  {
+                    "name": "topic1-subscription2-filter",
+                    "properties": {
+                      "filterType": "Sql",
+                      "sqlFilter": {
+                        "sqlExpression": "group = 2"
+                      },
+                      "action": {}
+                    }
+                  }
+                ]
+              },
+              {
+                "Name": "topic1-subscription-catch",
+                "Properties": {
+                  "lockDuration": "PT5M",
+                  "requiresDuplicateDetection": false,
+                  "requiresSession": false,
+                  "defaultMessageTimeToLive": "PT1H",
+                  "deadLetteringOnMessageExpiration": true,
+                  "enableBatchedOperations": true,
+                  "duplicateDetectionHistoryTimeWindow": "PT5M",
+                  "maxDeliveryCount": 10,
+                  "status": "Active"
+                },
+                "rules": [
+                  {
+                    "name": "topic1-catch-all",
+                    "properties": {
+                      "filterType": "Sql",
+                      "sqlFilter": {
+                        "sqlExpression": "group > 2"
+                      },
+                      "action": {}
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+
+          {
+            "name": "topic2-with-session",
+            "properties": {
+              "requiresDuplicateDetection": false,
+              "requiresSession": true,
+              "defaultMessageTimeToLive": "PT1H",
+              "enableBatchedOperations": true,
+              "duplicateDetectionHistoryTimeWindow": "PT5M",
+              "status": "Active"
+            },
+            "Subscriptions": [
+              {
+                "Name": "topic2-subscription1",
+                "Properties": {
+                  "lockDuration": "PT5M",
+                  "requiresDuplicateDetection": false,
+                  "requiresSession": true,
+                  "defaultMessageTimeToLive": "PT1H",
+                  "deadLetteringOnMessageExpiration": true,
+                  "enableBatchedOperations": true,
+                  "duplicateDetectionHistoryTimeWindow": "PT5M",
+                  "maxDeliveryCount": 10,
+                  "status": "Active"
+                },
+                "rules": [
+                  {
+                    "name": "topic2-subscription1-filter",
+                    "properties": {
+                      "filterType": "Sql",
+                      "sqlFilter": {
+                        "sqlExpression": "group = 1"
+                      },
+                      "action": {}
+                    }
+                  }
+                ]
+              },
+              {
+                "Name": "topic2-subscription2",
+                "Properties": {
+                  "lockDuration": "PT5M",
+                  "requiresDuplicateDetection": false,
+                  "requiresSession": true,
+                  "defaultMessageTimeToLive": "PT1H",
+                  "deadLetteringOnMessageExpiration": true,
+                  "enableBatchedOperations": true,
+                  "duplicateDetectionHistoryTimeWindow": "PT5M",
+                  "maxDeliveryCount": 10,
+                  "status": "Active"
+                },
+                "rules": [
+                  {
+                    "name": "topic2-subscription2-filter",
+                    "properties": {
+                      "filterType": "Sql",
+                      "sqlFilter": {
+                        "sqlExpression": "group = 2"
+                      },
+                      "action": {}
+                    }
+                  }
+                ]
+              },
+              {
+                "Name": "topic2-subscription-catch",
+                "Properties": {
+                  "lockDuration": "PT5M",
+                  "requiresDuplicateDetection": false,
+                  "requiresSession": true,
+                  "defaultMessageTimeToLive": "PT1H",
+                  "deadLetteringOnMessageExpiration": true,
+                  "enableBatchedOperations": true,
+                  "duplicateDetectionHistoryTimeWindow": "PT5M",
+                  "maxDeliveryCount": 10,
+                  "status": "Active"
+                },
+                "rules": [
+                  {
+                    "name": "topic2-catch-all",
+                    "properties": {
+                      "filterType": "Sql",
+                      "sqlFilter": {
+                        "sqlExpression": "group > 2"
+                      },
+                      "action": {}
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+
+    "logging": {
+      "type": "File"
+    }
+  }
+}
