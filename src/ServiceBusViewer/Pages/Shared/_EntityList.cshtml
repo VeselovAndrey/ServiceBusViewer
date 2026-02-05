@@ -1,0 +1,61 @@
+@model ServiceBusViewer.Pages.Shared.EntityListViewModel
+@using ServiceBusViewer.Infrastructure.ServiceBus.Models
+
+<div class="col-md-3 border-end" style="overflow-y: auto; height: 100%;">
+    <h5>Entities</h5>
+    @if (Model.AvailableEntities.Count > 0) {
+        <div class="list-group">
+            @foreach (var queue in Model.AvailableEntities.OfType<QueueEntityInfo>()) {
+                <div class="list-group-item d-flex align-items-center @(Model.EntityName == queue.Name && Model.SubscriptionName == null ? "list-group-item-primary" : "")">
+                    <form method="post" asp-page="/Index" asp-page-handler="SelectEntity" class="flex-grow-1 mb-0">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="SelectedEntityName" value="@queue.Name" />
+                        <input type="hidden" name="SelectedEntityType" value="Queue" />
+                        <button type="submit" class="list-group-item-action border-0 bg-transparent w-100 text-start p-0">
+                            <img src="~/components/entity-list/queue.svg" alt="Queue" class="icon" /> @queue.Name
+                        </button>
+                    </form>
+                    @if (Model.ManagementApiEnabled) {
+                        <a class="btn btn-sm" asp-page="/EntityInfo" asp-route-type="Queue" asp-route-name="@queue.Name" title="View queue properties">
+                            <img src="~/components/entity-list/info.svg" alt="View queue properties" />
+                        </a>
+                    }
+                </div>
+            }
+
+            @foreach (var topic in Model.AvailableEntities.OfType<TopicEntityInfo>()) {
+                <div>
+                    <div class="list-group-item bg-light d-flex align-items-center justify-content-between">
+                        <span><img src="~/components/entity-list/topic.svg" alt="Topic" class="icon" /> @topic.Name</span>
+                        @if (Model.ManagementApiEnabled) {
+                            <a class="btn btn-sm" asp-page="/EntityInfo" asp-route-type="Topic" asp-route-name="@topic.Name" title="View topic properties">
+                                <img src="~/components/entity-list/info.svg" alt="View topic properties" />
+                            </a>
+                        }
+                    </div>
+                    @foreach (var subscription in Model.AvailableEntities.OfType<SubscriptionEntityInfo>().Where(e => e.TopicName == topic.Name)) {
+                        <div class="list-group-item d-flex align-items-center ps-4 @(Model.EntityName == topic.Name && Model.SubscriptionName == subscription.Name ? "list-group-item-primary" : "")">
+                            <form method="post" asp-page="/Index" asp-page-handler="SelectEntity" class="flex-grow-1 mb-0">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="SelectedEntityName" value="@subscription.Name" />
+                                <input type="hidden" name="SelectedEntityType" value="Subscription" />
+                                <input type="hidden" name="SelectedTopicName" value="@subscription.TopicName" />
+                                <button type="submit" class="list-group-item-action border-0 bg-transparent w-100 text-start p-0">
+                                    <img src="~/components/entity-list/subscription.svg" alt="Subscription" class="icon" /> @subscription.Name
+                                </button>
+                            </form>
+                            @if (Model.ManagementApiEnabled) {
+                                <a class="btn btn-sm" asp-page="/EntityInfo" asp-route-type="Subscription" asp-route-name="@subscription.Name" asp-route-topicname="@subscription.TopicName" title="View subscription properties">
+                                    <img src="~/components/entity-list/info.svg" alt="View subscription properties" />
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else {
+        <p class="text-muted">No entities available</p>
+    }
+</div>

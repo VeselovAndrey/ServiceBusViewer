@@ -1,9 +1,9 @@
+namespace ServiceBusViewer.Pages;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ServiceBusViewer.Infrastructure.ServiceBus;
 using ServiceBusViewer.Infrastructure.ServiceBus.Models;
-
-namespace ServiceBusViewer.Pages;
 
 public enum MessageDisplayType
 {
@@ -13,8 +13,6 @@ public enum MessageDisplayType
 }
 
 public record MessageProperty(string Key, string Value);
-
-public record ConnectionInfo(string Host, string Entity, string? Subscription);
 
 public class IndexModel(ServiceBusService serviceBusService) : PageModel
 {
@@ -33,12 +31,6 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	[BindProperty(SupportsGet = true)]
 	public string? SubscriptionName { get; set; }
 
-	public bool IsConnected => _serviceBusService.Connected;
-
-	public ConnectionInfo? Connection { get; set; }
-
-	public IReadOnlyList<EntityInfo> AvailableEntities { get; set; } = [];
-
 	[BindProperty]
 	public string? SelectedEntityName { get; set; }
 
@@ -49,7 +41,18 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	public string? SelectedTopicName { get; set; }
 
 	[BindProperty]
-	public string? MessageId { get; set; }
+	public string? SendMessageBody { get; set; }
+
+	[BindProperty]
+	public IList<MessageProperty> SendMessageProperties { get; set; } = new List<MessageProperty>();
+
+	public bool IsConnected => _serviceBusService.Connected;
+
+	public bool IsManagementApiAvailable => _serviceBusService.IsManagementApiAvailable;
+
+	public string ServiceBusHostName { get; set; } = string.Empty;
+
+	public IReadOnlyList<EntityInfo> AvailableEntities { get; set; } = [];
 
 	public IReadOnlyList<MessageDetails> Messages { get; set; } = [];
 
@@ -58,12 +61,6 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	public MessageDisplayType DisplayType { get; set; } = MessageDisplayType.None;
 
 	public MessageDetails? DisplayedMessage { get; set; }
-
-	[BindProperty]
-	public string? SendMessageBody { get; set; }
-
-	[BindProperty]
-	public IList<MessageProperty> SendMessageProperties { get; set; } = new List<MessageProperty>();
 
 	public string? SendResultMessage { get; set; }
 
@@ -127,7 +124,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			AvailableEntities = _serviceBusService.AvailableEntities;
 
 			// Load messages for the selected entity
-			var result = await _serviceBusService.PeekMessagesAsync();
+			MessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
 		}
@@ -142,7 +139,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	public async Task<IActionResult> OnPostRefresh()
 	{
 		try {
-			var result = await _serviceBusService.PeekMessagesAsync();
+			MessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
 
@@ -217,10 +214,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	private void FillPageModel()
 	{
-		Connection = _serviceBusService.Connected
-			? new ConnectionInfo(_serviceBusService.Host, _serviceBusService.EntityName, _serviceBusService.SubscriptionName)
-			: null;
-
+		ServiceBusHostName = _serviceBusService.Host;
 		EntityName = _serviceBusService.EntityName;
 		SubscriptionName = _serviceBusService.SubscriptionName;
 	}

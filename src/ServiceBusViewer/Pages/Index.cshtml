@@ -1,8 +1,9 @@
 @page
-@using ServiceBusViewer.Infrastructure.ServiceBus.Models
+@using ServiceBusViewer.Pages.Shared
 @model ServiceBusViewer.Pages.IndexModel
 @{
     ViewData["Title"] = "Service Bus Viewer";
+    ViewData["ServiceBusHostName"] = Model.ServiceBusHostName;
 }
 
 @section CSS {
@@ -26,8 +27,7 @@
 }
 
 
-@if (!Model.IsConnected)
-{
+@if (!Model.IsConnected) {
     <form method="post" asp-page-handler="Connect" class="mb-4">
         @Html.AntiForgeryToken()
         <div class="mb-3">
@@ -55,29 +55,10 @@
         <button type="submit" class="btn btn-primary">Connect</button>
     </form>
 }
-else
-{
-    @if (Model.Connection is not null) {
-        <div class="d-flex gap-2 mb-3">
-            <span class="small text-muted">
-                Target host: <em>@Model.Connection.Host</em>,
-                @if (Model.SubscriptionName is not null)
-                {
-                    @:topic: <em>@Model.Connection.Entity</em>, subscription: <em>@Model.Connection.Subscription</em>
-                }
-                else
-                {
-                    @:queue: <em>@Model.Connection.Entity</em>
-                }
-            </span>
-        </div>
-    }
-
-    @if (!ViewData.ModelState.IsValid)
-    {
+else {
+    @if (!ViewData.ModelState.IsValid) {
         <div class="alert alert-danger mt-0 mb-2">
-            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
-            {
+            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
                 <div>@error.ErrorMessage</div>
             }
         </div>
@@ -85,50 +66,7 @@ else
 
     <div class="row" style="height: calc(100vh - 200px);">
         <!-- Left Panel: Entity List -->
-        <div class="col-md-3 border-end" style="overflow-y: auto; height: 100%;">
-            <h5>Entities</h5>
-            @if (Model.AvailableEntities.Count > 0)
-            {
-                <div class="list-group">
-                    @foreach (var queue in Model.AvailableEntities.OfType<QueueEntityInfo>())
-                    {
-                        <form method="post" asp-page-handler="SelectEntity" class="mb-0">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="SelectedEntityName" value="@queue.Name" />
-                            <input type="hidden" name="SelectedEntityType" value="Queue" />
-                            <button type="submit" class="list-group-item list-group-item-action @(Model.EntityName == queue.Name && Model.SubscriptionName == null ? "active" : "")">
-                                <img src="~/components/entity-list/queue.svg" alt="Queue" class="icon" /> @queue.Name
-                            </button>
-                        </form>
-                    }
-
-                    @foreach (var topic in Model.AvailableEntities.OfType<TopicEntityInfo>())
-                    {
-                    <div>
-                        <div class="list-group-item bg-light">
-                                <img src="~/components/entity-list/topic.svg" alt="Topic" class="icon" /> @topic.Name
-                        </div>
-                            @foreach (var subscription in Model.AvailableEntities.OfType<SubscriptionEntityInfo>().Where(e => e.TopicName == topic.Name))
-                            {
-                                <form method="post" asp-page-handler="SelectEntity" class="mb-0">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="SelectedEntityName" value="@subscription.Name" />
-                                    <input type="hidden" name="SelectedEntityType" value="Subscription" />
-                                    <input type="hidden" name="SelectedTopicName" value="@subscription.TopicName" />
-                                    <button type="submit" class="list-group-item list-group-item-action ps-4 @(Model.EntityName == topic.Name && Model.SubscriptionName == subscription.Name ? "active" : "")">
-                                        <img src="~/components/entity-list/subscription.svg" alt="Subscription" class="icon" /> @subscription.Name
-                                    </button>
-                                </form>
-                            }
-                        </div>
-                    }
-                </div>
-            }
-            else
-            {
-                <p class="text-muted">No entities available</p>
-            }
-        </div>
+        @await Html.PartialAsync("_EntityList", new EntityListViewModel(Model.AvailableEntities, Model.EntityName, Model.SubscriptionName, Model.IsManagementApiAvailable))
 
         <!-- Right Panel: Messages and Operations -->
         <div class="col-md-9" style="overflow-y: auto; height: 100%;">
@@ -162,11 +100,10 @@ else
                     <div class="mb-3">
                         <label class="form-label">Message properties</label>
                         <div id="properties-container">
-                            @for (int i = 0; i < Model.SendMessageProperties.Count; i++)
-                            {
+                            @for (int i = 0; i < Model.SendMessageProperties.Count; i++) {
                                 <div class="input-group mb-2">
                                     <input type="text" name="SendMessageProperties[@i].Key" value="@Model.SendMessageProperties[i].Key" placeholder="Key" />
-                                    <input type="text" name="SendMessageProperties[@i].Value"value="@Model.SendMessageProperties[i].Value" class="form-control" placeholder="Value" />
+                                    <input type="text" name="SendMessageProperties[@i].Value" value="@Model.SendMessageProperties[i].Value" class="form-control" placeholder="Value" />
                                     <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">×</button>
                                 </div>
                             }
@@ -177,15 +114,13 @@ else
                     <button type="submit" class="btn btn-success">Send Message</button>
                 </form>
 
-                @if (!string.IsNullOrEmpty(Model.SendResultMessage))
-                {
+                @if (!string.IsNullOrEmpty(Model.SendResultMessage)) {
                     <div class="alert alert-success mt-3">@Model.SendResultMessage</div>
                 }
                 <hr />
             </div>
 
-            @if (Model.DisplayedMessage != null && Model.DisplayType == MessageDisplayType.Received)
-            {
+            @if (Model.DisplayedMessage != null && Model.DisplayType == MessageDisplayType.Received) {
                 <div class="mt-2 mb-3">
                     <h3>Received Message</h3>
 
@@ -203,8 +138,7 @@ else
                             <strong>Body:</strong>
                             <pre class="mt-2 bg-light p-2 rounded">@Model.DisplayedMessage.Body</pre>
                         </li>
-                        @if (Model.DisplayedMessage.ApplicationProperties?.Any() == true)
-                        {
+                        @if (Model.DisplayedMessage.ApplicationProperties?.Any() == true) {
                             <li class="list-group-item">
                                 <strong>Application Properties:</strong>
                                 <table class="table table-bordered table-sm mt-2 mb-0">
@@ -215,8 +149,7 @@ else
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach (var prop in Model.DisplayedMessage.ApplicationProperties)
-                                        {
+                                        @foreach (var prop in Model.DisplayedMessage.ApplicationProperties) {
                                             <tr>
                                                 <td>@prop.Key</td>
                                                 <td>@prop.Value</td>
@@ -231,13 +164,11 @@ else
                 </div>
             }
 
-            <h3>Messages @(Model.HasMoreMessages ? $"(first { Model.Messages.Count})" : $"({Model.Messages.Count} total)")</h3>
-            @if (Model.Messages.Count == 0)
-            {
+            <h3>Messages @(Model.HasMoreMessages ? $"(first {Model.Messages.Count})" : $"({Model.Messages.Count} total)")</h3>
+            @if (Model.Messages.Count == 0) {
                 <p>No messages found.</p>
             }
-            else
-            {
+            else {
                 <ul class="list-group mb-3">
                     @foreach (var message in Model.Messages) {
                         <li class="list-group-item">
@@ -265,8 +196,7 @@ else
                                         <strong>Body:</strong>
                                         <pre class="mt-2 bg-light p-2 rounded">@message.Body</pre>
                                     </li>
-                                    @if (message.ApplicationProperties?.Any() == true)
-                                    {
+                                    @if (message.ApplicationProperties?.Any() == true) {
                                         <li class="list-group-item">
                                             <strong>Application Properties:</strong>
                                             <table class="table table-bordered table-sm mt-2 mb-0">
@@ -277,8 +207,7 @@ else
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    @foreach (var prop in message.ApplicationProperties)
-                                                    {
+                                                    @foreach (var prop in message.ApplicationProperties) {
                                                         <tr>
                                                             <td>@prop.Key</td>
                                                             <td>@prop.Value</td>
@@ -300,70 +229,70 @@ else
 
 @section Scripts {
     <script>
-        function addProperty() {
-            const container = document.getElementById('properties-container');
-            const index = container.children.length;
-            const group = document.createElement('div');
-            group.className = 'input-group mb-2';
-            group.innerHTML = `
-<input type="text" name="SendMessageProperties[${index}].Key" class="form-control" placeholder="Key" />
-<input type="text" name="SendMessageProperties[${index}].Value" class="form-control" placeholder="Value" />
-<button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">×</button>`;
-            container.appendChild(group);
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const sendFormWrapper = document.getElementById('sendFormWrapper');
-            const toggleBtn = document.getElementById('toggleSendFormBtn');
-
-            if (sendFormWrapper != null && toggleBtn != null) {
-                const storageKey = 'sendFormOpen';
-                let isOpen = localStorage.getItem(storageKey);
-                if (isOpen === null) {
-                    isOpen = 'true';
-                    localStorage.setItem(storageKey, isOpen);
-                }
-                isOpen = isOpen === 'true';
-
-                function updateFormVisibility() {
-                    if (isOpen) {
-                        sendFormWrapper.classList.remove('js-send-form-hidden');
-                        toggleBtn.textContent = 'Hide Send Message';
-                    } else {
-                        sendFormWrapper.classList.add('js-send-form-hidden');
-                        toggleBtn.textContent = 'Show Send Message';
-                    }
+                function addProperty() {
+                    const container = document.getElementById('properties-container');
+                    const index = container.children.length;
+                    const group = document.createElement('div');
+                    group.className = 'input-group mb-2';
+                    group.innerHTML = `
+        <input type="text" name="SendMessageProperties[${index}].Key" class="form-control" placeholder="Key" />
+        <input type="text" name="SendMessageProperties[${index}].Value" class="form-control" placeholder="Value" />
+        <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">×</button>`;
+                    container.appendChild(group);
                 }
 
-                updateFormVisibility();
+                document.addEventListener('DOMContentLoaded', function () {
+                    const sendFormWrapper = document.getElementById('sendFormWrapper');
+                    const toggleBtn = document.getElementById('toggleSendFormBtn');
 
-                toggleBtn.addEventListener('click', function () {
-                    sendFormWrapper.classList.add('animation-effect');
-                    isOpen = !isOpen;
-                    localStorage.setItem(storageKey, isOpen);
-                    updateFormVisibility();
-                });
-            }
+                    if (sendFormWrapper != null && toggleBtn != null) {
+                        const storageKey = 'sendFormOpen';
+                        let isOpen = localStorage.getItem(storageKey);
+                        if (isOpen === null) {
+                            isOpen = 'true';
+                            localStorage.setItem(storageKey, isOpen);
+                        }
+                        isOpen = isOpen === 'true';
 
-            // Message expand/collapse functionality
-            document.querySelectorAll('.js-toggle-message').forEach(button => {
-                button.addEventListener('click', function () {
-                    const messageId = this.getAttribute('data-message-id');
-                    const detailsDiv = document.querySelector(`.js-message-details[data-message-id="${messageId}"]`);
-                    const expandText = this.querySelector('.js-expand-text');
-                    const collapseText = this.querySelector('.js-collapse-text');
+                        function updateFormVisibility() {
+                            if (isOpen) {
+                                sendFormWrapper.classList.remove('js-send-form-hidden');
+                                toggleBtn.textContent = 'Hide Send Message';
+                            } else {
+                                sendFormWrapper.classList.add('js-send-form-hidden');
+                                toggleBtn.textContent = 'Show Send Message';
+                            }
+                        }
 
-                    if (detailsDiv.style.display === 'none') {
-                        detailsDiv.style.display = 'block';
-                        expandText.style.display = 'none';
-                        collapseText.style.display = 'inline';
-                    } else {
-                        detailsDiv.style.display = 'none';
-                        expandText.style.display = 'inline';
-                        collapseText.style.display = 'none';
+                        updateFormVisibility();
+
+                        toggleBtn.addEventListener('click', function () {
+                            sendFormWrapper.classList.add('animation-effect');
+                            isOpen = !isOpen;
+                            localStorage.setItem(storageKey, isOpen);
+                            updateFormVisibility();
+                        });
                     }
+
+                    // Message expand/collapse functionality
+                    document.querySelectorAll('.js-toggle-message').forEach(button => {
+                        button.addEventListener('click', function () {
+                            const messageId = this.getAttribute('data-message-id');
+                            const detailsDiv = document.querySelector(`.js-message-details[data-message-id="${messageId}"]`);
+                            const expandText = this.querySelector('.js-expand-text');
+                            const collapseText = this.querySelector('.js-collapse-text');
+
+                            if (detailsDiv.style.display === 'none') {
+                                detailsDiv.style.display = 'block';
+                                expandText.style.display = 'none';
+                                collapseText.style.display = 'inline';
+                            } else {
+                                detailsDiv.style.display = 'none';
+                                expandText.style.display = 'inline';
+                                collapseText.style.display = 'none';
+                            }
+                        });
+                    });
                 });
-            });
-        });
     </script>
 }
