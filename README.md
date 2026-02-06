@@ -1,8 +1,6 @@
 # Service Bus Viewer
 
-> **IMPORTANT NOTE:** This project was initially designed as a temporary solution (based on AI-generated code) to view messages in the [Azure Service Bus Emulator](https://github.com/Azure/azure-service-bus-emulator-installer) until either the emulator supports the management API 
-> or [Service Bus Explorer](https://github.com/paolosalvatori/ServiceBusExplorer) adds support for the emulator.
-> There are no plans for long-term support/maintenance of this project.
+> **IMPORTANT NOTE:** This project was initially designed as a temporary solution (based on AI-generated code) to view messages in the [Azure Service Bus Emulator](https://github.com/Azure/azure-service-bus-emulator-installer).
 
 Service Bus Viewer is a web application for viewing and interacting with Azure Service Bus queues and topics.  
 **The main goal of this application is to support local development and testing using a Service Bus Emulator.**  
