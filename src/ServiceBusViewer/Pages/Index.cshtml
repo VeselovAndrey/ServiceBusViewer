@@ -27,49 +27,20 @@
 }
 
 
-@if (!Model.IsConnected) {
-    <form method="post" asp-page-handler="Connect" class="mb-4">
-        @Html.AntiForgeryToken()
-        <div class="mb-3">
-            <label class="form-label">Connection String</label>
-            <input type="text" name="ConnectionString" value="@Model.ConnectionString" class="form-control" required />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Root Connection String (Optional)</label>
-            <input type="text" name="RootConnectionString" value="@Model.RootConnectionString" class="form-control" placeholder="For browsing all entities in namespace" />
-            <small class="form-text text-muted">
-                If provided, allows browsing all queues and topics. Otherwise, connect to specific entity only.
-            </small>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Queue or Topic Name</label>
-            <input type="text" name="EntityName" value="@Model.EntityName" class="form-control" />
-            <small class="form-text text-muted">
-                Required when not using root connection string.
-            </small>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Subscription (optional)</label>
-            <input type="text" name="SubscriptionName" value="@Model.SubscriptionName" class="form-control" />
-        </div>
-        <button type="submit" class="btn btn-primary">Connect</button>
-    </form>
+@if (!ViewData.ModelState.IsValid) {
+    <div class="alert alert-danger mt-0 mb-2">
+        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
+            <div>@error.ErrorMessage</div>
+        }
+    </div>
 }
-else {
-    @if (!ViewData.ModelState.IsValid) {
-        <div class="alert alert-danger mt-0 mb-2">
-            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
-                <div>@error.ErrorMessage</div>
-            }
-        </div>
-    }
 
-    <div class="row" style="height: calc(100vh - 200px);">
-        <!-- Left Panel: Entity List -->
-        @await Html.PartialAsync("_EntityList", new EntityListViewModel(Model.AvailableEntities, Model.EntityName, Model.SubscriptionName, Model.IsManagementApiAvailable))
+<div class="row" style="height: calc(100vh - 200px);">
+    <!-- Left Panel: Entity List -->
+    @await Html.PartialAsync("_EntityList", new EntityListViewModel(Model.AvailableEntities, Model.EntityName, Model.SubscriptionName, Model.IsManagementApiAvailable))
 
-        <!-- Right Panel: Messages and Operations -->
-        <div class="col-md-9" style="overflow-y: auto; height: 100%;">
+    <!-- Right Panel: Messages and Operations -->
+    <div class="col-md-9" style="overflow-y: auto; height: 100%;">
             <div class="d-flex gap-2 mb-3">
                 <form method="post" asp-page-handler="Refresh" class="mb-0">
                     @Html.AntiForgeryToken()
@@ -223,9 +194,8 @@ else {
                     }
                 </ul>
             }
-        </div>
     </div>
-}
+</div>
 
 @section Scripts {
     <script>

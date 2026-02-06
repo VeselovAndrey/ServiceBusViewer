@@ -44,7 +44,7 @@ public class EntityInfoModel(ServiceBusService serviceBusService) : PageModel
 	public async Task<IActionResult> OnGet()
 	{
 		if (!_serviceBusService.Connected)
-			return RedirectToPage("/Index");
+			return RedirectToPage("/Connect");
 
 		AvailableEntities = _serviceBusService.AvailableEntities;
 		SetSelectedEntityContext();
@@ -76,7 +76,7 @@ public class EntityInfoModel(ServiceBusService serviceBusService) : PageModel
 	public IActionResult OnPostSelectEntity()
 	{
 		if (!_serviceBusService.Connected)
-			return RedirectToPage("/Index");
+			return RedirectToPage("/Connect");
 
 		AvailableEntities = _serviceBusService.AvailableEntities;
 
