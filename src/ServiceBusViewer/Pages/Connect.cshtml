@@ -1,0 +1,40 @@
+@page
+@model ServiceBusViewer.Pages.ConnectModel
+@{
+    ViewData["Title"] = "Service Bus Viewer";
+}
+
+@if (!ViewData.ModelState.IsValid) {
+    <div class="alert alert-danger mt-0 mb-2">
+        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
+            <div>@error.ErrorMessage</div>
+        }
+    </div>
+}
+
+<form method="post" asp-page-handler="Connect" class="mb-4">
+    @Html.AntiForgeryToken()
+    <div class="mb-3">
+        <label class="form-label">Connection String</label>
+        <input type="text" name="ConnectionString" value="@Model.ConnectionString" class="form-control" required />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Root Connection String (Optional)</label>
+        <input type="text" name="RootConnectionString" value="@Model.RootConnectionString" class="form-control" placeholder="For browsing all entities in namespace" />
+        <small class="form-text text-muted">
+            If provided, allows browsing all queues and topics. Otherwise, connect to specific entity only.
+        </small>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Queue or Topic Name</label>
+        <input type="text" name="EntityName" value="@Model.EntityName" class="form-control" />
+        <small class="form-text text-muted">
+            Required when not using root connection string.
+        </small>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Subscription (optional)</label>
+        <input type="text" name="SubscriptionName" value="@Model.SubscriptionName" class="form-control" />
+    </div>
+    <button type="submit" class="btn btn-primary">Connect</button>
+</form>

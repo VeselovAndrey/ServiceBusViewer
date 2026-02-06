@@ -18,17 +18,8 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 {
 	private readonly ServiceBusService _serviceBusService = serviceBusService;
 
-	[BindProperty(SupportsGet = true)]
-	public string? ConnectionString { get; set; } = Environment.GetEnvironmentVariable("CONNECTION_STRING")
-		?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"; // Use development connection string by default
-
-	[BindProperty(SupportsGet = true)]
-	public string? RootConnectionString { get; set; } = Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING");
-
-	[BindProperty(SupportsGet = true)]
 	public string? EntityName { get; set; }
 
-	[BindProperty(SupportsGet = true)]
 	public string? SubscriptionName { get; set; }
 
 	[BindProperty]
@@ -64,34 +55,20 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public string? SendResultMessage { get; set; }
 
-	public void OnGet()
+	public async Task<IActionResult> OnGet()
 	{
-		FillPageModel();
-	}
-
-	public async Task<IActionResult> OnPostConnect()
-	{
-		if (string.IsNullOrWhiteSpace(ConnectionString)) {
-			ModelState.AddModelError(string.Empty, "Connection string is required.");
-			return Page();
-		}
-
-		// If not in root mode, entity name is required
-		if (string.IsNullOrWhiteSpace(RootConnectionString) && string.IsNullOrWhiteSpace(EntityName)) {
-			ModelState.AddModelError(string.Empty, "Queue/Topic name is required when not using root connection.");
-			return Page();
+		if (!_serviceBusService.Connected) {
+			return RedirectToPage("/Connect");
 		}
 
 		try {
-			await _serviceBusService.ConnectToAsync(ConnectionString, RootConnectionString, EntityName, SubscriptionName);
-
 			AvailableEntities = _serviceBusService.AvailableEntities;
-			var result = await _serviceBusService.PeekMessagesAsync();
+			MessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
 		}
 		catch (Exception ex) {
-			ModelState.AddModelError(string.Empty, $"Connection failed: {ex.Message}");
+			ModelState.AddModelError(string.Empty, $"Refresh failed: {ex.Message}");
 		}
 
 		FillPageModel();
@@ -101,13 +78,15 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	public async Task<IActionResult> OnPostDisconnect()
 	{
 		await _serviceBusService.DisconnectAsync();
-
-		FillPageModel();
-		return Page();
+		return RedirectToPage("/Connect");
 	}
 
 	public async Task<IActionResult> OnPostSelectEntity()
 	{
+		if (!_serviceBusService.Connected) {
+			return RedirectToPage("/Connect");
+		}
+
 		if (string.IsNullOrWhiteSpace(SelectedEntityName)) {
 			ModelState.AddModelError(string.Empty, "Entity name is required.");
 			return Page();
@@ -138,6 +117,10 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostRefresh()
 	{
+		if (!_serviceBusService.Connected) {
+			return RedirectToPage("/Connect");
+		}
+
 		try {
 			MessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
@@ -156,6 +139,10 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostReceive()
 	{
+		if (!_serviceBusService.Connected) {
+			return RedirectToPage("/Connect");
+		}
+
 		try {
 			DisplayedMessage = await _serviceBusService.ReceiveMessageAsync();
 			DisplayType = MessageDisplayType.Received;
@@ -177,6 +164,10 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostSend()
 	{
+		if (!_serviceBusService.Connected) {
+			return RedirectToPage("/Connect");
+		}
+
 		if (string.IsNullOrWhiteSpace(SendMessageBody)) {
 			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
 
