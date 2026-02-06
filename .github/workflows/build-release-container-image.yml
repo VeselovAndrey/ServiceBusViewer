@@ -1,9 +1,9 @@
-name: Build and publish container image
+name: Build and publish the release container image
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: [ "release" ]
     paths:
     - 'src/ServiceBusViewer/**'
 
