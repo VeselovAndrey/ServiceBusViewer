@@ -12,6 +12,9 @@ public sealed record MessageSystemProperties
 	/// <summary>Gets or sets the correlation identifier.</summary>
 	public string? CorrelationId { get; init; }
 
+	/// <summary>Gets or sets the content type of the message.</summary>
+	public string? ContentType { get; init; }
+
 	/// <summary>Gets or sets the scheduled enqueue time.</summary>
 	public DateTimeOffset? ScheduledEnqueueTime { get; init; }
 

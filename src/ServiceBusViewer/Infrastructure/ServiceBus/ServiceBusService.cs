@@ -170,13 +170,7 @@ public class ServiceBusService
 		bool hasMore = messages.Count > maxMessages;
 		IEnumerable<ServiceBusReceivedMessage> messagesToReturn = hasMore ? messages.Take(maxMessages) : messages;
 
-		var messageDetails = messagesToReturn.Select(m => new MessageDetails(
-			m.MessageId,
-			m.Body.ToString(),
-			m.ContentType ?? "text/plain",
-			m.EnqueuedTime,
-			m.ApplicationProperties.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)))
-			.ToList();
+		var messageDetails = messagesToReturn.Select(ConvertToMessageDetails).ToList();
 
 		return new MessageList(messageDetails, hasMore);
 	}
@@ -194,12 +188,7 @@ public class ServiceBusService
 
 		await receiver.CompleteMessageAsync(message);
 
-		return new MessageDetails(
-			message.MessageId,
-			message.Body.ToString(),
-			message.ContentType ?? "text/plain",
-			message.EnqueuedTime,
-			message.ApplicationProperties.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
+		return ConvertToMessageDetails(message);
 	}
 
 	/// <summary>Sends a message to the connected Service Bus entity.</summary>
@@ -219,6 +208,9 @@ public class ServiceBusService
 		if (systemProperties is not null) {
 			if (!string.IsNullOrWhiteSpace(systemProperties.MessageId))
 				message.MessageId = systemProperties.MessageId;
+
+			if (!string.IsNullOrWhiteSpace(systemProperties.ContentType))
+				message.ContentType = systemProperties.ContentType;
 
 			if (!string.IsNullOrWhiteSpace(systemProperties.SessionId))
 				message.SessionId = systemProperties.SessionId;
@@ -340,5 +332,19 @@ public class ServiceBusService
 			default:
 				throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}");
 		}
+	}
+
+	private static MessageDetails ConvertToMessageDetails(ServiceBusReceivedMessage message)
+	{
+		return new MessageDetails(
+			message.MessageId,
+			message.Body.ToString(),
+			message.ContentType ?? "text/plain",
+			message.EnqueuedTime,
+			message.SessionId,
+			message.CorrelationId,
+			message.ScheduledEnqueueTime,
+			message.TimeToLive,
+			message.ApplicationProperties.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
 	}
 }

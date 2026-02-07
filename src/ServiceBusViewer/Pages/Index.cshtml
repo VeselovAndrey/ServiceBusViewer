@@ -69,7 +69,7 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Message properties</label>
+                        <label class="form-label"><strong>Message properties</strong></label>
                         <div id="properties-container">
                             @for (int i = 0; i < Model.SendMessageProperties.Count; i++) {
                                 <div class="input-group mb-2">
@@ -83,27 +83,33 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">System properties</label>
+                        <label class="form-label"><strong>System properties</strong></label>
                         <div class="row g-2">
                             <div class="col-md-4">
                                 <label class="form-label">Message ID</label>
-                                <input type="text" name="SendMessageSystemProperties.MessageId" value="@Model.SendMessageSystemProperties.MessageId" maxlength="128" class="form-control" />
+                                <input type="text" name="SendMessageSystemProperties.MessageId" value="@Model.SendMessageSystemProperties.MessageId" maxlength="128" class="form-control"/>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Session ID</label>
-                                <input type="text" name="SendMessageSystemProperties.SessionId" value="@Model.SendMessageSystemProperties.SessionId" maxlength="128" class="form-control" />
+                                <input type="text" name="SendMessageSystemProperties.SessionId" value="@Model.SendMessageSystemProperties.SessionId" maxlength="128" class="form-control"/>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Correlation ID</label>
-                                <input type="text" name="SendMessageSystemProperties.CorrelationId" value="@Model.SendMessageSystemProperties.CorrelationId" maxlength="128" class="form-control" />
+                                <input type="text" name="SendMessageSystemProperties.CorrelationId" value="@Model.SendMessageSystemProperties.CorrelationId" maxlength="128" class="form-control"/>
                             </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Content Type</label>
+                                <input type="text" name="SendMessageSystemProperties.ContentType" value="@Model.SendMessageSystemProperties.ContentType" class="form-control"/>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
                             <div class="col-md-6">
                                 <label class="form-label">Scheduled Enqueue Time</label>
-                                <input type="datetime-local" name="SendMessageSystemProperties.ScheduledEnqueueTime" value="@Model.SendMessageSystemProperties.ScheduledEnqueueTime?.ToString("yyyy-MM-ddTHH:mm")" class="form-control" />
+                                <input type="datetime-local" name="SendMessageSystemProperties.ScheduledEnqueueTime" value="@Model.SendMessageSystemProperties.ScheduledEnqueueTime?.ToString("yyyy-MM-ddTHH:mm")" class="form-control"/>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Time To Live</label>
-                                <input type="text" name="SendMessageSystemProperties.TimeToLive" value="@Model.SendMessageSystemProperties.TimeToLive" placeholder="hh:mm:ss" class="form-control" />
+                                <input type="text" name="SendMessageSystemProperties.TimeToLive" value="@Model.SendMessageSystemProperties.TimeToLive" placeholder="hh:mm:ss" class="form-control"/>
                             </div>
                         </div>
                     </div>
@@ -125,9 +131,29 @@
                         <li class="list-group-item">
                             <strong>Message ID:</strong> @Model.DisplayedMessage.MessageId
                         </li>
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.SessionId)) {
+                            <li class="list-group-item">
+                                <strong>Session ID:</strong> @Model.DisplayedMessage.SessionId
+                            </li>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.CorrelationId)) {
+                            <li class="list-group-item">
+                                <strong>Correlation ID:</strong> @Model.DisplayedMessage.CorrelationId
+                            </li>
+                        }
                         <li class="list-group-item">
                             <strong>Content Type:</strong> @Model.DisplayedMessage.ContentType
                         </li>
+                        @if (Model.DisplayedMessage.ScheduledEnqueueTime is not null) {
+                            <li class="list-group-item">
+                                <strong>Scheduled Enqueue Time:</strong> @Model.DisplayedMessage.ScheduledEnqueueTime?.ToLocalTime()
+                            </li>
+                        }
+                        @if (Model.DisplayedMessage.TimeToLive is not null) {
+                            <li class="list-group-item">
+                                <strong>Time To Live:</strong> @Model.DisplayedMessage.TimeToLive
+                            </li>
+                        }
                         <li class="list-group-item">
                             <strong>Enqueued Time:</strong> @Model.DisplayedMessage.EnqueuedTimeUtc.ToLocalTime()
                         </li>
@@ -183,9 +209,29 @@
                                     <li class="list-group-item">
                                         <strong>Message ID:</strong> @message.MessageId
                                     </li>
+                        @if (!string.IsNullOrWhiteSpace(message.SessionId)) {
+                            <li class="list-group-item">
+                                <strong>Session ID:</strong> @message.SessionId
+                            </li>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(message.CorrelationId)) {
+                            <li class="list-group-item">
+                                <strong>Correlation ID:</strong> @message.CorrelationId
+                            </li>
+                        }
                                     <li class="list-group-item">
                                         <strong>Content Type:</strong> @message.ContentType
                                     </li>
+                        @if (message.ScheduledEnqueueTime is not null) {
+                            <li class="list-group-item">
+                                <strong>Scheduled Enqueue Time:</strong> @message.ScheduledEnqueueTime?.ToLocalTime()
+                            </li>
+                        }
+                        @if (message.TimeToLive is not null) {
+                            <li class="list-group-item">
+                                <strong>Time To Live:</strong> @message.TimeToLive
+                            </li>
+                        }
                                     <li class="list-group-item">
                                         <strong>Enqueued Time:</strong> @message.EnqueuedTimeUtc.ToLocalTime()
                                     </li>
