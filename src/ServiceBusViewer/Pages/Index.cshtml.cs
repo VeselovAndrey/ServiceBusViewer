@@ -17,6 +17,7 @@ public record MessageProperty(string Key, string Value);
 public class IndexModel(ServiceBusService serviceBusService) : PageModel
 {
 	private readonly ServiceBusService _serviceBusService = serviceBusService;
+	private const int MaxSystemPropertyLength = 128;
 
 	public string? EntityName { get; set; }
 
@@ -36,6 +37,9 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	[BindProperty]
 	public IList<MessageProperty> SendMessageProperties { get; set; } = new List<MessageProperty>();
+
+	[BindProperty]
+	public MessageSystemProperties SendMessageSystemProperties { get; set; } = new();
 
 	public bool IsConnected => _serviceBusService.Connected;
 
@@ -168,8 +172,8 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			return RedirectToPage("/Connect");
 		}
 
-		if (string.IsNullOrWhiteSpace(SendMessageBody)) {
-			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
+	if (string.IsNullOrWhiteSpace(SendMessageBody)) {
+		ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
 
 			var result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
@@ -181,12 +185,23 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		}
 
 		try {
+			if (!ValidateSystemProperties()) {
+				var invalidResult = await _serviceBusService.PeekMessagesAsync();
+				Messages = invalidResult.Messages;
+				HasMoreMessages = invalidResult.HasMore;
+
+				AvailableEntities = _serviceBusService.AvailableEntities;
+
+				return Page();
+			}
+
 			Dictionary<string, object> properties = SendMessageProperties.ToDictionary(x => x.Key, x => (object)x.Value);
 
-			await _serviceBusService.SendMessageAsync(SendMessageBody, "application/json", properties);
+			await _serviceBusService.SendMessageAsync(SendMessageBody, "application/json", properties, SendMessageSystemProperties);
 			SendResultMessage = "Message sent successfully!";
 			SendMessageBody = string.Empty;
 			SendMessageProperties.Clear();
+			SendMessageSystemProperties = new MessageSystemProperties();
 
 			var result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
@@ -208,5 +223,23 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		ServiceBusHostName = _serviceBusService.Host;
 		EntityName = _serviceBusService.EntityName;
 		SubscriptionName = _serviceBusService.SubscriptionName;
+	}
+
+	private bool ValidateSystemProperties()
+	{
+		bool isValid = true;
+		isValid &= ValidateSystemPropertyLength(SendMessageSystemProperties.MessageId, nameof(SendMessageSystemProperties.MessageId), "Message ID");
+		isValid &= ValidateSystemPropertyLength(SendMessageSystemProperties.SessionId, nameof(SendMessageSystemProperties.SessionId), "Session ID");
+		isValid &= ValidateSystemPropertyLength(SendMessageSystemProperties.CorrelationId, nameof(SendMessageSystemProperties.CorrelationId), "Correlation ID");
+		return isValid;
+	}
+
+	private bool ValidateSystemPropertyLength(string? value, string propertyName, string displayName)
+	{
+		if (string.IsNullOrWhiteSpace(value) || value.Length <= MaxSystemPropertyLength)
+			return true;
+
+		ModelState.AddModelError($"{nameof(SendMessageSystemProperties)}.{propertyName}", $"The {displayName} must be {MaxSystemPropertyLength} characters or fewer.");
+		return false;
 	}
 }

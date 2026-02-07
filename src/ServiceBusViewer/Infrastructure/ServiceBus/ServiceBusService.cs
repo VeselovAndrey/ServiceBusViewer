@@ -206,7 +206,8 @@ public class ServiceBusService
 	/// <param name="content">The message content.</param>
 	/// <param name="contentType">The content type of the message.</param>
 	/// <param name="properties">The application properties to include with the message.</param>
-	public async Task SendMessageAsync(string content, string contentType, Dictionary<string, object> properties)
+	/// <param name="systemProperties">The optional system properties to include with the message.</param>
+	public async Task SendMessageAsync(string content, string contentType, Dictionary<string, object> properties, MessageSystemProperties? systemProperties = null)
 	{
 		await using ServiceBusSender sender = GetSender();
 
@@ -214,6 +215,23 @@ public class ServiceBusService
 			ContentType = contentType,
 			MessageId = Guid.NewGuid().ToString()
 		};
+
+		if (systemProperties is not null) {
+			if (!string.IsNullOrWhiteSpace(systemProperties.MessageId))
+				message.MessageId = systemProperties.MessageId;
+
+			if (!string.IsNullOrWhiteSpace(systemProperties.SessionId))
+				message.SessionId = systemProperties.SessionId;
+
+			if (!string.IsNullOrWhiteSpace(systemProperties.CorrelationId))
+				message.CorrelationId = systemProperties.CorrelationId;
+
+			if (systemProperties.ScheduledEnqueueTime is not null)
+				message.ScheduledEnqueueTime = systemProperties.ScheduledEnqueueTime.Value;
+
+			if (systemProperties.TimeToLive is not null)
+				message.TimeToLive = systemProperties.TimeToLive.Value;
+		}
 
 		foreach (KeyValuePair<string, object> property in properties) {
 			if (!string.IsNullOrEmpty(property.Key))

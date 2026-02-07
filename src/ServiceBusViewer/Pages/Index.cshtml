@@ -82,6 +82,32 @@
                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addProperty()">+ Add Property</button>
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">System properties</label>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label">Message ID</label>
+                                <input type="text" name="SendMessageSystemProperties.MessageId" value="@Model.SendMessageSystemProperties.MessageId" maxlength="128" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Session ID</label>
+                                <input type="text" name="SendMessageSystemProperties.SessionId" value="@Model.SendMessageSystemProperties.SessionId" maxlength="128" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Correlation ID</label>
+                                <input type="text" name="SendMessageSystemProperties.CorrelationId" value="@Model.SendMessageSystemProperties.CorrelationId" maxlength="128" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Scheduled Enqueue Time</label>
+                                <input type="datetime-local" name="SendMessageSystemProperties.ScheduledEnqueueTime" value="@Model.SendMessageSystemProperties.ScheduledEnqueueTime?.ToString("yyyy-MM-ddTHH:mm")" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Time To Live</label>
+                                <input type="text" name="SendMessageSystemProperties.TimeToLive" value="@Model.SendMessageSystemProperties.TimeToLive" placeholder="hh:mm:ss" class="form-control" />
+                            </div>
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn btn-success">Send Message</button>
                 </form>
 
