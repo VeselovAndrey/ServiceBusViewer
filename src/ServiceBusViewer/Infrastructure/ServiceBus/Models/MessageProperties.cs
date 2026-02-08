@@ -1,7 +1,7 @@
 namespace ServiceBusViewer.Infrastructure.ServiceBus.Models;
 
 /// <summary>Represents optional system properties applied when sending a message.</summary>
-public sealed record MessageSystemProperties
+public sealed record MessageProperties
 {
 	/// <summary>Gets or sets the message identifier.</summary>
 	public string? MessageId { get; init; }

@@ -156,11 +156,11 @@ public class ServiceBusService
 
 	/// <summary>Peeks a batch of messages from the connected Service Bus entity.</summary>
 	/// <param name="maxMessages">The maximum number of messages to peek.</param>
-	/// <returns>A <see cref="MessageList"/> containing the peeked messages and a flag indicating if more messages exist.</returns>
-	public async Task<MessageList> PeekMessagesAsync(int maxMessages = _maxMessagesToPeek)
+	/// <returns>A <see cref="ReceivedMessageList"/> containing the peeked messages and a flag indicating if more messages exist.</returns>
+	public async Task<ReceivedMessageList> PeekMessagesAsync(int maxMessages = _maxMessagesToPeek)
 	{
 		if (string.IsNullOrWhiteSpace(EntityName))
-			return MessageList.Empty;
+			return ReceivedMessageList.Empty;
 
 		await using ServiceBusReceiver receiver = GetReceiver();
 
@@ -172,12 +172,12 @@ public class ServiceBusService
 
 		var messageDetails = messagesToReturn.Select(ConvertToMessageDetails).ToList();
 
-		return new MessageList(messageDetails, hasMore);
+		return new ReceivedMessageList(messageDetails, hasMore);
 	}
 
 	/// <summary>Receives and completes a single message from the connected Service Bus entity.</summary>
-	/// <returns>The <see cref="MessageDetails"/> of the received message, or null if no message is available.</returns>
-	public async Task<MessageDetails?> ReceiveMessageAsync()
+	/// <returns>The <see cref="ReceivedMessage"/> of the received message, or null if no message is available.</returns>
+	public async Task<ReceivedMessage?> ReceiveMessageAsync()
 	{
 		await using ServiceBusReceiver receiver = GetReceiver();
 
@@ -193,39 +193,35 @@ public class ServiceBusService
 
 	/// <summary>Sends a message to the connected Service Bus entity.</summary>
 	/// <param name="content">The message content.</param>
-	/// <param name="contentType">The content type of the message.</param>
-	/// <param name="properties">The application properties to include with the message.</param>
-	/// <param name="systemProperties">The optional system properties to include with the message.</param>
-	public async Task SendMessageAsync(string content, string contentType, Dictionary<string, object> properties, MessageSystemProperties? systemProperties = null)
+	/// <param name="messageProperties">The optional system properties to include with the message.</param>
+	/// <param name="applicationProperties">The application properties to include with the message.</param>
+	public async Task SendMessageAsync(string content, MessageProperties? messageProperties, Dictionary<string, object> applicationProperties)
 	{
 		await using ServiceBusSender sender = GetSender();
 
-		ServiceBusMessage message = new ServiceBusMessage(content) {
-			ContentType = contentType,
-			MessageId = Guid.NewGuid().ToString()
-		};
+		ServiceBusMessage message = new ServiceBusMessage(content);
 
-		if (systemProperties is not null) {
-			if (!string.IsNullOrWhiteSpace(systemProperties.MessageId))
-				message.MessageId = systemProperties.MessageId;
+		if (messageProperties is not null) {
+			if (!string.IsNullOrWhiteSpace(messageProperties.MessageId))
+				message.MessageId = messageProperties.MessageId;
 
-			if (!string.IsNullOrWhiteSpace(systemProperties.ContentType))
-				message.ContentType = systemProperties.ContentType;
+			if (!string.IsNullOrWhiteSpace(messageProperties.ContentType))
+				message.ContentType = messageProperties.ContentType;
 
-			if (!string.IsNullOrWhiteSpace(systemProperties.SessionId))
-				message.SessionId = systemProperties.SessionId;
+			if (!string.IsNullOrWhiteSpace(messageProperties.SessionId))
+				message.SessionId = messageProperties.SessionId;
 
-			if (!string.IsNullOrWhiteSpace(systemProperties.CorrelationId))
-				message.CorrelationId = systemProperties.CorrelationId;
+			if (!string.IsNullOrWhiteSpace(messageProperties.CorrelationId))
+				message.CorrelationId = messageProperties.CorrelationId;
 
-			if (systemProperties.ScheduledEnqueueTime is not null)
-				message.ScheduledEnqueueTime = systemProperties.ScheduledEnqueueTime.Value;
+			if (messageProperties.ScheduledEnqueueTime is not null)
+				message.ScheduledEnqueueTime = messageProperties.ScheduledEnqueueTime.Value;
 
-			if (systemProperties.TimeToLive is not null)
-				message.TimeToLive = systemProperties.TimeToLive.Value;
+			if (messageProperties.TimeToLive is not null)
+				message.TimeToLive = messageProperties.TimeToLive.Value;
 		}
 
-		foreach (KeyValuePair<string, object> property in properties) {
+		foreach (KeyValuePair<string, object> property in applicationProperties) {
 			if (!string.IsNullOrEmpty(property.Key))
 				message.ApplicationProperties[property.Key] = property.Value;
 		}
@@ -275,10 +271,8 @@ public class ServiceBusService
 			throw new ArgumentException("Invalid Service Bus connection string.", nameof(connectionString));
 
 		int endIndex = connectionString.IndexOf(';', connectionStringPrefix.Length);
-
-		ReadOnlySpan<char> span = connectionString.AsSpan();
-		ReadOnlySpan<char> host = span.Slice(connectionStringPrefix.Length, endIndex - connectionStringPrefix.Length);
-		host = host.TrimEnd('/');
+		ReadOnlySpan<char> host = connectionString.AsSpan(connectionStringPrefix.Length, endIndex - connectionStringPrefix.Length)
+			.TrimEnd('/');
 
 		return host.ToString();
 	}
@@ -309,7 +303,7 @@ public class ServiceBusService
 	/// <summary>Switches the active entity without disconnecting from the Service Bus.</summary>
 	/// <param name="entity">The entity to switch to.</param>
 	/// <exception cref="InvalidOperationException">Thrown if not connected.</exception>
-	public void SwitchEntity(EntityInfo entity)
+	public void SwitchActiveEntity(EntityInfo entity)
 	{
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Not connected to any Service Bus instance.");
@@ -334,17 +328,21 @@ public class ServiceBusService
 		}
 	}
 
-	private static MessageDetails ConvertToMessageDetails(ServiceBusReceivedMessage message)
+	private static ReceivedMessage ConvertToMessageDetails(ServiceBusReceivedMessage message)
 	{
-		return new MessageDetails(
+		var properties = new ReceivedMessageProperties(
 			message.MessageId,
-			message.Body.ToString(),
-			message.ContentType ?? "text/plain",
-			message.EnqueuedTime,
+			message.PartitionKey,
 			message.SessionId,
 			message.CorrelationId,
-			message.ScheduledEnqueueTime,
-			message.TimeToLive,
-			message.ApplicationProperties.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
+			message.ContentType,
+			message.EnqueuedTime,
+			message.ScheduledEnqueueTime != DateTimeOffset.MinValue ? message.ScheduledEnqueueTime : null,
+			message.TimeToLive != TimeSpan.MaxValue ? message.TimeToLive : null);
+
+		return new ReceivedMessage(
+			message.Body.ToString(),
+			properties,
+			message.ApplicationProperties);
 	}
 }

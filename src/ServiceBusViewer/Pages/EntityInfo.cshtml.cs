@@ -106,7 +106,7 @@ public class EntityInfoModel(ServiceBusService serviceBusService) : PageModel
 				_ => new QueueEntityInfo(SelectedEntityName!)
 			};
 
-			_serviceBusService.SwitchEntity(entityInfo);
+			_serviceBusService.SwitchActiveEntity(entityInfo);
 
 			string targetType = SelectedEntityType ?? "Queue";
 			string? targetTopicName = SelectedEntityType == "Subscription" ? SelectedTopicName : null;
