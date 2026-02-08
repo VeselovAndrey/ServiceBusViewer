@@ -50,12 +50,10 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnGet()
 	{
-		if (!_serviceBusService.Connected) {
+		if (!_serviceBusService.Connected)
 			return RedirectToPage("/Connect");
-		}
 
 		try {
-			AvailableEntities = _serviceBusService.AvailableEntities;
 			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
@@ -76,9 +74,8 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostSelectEntity()
 	{
-		if (!_serviceBusService.Connected) {
+		if (!_serviceBusService.Connected)
 			return RedirectToPage("/Connect");
-		}
 
 		if (string.IsNullOrWhiteSpace(SelectedEntityName)) {
 			ModelState.AddModelError(string.Empty, "Entity name is required.");
@@ -93,9 +90,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			};
 
 			_serviceBusService.SwitchActiveEntity(entityInfo);
-			AvailableEntities = _serviceBusService.AvailableEntities;
 
-			// Load messages for the selected entity
 			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
@@ -110,17 +105,13 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostRefresh()
 	{
-		if (!_serviceBusService.Connected) {
+		if (!_serviceBusService.Connected)
 			return RedirectToPage("/Connect");
-		}
 
 		try {
 			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
-
-			// Maintain entity list
-			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Refresh failed: {ex.Message}");
@@ -132,19 +123,15 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostReceive()
 	{
-		if (!_serviceBusService.Connected) {
+		if (!_serviceBusService.Connected)
 			return RedirectToPage("/Connect");
-		}
 
 		try {
 			DisplayedMessage = await _serviceBusService.ReceiveMessageAsync();
 
-			var result = await _serviceBusService.PeekMessagesAsync();
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
-
-			// Maintain entity list
-			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Receive failed: {ex.Message}");
@@ -156,30 +143,28 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostSend()
 	{
-		if (!_serviceBusService.Connected) {
+		if (!_serviceBusService.Connected)
 			return RedirectToPage("/Connect");
-		}
 
 		if (string.IsNullOrWhiteSpace(SendMessageBody)) {
 			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
 
-			var result = await _serviceBusService.PeekMessagesAsync();
+			AvailableEntities = _serviceBusService.AvailableEntities;
+
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
-
-			AvailableEntities = _serviceBusService.AvailableEntities;
 
 			return Page();
 		}
 
 		try {
 			if (!ValidateSystemProperties()) {
-				var invalidResult = await _serviceBusService.PeekMessagesAsync();
+				ReceivedMessageList invalidResult = await _serviceBusService.PeekMessagesAsync();
 				Messages = invalidResult.Messages;
 				HasMoreMessages = invalidResult.HasMore;
 
-				AvailableEntities = _serviceBusService.AvailableEntities;
-
+				FillPageModel();
 				return Page();
 			}
 
@@ -190,12 +175,9 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			SendMessageApplicationProperties.Clear();
 			SendMessageProperties = new MessageProperties();
 
-			var result = await _serviceBusService.PeekMessagesAsync();
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
-
-			// Maintain entity list
-			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Send failed: {ex.Message}");
@@ -210,6 +192,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		ServiceBusHostName = _serviceBusService.Host;
 		EntityName = _serviceBusService.EntityName;
 		SubscriptionName = _serviceBusService.SubscriptionName;
+		AvailableEntities = _serviceBusService.AvailableEntities;
 	}
 
 	private bool ValidateSystemProperties()
