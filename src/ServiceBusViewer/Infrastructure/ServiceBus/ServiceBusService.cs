@@ -1,5 +1,6 @@
 namespace ServiceBusViewer.Infrastructure.ServiceBus;
 
+using System.Globalization;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using ServiceBusViewer.Infrastructure.ServiceBus.Models;
@@ -195,7 +196,7 @@ public class ServiceBusService
 	/// <param name="content">The message content.</param>
 	/// <param name="messageProperties">The optional system properties to include with the message.</param>
 	/// <param name="applicationProperties">The application properties to include with the message.</param>
-	public async Task SendMessageAsync(string content, MessageProperties? messageProperties, Dictionary<string, object> applicationProperties)
+	public async Task SendMessageAsync(string content, MessageProperties? messageProperties, IReadOnlyList<ApplicationProperty> applicationProperties)
 	{
 		await using ServiceBusSender sender = GetSender();
 
@@ -221,12 +222,37 @@ public class ServiceBusService
 				message.TimeToLive = messageProperties.TimeToLive.Value;
 		}
 
-		foreach (KeyValuePair<string, object> property in applicationProperties) {
+		foreach (ApplicationProperty property in applicationProperties) {
 			if (!string.IsNullOrEmpty(property.Key))
-				message.ApplicationProperties[property.Key] = property.Value;
+				message.ApplicationProperties[property.Key] = ConvertApplicationPropertyValue(property.Value, property.Type);
 		}
 
 		await sender.SendMessageAsync(message);
+	}
+
+	internal static object ConvertApplicationPropertyValue(string value, ApplicationPropertyType type)
+	{
+		return type switch {
+			ApplicationPropertyType.String => value,
+			ApplicationPropertyType.Bool => bool.Parse(value),
+			ApplicationPropertyType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.SByte => sbyte.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Short => short.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.UShort => ushort.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Int => int.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.UInt => uint.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Long => long.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.ULong => ulong.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Float => float.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Double => double.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Decimal => decimal.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Char => value.Length == 1 ? value[0] : throw new FormatException("Char value must be a single character."),
+			ApplicationPropertyType.Guid => Guid.Parse(value),
+			ApplicationPropertyType.DateTime => DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+			ApplicationPropertyType.DateTimeOffset => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+			ApplicationPropertyType.TimeSpan => TimeSpan.Parse(value, CultureInfo.InvariantCulture),
+			_ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported application property type.")
+		};
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusReceiver"/> for the current entity and subscription.</summary>

@@ -5,15 +5,6 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using ServiceBusViewer.Infrastructure.ServiceBus;
 using ServiceBusViewer.Infrastructure.ServiceBus.Models;
 
-public enum MessageDisplayType
-{
-	None = 0,
-	Peeked,
-	Received
-}
-
-public record ApplicationProperty(string Key, string Value);
-
 public class IndexModel(ServiceBusService serviceBusService) : PageModel
 {
 	private readonly ServiceBusService _serviceBusService = serviceBusService;
@@ -35,7 +26,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	public MessageProperties SendMessageProperties { get; set; } = new();
 
 	[BindProperty]
-	public IList<ApplicationProperty> SendMessageApplicationProperties { get; set; } = new List<ApplicationProperty>();
+	public List<ApplicationProperty> SendMessageApplicationProperties { get; set; } = new List<ApplicationProperty>();
 
 	public string? EntityName { get; set; }
 
@@ -52,8 +43,6 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	public IReadOnlyList<ReceivedMessage> Messages { get; set; } = [];
 
 	public bool HasMoreMessages { get; set; }
-
-	public MessageDisplayType DisplayType { get; set; } = MessageDisplayType.None;
 
 	public ReceivedMessage? DisplayedMessage { get; set; }
 
@@ -149,7 +138,6 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 		try {
 			DisplayedMessage = await _serviceBusService.ReceiveMessageAsync();
-			DisplayType = MessageDisplayType.Received;
 
 			var result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
@@ -195,9 +183,8 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 				return Page();
 			}
 
-			Dictionary<string, object> properties = SendMessageApplicationProperties.ToDictionary(x => x.Key, x => (object)x.Value);
 
-			await _serviceBusService.SendMessageAsync(SendMessageBody, SendMessageProperties, properties);
+			await _serviceBusService.SendMessageAsync(SendMessageBody, SendMessageProperties, SendMessageApplicationProperties);
 			SendResultMessage = "Message sent successfully!";
 			SendMessageBody = string.Empty;
 			SendMessageApplicationProperties.Clear();
