@@ -12,15 +12,12 @@ public enum MessageDisplayType
 	Received
 }
 
-public record MessageProperty(string Key, string Value);
+public record ApplicationProperty(string Key, string Value);
 
 public class IndexModel(ServiceBusService serviceBusService) : PageModel
 {
 	private readonly ServiceBusService _serviceBusService = serviceBusService;
-
-	public string? EntityName { get; set; }
-
-	public string? SubscriptionName { get; set; }
+	private const int MaxSystemPropertyLength = 128;
 
 	[BindProperty]
 	public string? SelectedEntityName { get; set; }
@@ -35,7 +32,14 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	public string? SendMessageBody { get; set; }
 
 	[BindProperty]
-	public IList<MessageProperty> SendMessageProperties { get; set; } = new List<MessageProperty>();
+	public MessageProperties SendMessageProperties { get; set; } = new();
+
+	[BindProperty]
+	public IList<ApplicationProperty> SendMessageApplicationProperties { get; set; } = new List<ApplicationProperty>();
+
+	public string? EntityName { get; set; }
+
+	public string? SubscriptionName { get; set; }
 
 	public bool IsConnected => _serviceBusService.Connected;
 
@@ -45,13 +49,13 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public IReadOnlyList<EntityInfo> AvailableEntities { get; set; } = [];
 
-	public IReadOnlyList<MessageDetails> Messages { get; set; } = [];
+	public IReadOnlyList<ReceivedMessage> Messages { get; set; } = [];
 
 	public bool HasMoreMessages { get; set; }
 
 	public MessageDisplayType DisplayType { get; set; } = MessageDisplayType.None;
 
-	public MessageDetails? DisplayedMessage { get; set; }
+	public ReceivedMessage? DisplayedMessage { get; set; }
 
 	public string? SendResultMessage { get; set; }
 
@@ -63,7 +67,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 		try {
 			AvailableEntities = _serviceBusService.AvailableEntities;
-			MessageList result = await _serviceBusService.PeekMessagesAsync();
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
 		}
@@ -99,11 +103,11 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 				_ => new QueueEntityInfo(SelectedEntityName!)
 			};
 
-			_serviceBusService.SwitchEntity(entityInfo);
+			_serviceBusService.SwitchActiveEntity(entityInfo);
 			AvailableEntities = _serviceBusService.AvailableEntities;
 
 			// Load messages for the selected entity
-			MessageList result = await _serviceBusService.PeekMessagesAsync();
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
 		}
@@ -122,7 +126,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		}
 
 		try {
-			MessageList result = await _serviceBusService.PeekMessagesAsync();
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
 
@@ -181,12 +185,23 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		}
 
 		try {
-			Dictionary<string, object> properties = SendMessageProperties.ToDictionary(x => x.Key, x => (object)x.Value);
+			if (!ValidateSystemProperties()) {
+				var invalidResult = await _serviceBusService.PeekMessagesAsync();
+				Messages = invalidResult.Messages;
+				HasMoreMessages = invalidResult.HasMore;
 
-			await _serviceBusService.SendMessageAsync(SendMessageBody, "application/json", properties);
+				AvailableEntities = _serviceBusService.AvailableEntities;
+
+				return Page();
+			}
+
+			Dictionary<string, object> properties = SendMessageApplicationProperties.ToDictionary(x => x.Key, x => (object)x.Value);
+
+			await _serviceBusService.SendMessageAsync(SendMessageBody, SendMessageProperties, properties);
 			SendResultMessage = "Message sent successfully!";
 			SendMessageBody = string.Empty;
-			SendMessageProperties.Clear();
+			SendMessageApplicationProperties.Clear();
+			SendMessageProperties = new MessageProperties();
 
 			var result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
@@ -208,5 +223,23 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		ServiceBusHostName = _serviceBusService.Host;
 		EntityName = _serviceBusService.EntityName;
 		SubscriptionName = _serviceBusService.SubscriptionName;
+	}
+
+	private bool ValidateSystemProperties()
+	{
+		bool isValid = true;
+		isValid &= ValidateSystemPropertyLength(SendMessageProperties.MessageId, nameof(SendMessageProperties.MessageId), "Message ID");
+		isValid &= ValidateSystemPropertyLength(SendMessageProperties.SessionId, nameof(SendMessageProperties.SessionId), "Session ID");
+		isValid &= ValidateSystemPropertyLength(SendMessageProperties.CorrelationId, nameof(SendMessageProperties.CorrelationId), "Correlation ID");
+		return isValid;
+	}
+
+	private bool ValidateSystemPropertyLength(string? value, string propertyName, string displayName)
+	{
+		if (string.IsNullOrWhiteSpace(value) || value.Length <= MaxSystemPropertyLength)
+			return true;
+
+		ModelState.AddModelError($"{nameof(SendMessageProperties)}.{propertyName}", $"The {displayName} must be {MaxSystemPropertyLength} characters or fewer.");
+		return false;
 	}
 }
