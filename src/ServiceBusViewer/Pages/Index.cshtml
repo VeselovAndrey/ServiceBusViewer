@@ -136,11 +136,11 @@
                             @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.SessionId)) {
                                 <tr><td>Session ID:</td><td>@Model.DisplayedMessage.Properties.SessionId</td></tr>
                             }
-                            @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.CorrelationId)) {
-                                <tr><td>Correlation ID:</td><td>@Model.DisplayedMessage.Properties.CorrelationId</td></tr>
-                            }
                             @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.PartitionKey)) {
                                 <tr><td>Partition Key:</td><td>@Model.DisplayedMessage.Properties.PartitionKey</td></tr>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.CorrelationId)) {
+                                <tr><td>Correlation ID:</td><td>@Model.DisplayedMessage.Properties.CorrelationId</td></tr>
                             }
                             @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.ContentType)) {
                                 <tr><td>Content Type:</td><td>@Model.DisplayedMessage.Properties.ContentType</td></tr>
@@ -196,13 +196,13 @@
                                     <tr><td>Enqueued Time:</td><td>@message.Properties.EnqueuedTimeUtc.ToLocalTime()</td></tr>
 
                                     @if (!string.IsNullOrWhiteSpace(message.Properties.SessionId)) {
-                                        <tr><td class="w-25">Session ID:</td><td>@message.Properties.SessionId</td></tr>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(message.Properties.CorrelationId)) {
-                                        <tr><td>Correlation ID:</td><td>@message.Properties.CorrelationId</td></tr>
+                                        <tr><td>Session ID:</td><td>@message.Properties.SessionId</td></tr>
                                     }
                                     @if (!string.IsNullOrWhiteSpace(message.Properties.PartitionKey)) {
                                         <tr><td>Partition Key:</td><td>@message.Properties.PartitionKey</td></tr>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(message.Properties.CorrelationId)) {
+                                        <tr><td>Correlation ID:</td><td>@message.Properties.CorrelationId</td></tr>
                                     }
                                     @if (!string.IsNullOrWhiteSpace(message.Properties.ContentType)) {
                                         <tr><td>Content Type:</td><td>@message.Properties.ContentType</td></tr>
