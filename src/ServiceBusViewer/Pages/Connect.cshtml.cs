@@ -16,7 +16,7 @@ public class ConnectModel(ServiceBusService serviceBusService) : PageModel
 	public string? RootConnectionString { get; set; } = Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING");
 
 	[BindProperty(SupportsGet = true)]
-	public string? EntityName { get; set; }
+	public string? QueueOrTopicName { get; set; }
 
 	[BindProperty(SupportsGet = true)]
 	public string? SubscriptionName { get; set; }
@@ -37,13 +37,17 @@ public class ConnectModel(ServiceBusService serviceBusService) : PageModel
 			return Page();
 		}
 
-		if (string.IsNullOrWhiteSpace(RootConnectionString) && string.IsNullOrWhiteSpace(EntityName)) {
+		if (string.IsNullOrWhiteSpace(RootConnectionString) && string.IsNullOrWhiteSpace(QueueOrTopicName)) {
 			ModelState.AddModelError(string.Empty, "Queue/Topic name is required when not using root connection.");
 			return Page();
 		}
 
 		try {
-			await _serviceBusService.ConnectToAsync(ConnectionString, RootConnectionString, EntityName, SubscriptionName);
+			if (!string.IsNullOrWhiteSpace(RootConnectionString))
+				await _serviceBusService.ConnectToAsync(ConnectionString, RootConnectionString);
+			else
+				await _serviceBusService.ConnectToAsync(ConnectionString, QueueOrTopicName!, SubscriptionName);
+
 			return RedirectToPage("/Index");
 		}
 		catch (Exception ex) {

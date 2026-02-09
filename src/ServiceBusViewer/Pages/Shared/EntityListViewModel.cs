@@ -3,7 +3,7 @@ namespace ServiceBusViewer.Pages.Shared;
 using ServiceBusViewer.Infrastructure.ServiceBus.Models;
 
 public sealed record EntityListViewModel(
-	IReadOnlyList<EntityInfo> AvailableEntities,
+	IReadOnlyList<EntityId> AvailableEntities,
 	string? EntityName,
-	string? SubscriptionName,
-	bool ManagementApiEnabled);
+	string? TopicName, // The parent Topic name for Subscription
+	bool DisplayPropertyLinks);
