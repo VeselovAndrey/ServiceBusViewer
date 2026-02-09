@@ -11,15 +11,6 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	private const int MaxSystemPropertyLength = 128;
 
 	[BindProperty]
-	public string? SelectedEntityName { get; set; }
-
-	[BindProperty]
-	public string? SelectedEntityType { get; set; }
-
-	[BindProperty]
-	public string? SelectedTopicName { get; set; }
-
-	[BindProperty]
 	public string? SendMessageBody { get; set; }
 
 	[BindProperty]
@@ -30,15 +21,13 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public string? EntityName { get; set; }
 
-	public string? SubscriptionName { get; set; }
-
-	public bool IsConnected => _serviceBusService.Connected;
+	public string? TopicName { get; set; }
 
 	public bool IsManagementApiAvailable => _serviceBusService.IsManagementApiAvailable;
 
 	public string ServiceBusHostName { get; set; } = string.Empty;
 
-	public IReadOnlyList<EntityInfo> AvailableEntities { get; set; } = [];
+	public IReadOnlyList<EntityId> AvailableEntities { get; set; } = [];
 
 	public IReadOnlyList<ReceivedMessage> Messages { get; set; } = [];
 
@@ -72,21 +61,21 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		return RedirectToPage("/Connect");
 	}
 
-	public async Task<IActionResult> OnPostSelectEntity()
+	public async Task<IActionResult> OnPostSelectEntity(string selectedEntityType, string selectedEntityName, string? selectedTopicName)
 	{
 		if (!_serviceBusService.Connected)
 			return RedirectToPage("/Connect");
 
-		if (string.IsNullOrWhiteSpace(SelectedEntityName)) {
+		if (string.IsNullOrWhiteSpace(selectedEntityName)) {
 			ModelState.AddModelError(string.Empty, "Entity name is required.");
 			return Page();
 		}
 
 		try {
-			EntityInfo entityInfo = SelectedEntityType switch {
-				"Subscription" => new SubscriptionEntityInfo(SelectedEntityName!, SelectedTopicName!),
-				"Topic" => new TopicEntityInfo(SelectedEntityName!),
-				_ => new QueueEntityInfo(SelectedEntityName!)
+			EntityId entityInfo = selectedEntityType switch {
+				"Subscription" => new SubscriptionEntityId(selectedEntityName, selectedTopicName!),
+				"Topic" => new TopicEntityId(selectedEntityName),
+				_ => new QueueEntityId(selectedEntityName)
 			};
 
 			_serviceBusService.SwitchActiveEntity(entityInfo);
@@ -149,7 +138,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		if (string.IsNullOrWhiteSpace(SendMessageBody)) {
 			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
 
-			AvailableEntities = _serviceBusService.AvailableEntities;
+			AvailableEntities = ConvertToEntityIdList(_serviceBusService.AvailableEntities);
 
 			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
@@ -191,8 +180,8 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	{
 		ServiceBusHostName = _serviceBusService.Host;
 		EntityName = _serviceBusService.EntityName;
-		SubscriptionName = _serviceBusService.SubscriptionName;
-		AvailableEntities = _serviceBusService.AvailableEntities;
+		TopicName = _serviceBusService.TopicName;
+		AvailableEntities = ConvertToEntityIdList(_serviceBusService.AvailableEntities);
 	}
 
 	private bool ValidateSystemProperties()
@@ -211,5 +200,15 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 		ModelState.AddModelError($"{nameof(SendMessageProperties)}.{propertyName}", $"The {displayName} must be {MaxSystemPropertyLength} characters or fewer.");
 		return false;
+	}
+
+	private static IReadOnlyList<EntityId> ConvertToEntityIdList(IReadOnlyList<EntityProperties> properties)
+	{
+		return properties.Select(p => (EntityId)(p switch {
+			QueueEntityProperties queue => new QueueEntityId(queue.Name),
+			TopicEntityProperties topic => new TopicEntityId(topic.Name),
+			SubscriptionEntityProperties subscription => new SubscriptionEntityId(subscription.Name, subscription.TopicName),
+			_ => throw new ArgumentException($"Unknown entity properties type: {p.GetType().FullName}")
+		})).ToList();
 	}
 }

@@ -37,7 +37,7 @@
 
 <div class="row" style="height: calc(100vh - 200px);">
 	<!-- Left Panel: Entity List -->
-	@await Html.PartialAsync("_EntityList", new EntityListViewModel(Model.AvailableEntities, Model.EntityName, Model.SubscriptionName, Model.IsManagementApiAvailable))
+	@await Html.PartialAsync("_EntityList", new EntityListModel(Model.AvailableEntities, Model.EntityName, Model.TopicName, Model.IsManagementApiAvailable))
 
 	<!-- Right Panel: Messages and Operations -->
 	<div class="col-md-9" style="overflow-y: auto; height: 100%;">
