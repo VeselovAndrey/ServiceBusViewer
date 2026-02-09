@@ -14,7 +14,7 @@
 }
 
 <div class="row" style="height: calc(100vh - 200px);">
-    @await Html.PartialAsync("_EntityList", new EntityListViewModel(Model.AvailableEntities, Model.Name, Model.TopicName, Model.IsManagementApiAvailable))
+    @await Html.PartialAsync("_EntityList", new EntityListModel(Model.AvailableEntities, Model.Name, Model.TopicName, Model.IsManagementApiAvailable))
 
     <div class="col-md-9" style="overflow-y: auto; height: 100%;">
         <h3>Entity properties</h3>
