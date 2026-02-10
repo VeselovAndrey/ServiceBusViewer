@@ -12,6 +12,34 @@
 			transition: opacity 0.3s ease, max-height 0.3s ease;
 		}
 
+		.json-key {
+			color: #0b7285;
+		}
+
+		.json-string {
+			color: #2f9e44;
+		}
+
+		.json-number {
+			color: #f08c00;
+		}
+
+		.json-boolean {
+			color: #6741d9;
+		}
+
+		.json-null {
+			color: #868e96;
+		}
+
+		.js-json-toggle {
+			display: none;
+		}
+
+		.js-json-toggle.js-json-toggle-visible {
+			display: inline-flex;
+		}
+
 		#sendFormWrapper {
 			opacity: 1;
 			max-height: 1000px;
@@ -173,8 +201,11 @@
 						</table>
 					}
 
-					<strong>Body:</strong>
-					<pre class="mt-0 bg-light p-2 rounded">@Model.DisplayedMessage.Body</pre>
+					<div class="d-flex justify-content-between align-items-center">
+						<strong>Body:</strong>
+						<button type="button" class="btn btn-sm btn-outline-secondary js-json-toggle" aria-pressed="false">Raw</button>
+					</div>
+					<pre class="mt-0 bg-light p-2 rounded js-message-body">@Model.DisplayedMessage.Body</pre>
 					<hr />
 			</div>
 		}
@@ -242,8 +273,11 @@
 								</table>
 							}
 
+						<div class="d-flex justify-content-between align-items-center">
 							<strong>Body:</strong>
-							<pre class="mt-0 bg-light p-2 rounded">@message.Body</pre>
+							<button type="button" class="btn btn-sm btn-outline-secondary js-json-toggle" aria-pressed="false">Raw</button>
+						</div>
+						<pre class="mt-0 bg-light p-2 rounded js-message-body">@message.Body</pre>
 						</div>
 					</li>
 				}
@@ -397,6 +431,101 @@
 							}
 						});
 					});
+
+				function escapeHtml(value) {
+					return value
+						.replace(/&/g, '&amp;')
+						.replace(/</g, '&lt;')
+						.replace(/>/g, '&gt;');
+				}
+
+				function syntaxHighlightJson(jsonText) {
+					return jsonText.replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+						let cssClass = 'json-number';
+						if (match.startsWith('"')) {
+							cssClass = match.endsWith(':') ? 'json-key' : 'json-string';
+						} else if (match === 'true' || match === 'false') {
+							cssClass = 'json-boolean';
+						} else if (match === 'null') {
+							cssClass = 'json-null';
+						}
+						return `<span class="${cssClass}">${match}</span>`;
+					});
+				}
+
+				function getAssociatedBody(toggleButton) {
+					const container = toggleButton.closest('.js-message-details') ?? toggleButton.closest('li') ?? toggleButton.parentElement;
+					return container ? container.querySelector('.js-message-body') : null;
+				}
+
+				function tryFormatJsonBody(preElement) {
+					if (!(preElement instanceof HTMLElement)) {
+						return;
+					}
+
+					const rawText = preElement.textContent;
+					if (!rawText) {
+						return;
+					}
+
+					const trimmed = rawText.trim();
+					if (!trimmed) {
+						return;
+					}
+
+				try {
+					const parsed = JSON.parse(trimmed);
+					const formatted = JSON.stringify(parsed, null, 2);
+					const escaped = escapeHtml(formatted);
+					preElement.dataset.raw = rawText;
+					preElement.dataset.formatted = formatted;
+					preElement.dataset.jsonState = 'formatted';
+					preElement.innerHTML = syntaxHighlightJson(escaped);
+
+					const toggleButton = preElement.closest('.js-message-details')?.querySelector('.js-json-toggle')
+						?? preElement.closest('li')?.querySelector('.js-json-toggle')
+						?? preElement.parentElement?.querySelector('.js-json-toggle');
+					if (toggleButton instanceof HTMLButtonElement) {
+						toggleButton.classList.add('js-json-toggle-visible');
+						toggleButton.textContent = 'Raw';
+						toggleButton.setAttribute('aria-pressed', 'true');
+					}
+					} catch {
+						// Not JSON, keep original content.
+					}
+				}
+
+				document.querySelectorAll('.js-message-body').forEach(tryFormatJsonBody);
+
+				document.querySelectorAll('.js-json-toggle').forEach(button => {
+					button.addEventListener('click', function () {
+						const preElement = getAssociatedBody(this);
+						if (!(preElement instanceof HTMLElement)) {
+							return;
+						}
+
+						const raw = preElement.dataset.raw;
+						const formatted = preElement.dataset.formatted;
+						if (!raw || !formatted) {
+							return;
+						}
+
+						const isFormatted = preElement.dataset.jsonState !== 'raw';
+
+						if (isFormatted) {
+							preElement.textContent = raw;
+							preElement.dataset.jsonState = 'raw';
+							this.textContent = 'Formatted';
+							this.setAttribute('aria-pressed', 'false');
+						} else {
+							const escaped = escapeHtml(formatted);
+							preElement.innerHTML = syntaxHighlightJson(escaped);
+							preElement.dataset.jsonState = 'formatted';
+							this.textContent = 'Raw';
+							this.setAttribute('aria-pressed', 'true');
+						}
+					});
+				});
 
 					// Ensure indexes stay contiguous for ASP.NET Core model binding.
 					const propertiesContainer = document.getElementById('properties-container');
