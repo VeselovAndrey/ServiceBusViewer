@@ -50,7 +50,7 @@
 		<form method="post" asp-page-handler="Receive" class="mb-0" id="receiveForm">
 			@Html.AntiForgeryToken()
 			<div class="input-group">
-				<input type="text" id="receiveSessionIdInput" name="ReceiveSessionId" value="@Model.ReceiveSessionId" placeholder="Session ID" class="form-control" style="max-width: 200px;" disabled="@(Model.RequiresSession ? null : "disabled")" />
+				<input type="text" id="receiveSessionIdInput" name="ReceiveSessionId" value="@Model.ReceiveSessionId" placeholder="Session ID" class="form-control" style="max-width: 200px;" @(!Model.RequiresSession ? "disabled='disabled'" : null) />
 				<button type="submit" class="btn btn-outline-primary" id="receiveSubmitBtn">Receive</button>
 			</div>
 		</form>
@@ -189,10 +189,10 @@
 					<li class="list-group-item">
 						<div class="d-flex justify-content-between align-items-center">
 							<div>
-								<strong>@message.Properties.MessageId</strong> -
-								@if (!string.IsNullOrWhiteSpace(message.Properties.SessionId)) {
-									<em> Session ID: @message.Properties.SessionId - </em>
-								}
+							<strong>@message.Properties.MessageId</strong> -
+							@if (Model.RequiresSession && !string.IsNullOrWhiteSpace(message.Properties.SessionId)) {
+								<em> Session ID: @message.Properties.SessionId - </em>
+							}
 								<em> @message.Properties.EnqueuedTimeUtc.ToLocalTime().ToString("g")</em>
 							</div>
 							<button type="button" class="btn btn-sm btn-outline-primary js-toggle-message" data-message-id="@message.Properties.MessageId">
