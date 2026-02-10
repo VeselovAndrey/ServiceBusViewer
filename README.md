@@ -102,9 +102,20 @@ Endpoint=sb://host.docker.internal:[PORT];SharedAccessKeyName=RootManageSharedAc
 
 ## Version history
 
-- 0.8.0 (2026-02-05): Added entity properties view with the same layout as Index and unified entity selection navigation.
+- 0.9.0 (2025-02-10): Added support for:
+  - session-enabled message receive with Session ID input;
+  - sending messages with properties (MessageId, SessionId, CorrelationId, ScheduledEnqueueTime, TimeToLive);
+  - application property type;
+  - entity list caching.
+
+- 0.8.0 (2026-02-05): Added queue/topic/subscription properties view.
+
 - 0.7.0 (2026-02-01): Implemented client-side message expansion/collapse for better UX (and eliminated duplicate requests to Service Bus). Minor UI changes.
-- 0.6.0 (2026-01-31): Add entity selection feature with visual icons for queues, topics, and subscriptions.
-- 0.5.2 (2026-01-24): Take connection string from an environment variable.
-- 0.5.1 (2026-01-22): Update to .NET 10.
+
+- 0.6.0 (2026-01-31): Added entity selection feature with visual icons for queues, topics, and subscriptions.
+
+- 0.5.2 (2026-01-24): Took connection string from an environment variable.
+
+- 0.5.1 (2026-01-22): Updated to .NET 10.
+
 - 0.5.0 (2025-05-26): Initial version of ServiceBusViewer.
