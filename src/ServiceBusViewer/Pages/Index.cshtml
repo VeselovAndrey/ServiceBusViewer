@@ -41,16 +41,19 @@
 
 	<!-- Right Panel: Messages and Operations -->
 	<div class="col-md-9" style="overflow-y: auto; height: 100%;">
-		<div class="d-flex gap-2 mb-3">
+	<div class="d-flex flex-wrap align-items-center gap-2 pt-2 mb-3">
 			<form method="post" asp-page-handler="Refresh" class="mb-0" id="refreshForm">
 				@Html.AntiForgeryToken()
 				<button type="submit" class="btn btn-outline-success" id="refreshSubmitBtn">Refresh</button>
 			</form>
 
-			<form method="post" asp-page-handler="Receive" class="mb-0" id="receiveForm">
-				@Html.AntiForgeryToken()
+		<form method="post" asp-page-handler="Receive" class="mb-0" id="receiveForm">
+			@Html.AntiForgeryToken()
+			<div class="input-group">
+				<input type="text" id="receiveSessionIdInput" name="ReceiveSessionId" value="@Model.ReceiveSessionId" placeholder="Session ID" class="form-control" style="max-width: 200px;" disabled="@(Model.RequiresSession ? null : "disabled")" />
 				<button type="submit" class="btn btn-outline-primary" id="receiveSubmitBtn">Receive</button>
-			</form>
+			</div>
+		</form>
 
 			<button type="button" id="toggleSendFormBtn" class="btn btn-outline-secondary">Show Send Message</button>
 
@@ -186,7 +189,11 @@
 					<li class="list-group-item">
 						<div class="d-flex justify-content-between align-items-center">
 							<div>
-								<strong>@message.Properties.MessageId</strong> - <em>@message.Properties.EnqueuedTimeUtc.ToLocalTime().ToString("g")</em>
+								<strong>@message.Properties.MessageId</strong> -
+								@if (!string.IsNullOrWhiteSpace(message.Properties.SessionId)) {
+									<em> Session ID: @message.Properties.SessionId - </em>
+								}
+								<em> @message.Properties.EnqueuedTimeUtc.ToLocalTime().ToString("g")</em>
 							</div>
 							<button type="button" class="btn btn-sm btn-outline-primary js-toggle-message" data-message-id="@message.Properties.MessageId">
 								<span class="js-expand-text">▼ Expand</span>
@@ -280,7 +287,7 @@
 				}
 
 				document.addEventListener('DOMContentLoaded', function () {
-					function disableButtonOnValidSubmit(formId, submitButtonId) {
+				function disableButtonOnValidSubmit(formId, submitButtonId, relatedInputIds) {
 						const form = document.getElementById(formId);
 						if (!(form instanceof HTMLFormElement)) {
 							return;
@@ -293,17 +300,28 @@
 								return;
 							}
 
-							const btn = document.getElementById(submitButtonId);
-							if (btn instanceof HTMLButtonElement) {
-								btn.disabled = true;
-							}
+						const btn = document.getElementById(submitButtonId);
+						if (btn instanceof HTMLButtonElement) {
+							btn.disabled = true;
+						}
+
+						if (Array.isArray(relatedInputIds)) {
+							relatedInputIds.forEach(id => {
+								const input = document.getElementById(id);
+								if (input instanceof HTMLInputElement) {
+									input.readOnly = true;
+									input.setAttribute('aria-disabled', 'true');
+									input.classList.add('disabled');
+								}
+							});
+						}
 						});
 					}
 
 					// Disable action buttons after a valid submit to prevent double-posting.
 					disableButtonOnValidSubmit('sendMessageForm', 'sendMessageSubmitBtn');
 					disableButtonOnValidSubmit('refreshForm', 'refreshSubmitBtn');
-					disableButtonOnValidSubmit('receiveForm', 'receiveSubmitBtn');
+					disableButtonOnValidSubmit('receiveForm', 'receiveSubmitBtn', ['receiveSessionIdInput']);
 					disableButtonOnValidSubmit('disconnectForm', 'disconnectSubmitBtn');
 
 					function renumberApplicationProperties() {
@@ -405,4 +423,3 @@
 				});
 	</script>
 }
-

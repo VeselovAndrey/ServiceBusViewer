@@ -188,6 +188,23 @@ public class ServiceBusService
 		return ConvertToMessageDetails(message);
 	}
 
+	/// <summary>Receives and completes a single message from a session-enabled Service Bus entity.</summary>
+	/// <param name="sessionId">The session ID to accept. If null or empty, accepts the next available session.</param>
+	/// <returns>The <see cref="ReceivedMessage"/> of the received message, or null if no message is available.</returns>
+	public async Task<ReceivedMessage?> ReceiveSessionMessageAsync(string? sessionId)
+	{
+		await using ServiceBusSessionReceiver sessionReceiver = await GetSessionReceiver(sessionId);
+
+		ServiceBusReceivedMessage? message = await sessionReceiver.ReceiveMessageAsync();
+
+		if (message is null)
+			return null;
+
+		await sessionReceiver.CompleteMessageAsync(message);
+
+		return ConvertToMessageDetails(message);
+	}
+
 	/// <summary>Sends a message to the connected Service Bus entity.</summary>
 	/// <param name="content">The message content.</param>
 	/// <param name="messageProperties">The optional system properties to include with the message.</param>
@@ -324,6 +341,26 @@ public class ServiceBusService
 		return _client.CreateReceiver(EntityName, new ServiceBusReceiverOptions {
 			ReceiveMode = ServiceBusReceiveMode.PeekLock
 		});
+	}
+
+	/// <summary>Gets a <see cref="ServiceBusSessionReceiver"/> for the current entity.</summary>
+	/// <param name="sessionId">The session ID to accept. If null or empty, accepts the next available session.</param>
+	/// <returns>A <see cref="ServiceBusSessionReceiver"/> instance.</returns>
+	/// <exception cref="InvalidOperationException">Thrown if not connected.</exception>
+	private async Task<ServiceBusSessionReceiver> GetSessionReceiver(string? sessionId)
+	{
+		if (!Connected || _client is null)
+			throw new InvalidOperationException("Service Bus is not connected.");
+
+		if (!string.IsNullOrWhiteSpace(TopicName)) {
+			return string.IsNullOrEmpty(sessionId)
+				? await _client.AcceptNextSessionAsync(TopicName, EntityName)
+				: await _client.AcceptSessionAsync(TopicName, EntityName, sessionId);
+		}
+
+		return string.IsNullOrEmpty(sessionId)
+			? await _client.AcceptNextSessionAsync(EntityName)
+			: await _client.AcceptSessionAsync(EntityName, sessionId);
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusSender"/> for the current entity.</summary>

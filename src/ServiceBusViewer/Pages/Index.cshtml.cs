@@ -19,9 +19,14 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	[BindProperty]
 	public List<ApplicationProperty> SendMessageApplicationProperties { get; set; } = new List<ApplicationProperty>();
 
+	[BindProperty]
+	public string? ReceiveSessionId { get; set; }
+
 	public string? EntityName { get; set; }
 
 	public string? TopicName { get; set; }
+
+	public bool RequiresSession { get; set; }
 
 	public bool IsManagementApiAvailable => _serviceBusService.IsManagementApiAvailable;
 
@@ -116,7 +121,10 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 			return RedirectToPage("/Connect");
 
 		try {
-			DisplayedMessage = await _serviceBusService.ReceiveMessageAsync();
+			bool requiresSession = GetRequiresSession();
+			DisplayedMessage = requiresSession
+				? await _serviceBusService.ReceiveSessionMessageAsync(ReceiveSessionId)
+				: await _serviceBusService.ReceiveMessageAsync();
 
 			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
@@ -182,6 +190,29 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 		EntityName = _serviceBusService.EntityName;
 		TopicName = _serviceBusService.TopicName;
 		AvailableEntities = ConvertToEntityIdList(_serviceBusService.AvailableEntities);
+		RequiresSession = GetRequiresSession();
+		if (!RequiresSession)
+			ReceiveSessionId = string.Empty;
+	}
+
+	private bool GetRequiresSession()
+	{
+		if (string.IsNullOrWhiteSpace(_serviceBusService.EntityName))
+			return false;
+
+		if (!string.IsNullOrWhiteSpace(_serviceBusService.TopicName)) {
+			SubscriptionEntityProperties? subscription = _serviceBusService.AvailableEntities
+				.OfType<SubscriptionEntityProperties>()
+				.FirstOrDefault(s => s.Name == _serviceBusService.EntityName && s.TopicName == _serviceBusService.TopicName);
+
+			return subscription?.RequiresSession ?? false;
+		}
+
+		QueueEntityProperties? queue = _serviceBusService.AvailableEntities
+			.OfType<QueueEntityProperties>()
+			.FirstOrDefault(q => q.Name == _serviceBusService.EntityName);
+
+		return queue?.RequiresSession ?? false;
 	}
 
 	private bool ValidateSystemProperties()
