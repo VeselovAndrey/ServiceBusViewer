@@ -1,12 +1,12 @@
-@model ServiceBusViewer.Pages.Shared.EntityListViewModel
+@model ServiceBusViewer.Pages.Shared.EntityListModel
 @using ServiceBusViewer.Infrastructure.ServiceBus.Models
 
 <div class="col-md-3 border-end" style="overflow-y: auto; height: 100%;">
-    <h5>Entities</h5>
+    <h3>Entities</h3>
     @if (Model.AvailableEntities.Count > 0) {
         <div class="list-group">
-            @foreach (var queue in Model.AvailableEntities.OfType<QueueEntityInfo>()) {
-                <div class="list-group-item d-flex align-items-center @(Model.EntityName == queue.Name && Model.SubscriptionName == null ? "list-group-item-primary" : "")">
+            @foreach (var queue in Model.AvailableEntities.OfType<QueueEntityId>()) {
+                <div class="list-group-item d-flex align-items-center @(Model.EntityName == queue.Name && Model.TopicName == null ? "list-group-item-primary" : "")">
                     <form method="post" asp-page="/Index" asp-page-handler="SelectEntity" class="flex-grow-1 mb-0">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="SelectedEntityName" value="@queue.Name" />
@@ -15,7 +15,7 @@
                             <img src="~/components/entity-list/queue.svg" alt="Queue" class="icon" /> @queue.Name
                         </button>
                     </form>
-                    @if (Model.ManagementApiEnabled) {
+                    @if (Model.DisplayPropertyLinks) {
                         <a class="btn btn-sm" asp-page="/EntityInfo" asp-route-type="Queue" asp-route-name="@queue.Name" title="View queue properties">
                             <img src="~/components/entity-list/info.svg" alt="View queue properties" />
                         </a>
@@ -23,18 +23,18 @@
                 </div>
             }
 
-            @foreach (var topic in Model.AvailableEntities.OfType<TopicEntityInfo>()) {
+            @foreach (var topic in Model.AvailableEntities.OfType<TopicEntityId>()) {
                 <div>
                     <div class="list-group-item bg-light d-flex align-items-center justify-content-between">
                         <span><img src="~/components/entity-list/topic.svg" alt="Topic" class="icon" /> @topic.Name</span>
-                        @if (Model.ManagementApiEnabled) {
+                        @if (Model.DisplayPropertyLinks) {
                             <a class="btn btn-sm" asp-page="/EntityInfo" asp-route-type="Topic" asp-route-name="@topic.Name" title="View topic properties">
                                 <img src="~/components/entity-list/info.svg" alt="View topic properties" />
                             </a>
                         }
                     </div>
-                    @foreach (var subscription in Model.AvailableEntities.OfType<SubscriptionEntityInfo>().Where(e => e.TopicName == topic.Name)) {
-                        <div class="list-group-item d-flex align-items-center ps-4 @(Model.EntityName == topic.Name && Model.SubscriptionName == subscription.Name ? "list-group-item-primary" : "")">
+                    @foreach (var subscription in Model.AvailableEntities.OfType<SubscriptionEntityId>().Where(e => e.TopicName == topic.Name)) {
+                        <div class="list-group-item d-flex align-items-center ps-4 @(Model.EntityName == subscription.Name && Model.TopicName == topic.Name ? "list-group-item-primary" : "")">
                             <form method="post" asp-page="/Index" asp-page-handler="SelectEntity" class="flex-grow-1 mb-0">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="SelectedEntityName" value="@subscription.Name" />
@@ -44,7 +44,7 @@
                                     <img src="~/components/entity-list/subscription.svg" alt="Subscription" class="icon" /> @subscription.Name
                                 </button>
                             </form>
-                            @if (Model.ManagementApiEnabled) {
+                            @if (Model.DisplayPropertyLinks) {
                                 <a class="btn btn-sm" asp-page="/EntityInfo" asp-route-type="Subscription" asp-route-name="@subscription.Name" asp-route-topicname="@subscription.TopicName" title="View subscription properties">
                                     <img src="~/components/entity-list/info.svg" alt="View subscription properties" />
                                 </a>

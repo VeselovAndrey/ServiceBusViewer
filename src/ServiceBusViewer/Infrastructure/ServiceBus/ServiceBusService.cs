@@ -1,5 +1,6 @@
 namespace ServiceBusViewer.Infrastructure.ServiceBus;
 
+using System.Globalization;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using ServiceBusViewer.Infrastructure.ServiceBus.Models;
@@ -11,7 +12,7 @@ public class ServiceBusService
 
 	private ServiceBusClient? _client;
 	private ServiceBusAdministrationClient? _adminClient;
-	private readonly List<EntityInfo> _availableEntities = new List<EntityInfo>();
+	private readonly List<EntityProperties> _availableEntities = new List<EntityProperties>();
 
 	/// <summary>Gets a value indicating whether the service is connected to a Service Bus instance.</summary>
 	public bool Connected { get; private set; }
@@ -22,116 +23,112 @@ public class ServiceBusService
 	/// <summary>Gets the entity name (queue or topic) currently connected to.</summary>
 	public string EntityName { get; private set; } = string.Empty;
 
-	/// <summary>Gets the subscription name if connected to a topic subscription; otherwise, null.</summary>
-	public string? SubscriptionName { get; private set; }
+	/// <summary>Gets the parent topic if connected to a topic subscription; otherwise, null.</summary>
+	public string? TopicName { get; private set; }
 
 	/// <summary>Gets a value indicating whether connected using a root connection string with admin privileges.</summary>
 	public bool IsManagementApiAvailable => _adminClient is not null;
 
-	/// <summary>Gets the list of available entities when connected in root mode.</summary>
-	public IReadOnlyList<EntityInfo> AvailableEntities => _availableEntities;
+	/// <summary>Gets the list of available entity properties with full details.</summary>
+	public IReadOnlyList<EntityProperties> AvailableEntities => _availableEntities;
 
 	/// <summary>Connects to the specified Service Bus entity.</summary>
 	/// <param name="connectionString">The Service Bus connection string.</param>
-	/// <param name="entityName">The queue or topic name.</param>
-	/// <param name="subscriptionName">The subscription name, or null for queues.</param>
 	/// <param name="rootConnectionString">Optional root connection string for admin operations.</param>
 	/// <exception cref="InvalidOperationException">Thrown if already connected.</exception>
-	public async Task ConnectToAsync(string connectionString, string? rootConnectionString, string? entityName, string? subscriptionName)
+	public async Task ConnectToAsync(string connectionString, string rootConnectionString)
 	{
 		if (Connected)
 			throw new InvalidOperationException("Already connected to a Service Bus instance.");
 
 		_client = new ServiceBusClient(connectionString);
-
-		if (!string.IsNullOrWhiteSpace(rootConnectionString))
-			_adminClient = new ServiceBusAdministrationClient(rootConnectionString);
+		_adminClient = new ServiceBusAdministrationClient(rootConnectionString);
 
 		Host = GetServiceBusHost(connectionString);
-		EntityName = entityName ?? string.Empty;
-		SubscriptionName = subscriptionName;
+		EntityName = string.Empty;
+		TopicName = null;
 		Connected = true;
-
-		// Populate available entities list
-		if (!IsManagementApiAvailable) {
-			if (string.IsNullOrWhiteSpace(entityName))
-				throw new InvalidOperationException("The topic or subscription name required.");
-
-			if (!string.IsNullOrWhiteSpace(subscriptionName)) {
-				_availableEntities.Add(new TopicEntityInfo(entityName));
-				_availableEntities.Add(new SubscriptionEntityInfo(subscriptionName, entityName));
-			}
-			else {
-				_availableEntities.Add(new QueueEntityInfo(entityName));
-			}
-		}
 
 		await UpdateAvailableEntitiesListAsync();
 	}
 
-	/// <summary>Returns properties for the specified entity using the administration client.</summary>
-	/// <param name="entity">Entity to load properties for.</param>
-	/// <returns>Entity properties with a type matching the requested entity.</returns>
-	/// <exception cref="InvalidOperationException">Thrown if admin client is not configured.</exception>
-	public async Task<EntityProperties> GetEntityPropertiesAsync(EntityInfo entity)
+	/// <summary>Connects to the specified Service Bus entity without using ServiceBusAdministrationClient to get the list of entities.</summary>
+	/// <param name="connectionString">The Service Bus connection string.</param>
+	/// <param name="queueOrTopicName">The queue or topic name.</param>
+	/// <param name="subscriptionName">The subscription name, or <c>null</c> for queues.</param>
+	/// <exception cref="InvalidOperationException">Thrown if already connected.</exception>
+	public async Task ConnectToAsync(string connectionString, string queueOrTopicName, string? subscriptionName)
 	{
-		if (_adminClient is null)
-			throw new InvalidOperationException("Entity properties are available only when connected with a root connection string.");
+		if (Connected)
+			throw new InvalidOperationException("Already connected to a Service Bus instance.");
 
-		return entity switch {
-			QueueEntityInfo queue => await GetQueuePropertiesAsync(queue.Name, _adminClient),
-			TopicEntityInfo topic => await GetTopicPropertiesAsync(topic.Name, _adminClient),
-			SubscriptionEntityInfo subscription => await GetSubscriptionPropertiesAsync(subscription.TopicName, subscription.Name, _adminClient),
-			_ => throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}")
+		_client = new ServiceBusClient(connectionString);
+		_adminClient = null;
+
+		Host = GetServiceBusHost(connectionString);
+		EntityName = subscriptionName ?? queueOrTopicName;
+		TopicName = subscriptionName is not null ? queueOrTopicName : null;
+		Connected = true;
+
+		// Non-admin mode: create minimal property objects for the connected entity
+		if (string.IsNullOrWhiteSpace(queueOrTopicName))
+			throw new InvalidOperationException("The topic or subscription name required.");
+
+		if (!string.IsNullOrWhiteSpace(subscriptionName)) {
+			// For subscriptions, create both topic and subscription property placeholders
+			_availableEntities.Add(new TopicEntityProperties(
+				queueOrTopicName,
+				TimeSpan.MaxValue,
+				false,
+				TimeSpan.FromMinutes(10),
+				true,
+				false,
+				TimeSpan.MaxValue));
+			_availableEntities.Add(new SubscriptionEntityProperties(
+				subscriptionName,
+				queueOrTopicName,
+				TimeSpan.FromMinutes(1),
+				10,
+				TimeSpan.MaxValue,
+				false,
+				false,
+				true,
+				TimeSpan.MaxValue));
+		}
+		else {
+			// For queues, create a queue property placeholder
+			_availableEntities.Add(new QueueEntityProperties(
+				queueOrTopicName,
+				TimeSpan.FromMinutes(1),
+				10,
+				TimeSpan.MaxValue,
+				false,
+				TimeSpan.FromMinutes(10),
+				false,
+				true,
+				false,
+				false,
+				TimeSpan.MaxValue));
+		}
+	}
+
+	/// <summary>Returns properties for the specified entity from the cache.</summary>
+	/// <param name="entityId">Entity to load properties for.</param>
+	/// <returns>Entity properties with a type matching the requested entity.</returns>
+	/// <exception cref="InvalidOperationException">Thrown if entity is not found in cache.</exception>
+	public EntityProperties GetEntityPropertiesAsync(EntityId entityId)
+	{
+		EntityProperties? properties = entityId switch {
+			QueueEntityId queueId => _availableEntities.FirstOrDefault(p => p is QueueEntityProperties && p.Name == queueId.Name),
+			TopicEntityId topicId => _availableEntities.FirstOrDefault(p => p is TopicEntityProperties && p.Name == topicId.Name),
+			SubscriptionEntityId subscriptionId => _availableEntities.FirstOrDefault(p => p is SubscriptionEntityProperties sp && sp.Name == subscriptionId.Name && sp.TopicName == subscriptionId.TopicName),
+			_ => throw new ArgumentException($"Unknown entity type: {entityId.GetType().FullName}")
 		};
 
-		static async Task<QueueEntityProperties> GetQueuePropertiesAsync(string queueName, ServiceBusAdministrationClient adminClient)
-		{
-			QueueProperties properties = await adminClient.GetQueueAsync(queueName);
+		if (properties is null)
+			throw new InvalidOperationException($"Entity properties for '{entityId.Name}' not found in cache. Please refresh the entity list.");
 
-			return new QueueEntityProperties(
-				properties.Name,
-				properties.LockDuration,
-				properties.MaxDeliveryCount,
-				properties.DefaultMessageTimeToLive,
-				properties.RequiresDuplicateDetection,
-				properties.DuplicateDetectionHistoryTimeWindow,
-				properties.DeadLetteringOnMessageExpiration,
-				properties.EnableBatchedOperations,
-				properties.RequiresSession,
-				properties.EnablePartitioning,
-				properties.AutoDeleteOnIdle);
-		}
-
-		static async Task<TopicEntityProperties> GetTopicPropertiesAsync(string topicName, ServiceBusAdministrationClient adminClient)
-		{
-			TopicProperties properties = await adminClient.GetTopicAsync(topicName);
-
-			return new TopicEntityProperties(
-				properties.Name,
-				properties.DefaultMessageTimeToLive,
-				properties.RequiresDuplicateDetection,
-				properties.DuplicateDetectionHistoryTimeWindow,
-				properties.EnableBatchedOperations,
-				properties.EnablePartitioning,
-				properties.AutoDeleteOnIdle);
-		}
-
-		static async Task<SubscriptionEntityProperties> GetSubscriptionPropertiesAsync(string topicName, string subscriptionName, ServiceBusAdministrationClient adminClient)
-		{
-			SubscriptionProperties properties = await adminClient.GetSubscriptionAsync(topicName, subscriptionName);
-
-			return new SubscriptionEntityProperties(
-				properties.SubscriptionName,
-				properties.TopicName,
-				properties.LockDuration,
-				properties.MaxDeliveryCount,
-				properties.DefaultMessageTimeToLive,
-				properties.DeadLetteringOnMessageExpiration,
-				properties.RequiresSession,
-				properties.EnableBatchedOperations,
-				properties.AutoDeleteOnIdle);
-		}
+		return properties;
 	}
 
 	/// <summary>Disconnects asynchronously from the current Service Bus instance.</summary>
@@ -150,17 +147,17 @@ public class ServiceBusService
 
 		Host = string.Empty;
 		EntityName = string.Empty;
-		SubscriptionName = null;
+		TopicName = null;
 		Connected = false;
 	}
 
 	/// <summary>Peeks a batch of messages from the connected Service Bus entity.</summary>
 	/// <param name="maxMessages">The maximum number of messages to peek.</param>
-	/// <returns>A <see cref="MessageList"/> containing the peeked messages and a flag indicating if more messages exist.</returns>
-	public async Task<MessageList> PeekMessagesAsync(int maxMessages = _maxMessagesToPeek)
+	/// <returns>A <see cref="ReceivedMessageList"/> containing the peeked messages and a flag indicating if more messages exist.</returns>
+	public async Task<ReceivedMessageList> PeekMessagesAsync(int maxMessages = _maxMessagesToPeek)
 	{
 		if (string.IsNullOrWhiteSpace(EntityName))
-			return MessageList.Empty;
+			return ReceivedMessageList.Empty;
 
 		await using ServiceBusReceiver receiver = GetReceiver();
 
@@ -170,20 +167,14 @@ public class ServiceBusService
 		bool hasMore = messages.Count > maxMessages;
 		IEnumerable<ServiceBusReceivedMessage> messagesToReturn = hasMore ? messages.Take(maxMessages) : messages;
 
-		var messageDetails = messagesToReturn.Select(m => new MessageDetails(
-			m.MessageId,
-			m.Body.ToString(),
-			m.ContentType ?? "text/plain",
-			m.EnqueuedTime,
-			m.ApplicationProperties.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)))
-			.ToList();
+		var messageDetails = messagesToReturn.Select(ConvertToMessageDetails).ToList();
 
-		return new MessageList(messageDetails, hasMore);
+		return new ReceivedMessageList(messageDetails, hasMore);
 	}
 
 	/// <summary>Receives and completes a single message from the connected Service Bus entity.</summary>
-	/// <returns>The <see cref="MessageDetails"/> of the received message, or null if no message is available.</returns>
-	public async Task<MessageDetails?> ReceiveMessageAsync()
+	/// <returns>The <see cref="ReceivedMessage"/> of the received message, or null if no message is available.</returns>
+	public async Task<ReceivedMessage?> ReceiveMessageAsync()
 	{
 		await using ServiceBusReceiver receiver = GetReceiver();
 
@@ -194,33 +185,143 @@ public class ServiceBusService
 
 		await receiver.CompleteMessageAsync(message);
 
-		return new MessageDetails(
-			message.MessageId,
-			message.Body.ToString(),
-			message.ContentType ?? "text/plain",
-			message.EnqueuedTime,
-			message.ApplicationProperties.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
+		return ConvertToMessageDetails(message);
+	}
+
+	/// <summary>Receives and completes a single message from a session-enabled Service Bus entity.</summary>
+	/// <param name="sessionId">The session ID to accept. If null or empty, accepts the next available session.</param>
+	/// <returns>The <see cref="ReceivedMessage"/> of the received message, or null if no message is available.</returns>
+	public async Task<ReceivedMessage?> ReceiveSessionMessageAsync(string? sessionId)
+	{
+		await using ServiceBusSessionReceiver sessionReceiver = await GetSessionReceiver(sessionId);
+
+		ServiceBusReceivedMessage? message = await sessionReceiver.ReceiveMessageAsync();
+
+		if (message is null)
+			return null;
+
+		await sessionReceiver.CompleteMessageAsync(message);
+
+		return ConvertToMessageDetails(message);
 	}
 
 	/// <summary>Sends a message to the connected Service Bus entity.</summary>
 	/// <param name="content">The message content.</param>
-	/// <param name="contentType">The content type of the message.</param>
-	/// <param name="properties">The application properties to include with the message.</param>
-	public async Task SendMessageAsync(string content, string contentType, Dictionary<string, object> properties)
+	/// <param name="messageProperties">The optional system properties to include with the message.</param>
+	/// <param name="applicationProperties">The application properties to include with the message.</param>
+	public async Task SendMessageAsync(string content, MessageProperties? messageProperties, IReadOnlyList<ApplicationProperty> applicationProperties)
 	{
 		await using ServiceBusSender sender = GetSender();
 
-		ServiceBusMessage message = new ServiceBusMessage(content) {
-			ContentType = contentType,
-			MessageId = Guid.NewGuid().ToString()
-		};
+		ServiceBusMessage message = new ServiceBusMessage(content);
 
-		foreach (KeyValuePair<string, object> property in properties) {
+		if (messageProperties is not null) {
+			if (!string.IsNullOrWhiteSpace(messageProperties.MessageId))
+				message.MessageId = messageProperties.MessageId;
+
+			if (!string.IsNullOrWhiteSpace(messageProperties.ContentType))
+				message.ContentType = messageProperties.ContentType;
+
+			if (!string.IsNullOrWhiteSpace(messageProperties.SessionId))
+				message.SessionId = messageProperties.SessionId;
+
+			if (!string.IsNullOrWhiteSpace(messageProperties.CorrelationId))
+				message.CorrelationId = messageProperties.CorrelationId;
+
+			if (messageProperties.ScheduledEnqueueTime is not null)
+				message.ScheduledEnqueueTime = messageProperties.ScheduledEnqueueTime.Value;
+
+			if (messageProperties.TimeToLive is not null)
+				message.TimeToLive = messageProperties.TimeToLive.Value;
+		}
+
+		foreach (ApplicationProperty property in applicationProperties) {
 			if (!string.IsNullOrEmpty(property.Key))
-				message.ApplicationProperties[property.Key] = property.Value;
+				message.ApplicationProperties[property.Key] = ConvertApplicationPropertyValue(property.Value, property.Type);
 		}
 
 		await sender.SendMessageAsync(message);
+	}
+
+	/// <summary>Retrieves all available entities (queues, topics, and subscriptions) with their properties from the Service Bus namespace.</summary>
+	/// <returns>A task representing the asynchronous operation.</returns>
+	/// <exception cref="InvalidOperationException">Thrown if admin client is not available.</exception>
+	public async Task UpdateAvailableEntitiesListAsync()
+	{
+		if (_adminClient is null)
+			throw new InvalidOperationException("Entity list refresh is only available when connected with a root connection string.");
+
+		_availableEntities.Clear();
+
+		// Get all queues with properties
+		await foreach (QueueProperties queue in _adminClient.GetQueuesAsync()) {
+			_availableEntities.Add(new QueueEntityProperties(
+				queue.Name,
+				queue.LockDuration,
+				queue.MaxDeliveryCount,
+				queue.DefaultMessageTimeToLive,
+				queue.RequiresDuplicateDetection,
+				queue.DuplicateDetectionHistoryTimeWindow,
+				queue.DeadLetteringOnMessageExpiration,
+				queue.EnableBatchedOperations,
+				queue.RequiresSession,
+				queue.EnablePartitioning,
+				queue.AutoDeleteOnIdle));
+		}
+
+		// Get all topics and their subscriptions with properties
+		await foreach (TopicProperties topic in _adminClient.GetTopicsAsync()) {
+			_availableEntities.Add(new TopicEntityProperties(
+				topic.Name,
+				topic.DefaultMessageTimeToLive,
+				topic.RequiresDuplicateDetection,
+				topic.DuplicateDetectionHistoryTimeWindow,
+				topic.EnableBatchedOperations,
+				topic.EnablePartitioning,
+				topic.AutoDeleteOnIdle));
+
+			await foreach (SubscriptionProperties subscription in _adminClient.GetSubscriptionsAsync(topic.Name)) {
+				_availableEntities.Add(new SubscriptionEntityProperties(
+					subscription.SubscriptionName,
+					subscription.TopicName,
+					subscription.LockDuration,
+					subscription.MaxDeliveryCount,
+					subscription.DefaultMessageTimeToLive,
+					subscription.DeadLetteringOnMessageExpiration,
+					subscription.RequiresSession,
+					subscription.EnableBatchedOperations,
+					subscription.AutoDeleteOnIdle));
+			}
+		}
+	}
+
+
+	/// <summary>Switches the active entity without disconnecting from the Service Bus.</summary>
+	/// <param name="entity">The entity to switch to.</param>
+	/// <exception cref="InvalidOperationException">Thrown if not connected.</exception>
+	public void SwitchActiveEntity(EntityId entity)
+	{
+		if (!Connected || _client is null)
+			throw new InvalidOperationException("Not connected to any Service Bus instance.");
+
+		// No need to create a new client, just update the entity information
+		switch (entity) {
+			case QueueEntityId queueId:
+				EntityName = queueId.Name;
+				TopicName = null;
+				break;
+
+			case SubscriptionEntityId subscriptionId:
+				EntityName = subscriptionId.Name;
+				TopicName = subscriptionId.TopicName;
+				break;
+
+			case TopicEntityId topicId:
+				throw new InvalidOperationException($"Please select the subscription for the topic {topicId.Name}");
+
+			default:
+				throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}");
+		}
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusReceiver"/> for the current entity and subscription.</summary>
@@ -231,8 +332,8 @@ public class ServiceBusService
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Service Bus is not connected.");
 
-		if (!string.IsNullOrWhiteSpace(SubscriptionName)) {
-			return _client.CreateReceiver(EntityName, SubscriptionName, new ServiceBusReceiverOptions {
+		if (!string.IsNullOrWhiteSpace(TopicName)) {
+			return _client.CreateReceiver(TopicName, EntityName, new ServiceBusReceiverOptions {
 				ReceiveMode = ServiceBusReceiveMode.PeekLock
 			});
 		}
@@ -240,6 +341,26 @@ public class ServiceBusService
 		return _client.CreateReceiver(EntityName, new ServiceBusReceiverOptions {
 			ReceiveMode = ServiceBusReceiveMode.PeekLock
 		});
+	}
+
+	/// <summary>Gets a <see cref="ServiceBusSessionReceiver"/> for the current entity.</summary>
+	/// <param name="sessionId">The session ID to accept. If null or empty, accepts the next available session.</param>
+	/// <returns>A <see cref="ServiceBusSessionReceiver"/> instance.</returns>
+	/// <exception cref="InvalidOperationException">Thrown if not connected.</exception>
+	private async Task<ServiceBusSessionReceiver> GetSessionReceiver(string? sessionId)
+	{
+		if (!Connected || _client is null)
+			throw new InvalidOperationException("Service Bus is not connected.");
+
+		if (!string.IsNullOrWhiteSpace(TopicName)) {
+			return string.IsNullOrEmpty(sessionId)
+				? await _client.AcceptNextSessionAsync(TopicName, EntityName)
+				: await _client.AcceptSessionAsync(TopicName, EntityName, sessionId);
+		}
+
+		return string.IsNullOrEmpty(sessionId)
+			? await _client.AcceptNextSessionAsync(EntityName)
+			: await _client.AcceptSessionAsync(EntityName, sessionId);
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusSender"/> for the current entity.</summary>
@@ -265,62 +386,52 @@ public class ServiceBusService
 			throw new ArgumentException("Invalid Service Bus connection string.", nameof(connectionString));
 
 		int endIndex = connectionString.IndexOf(';', connectionStringPrefix.Length);
-
-		ReadOnlySpan<char> span = connectionString.AsSpan();
-		ReadOnlySpan<char> host = span.Slice(connectionStringPrefix.Length, endIndex - connectionStringPrefix.Length);
-		host = host.TrimEnd('/');
+		ReadOnlySpan<char> host = connectionString.AsSpan(connectionStringPrefix.Length, endIndex - connectionStringPrefix.Length)
+			.TrimEnd('/');
 
 		return host.ToString();
 	}
 
-	/// <summary>Retrieves all available entities (queues, topics, and subscriptions) from the Service Bus namespace.</summary>
-	/// <returns>A list of <see cref="EntityInfo"/> representing all entities.</returns>
-	/// <exception cref="InvalidOperationException">Thrown if not connected in root mode.</exception>
-	public async Task UpdateAvailableEntitiesListAsync()
+	private static ReceivedMessage ConvertToMessageDetails(ServiceBusReceivedMessage message)
 	{
-		if (_adminClient is null) // Keep pre-configured entity list if admin client was not configured
-			return;
+		var properties = new ReceivedMessageProperties(
+			message.MessageId,
+			message.PartitionKey,
+			message.SessionId,
+			message.CorrelationId,
+			message.ContentType,
+			message.EnqueuedTime,
+			message.ScheduledEnqueueTime != DateTimeOffset.MinValue ? message.ScheduledEnqueueTime : null,
+			message.TimeToLive != TimeSpan.MaxValue ? message.TimeToLive : null);
 
-		_availableEntities.Clear();
-
-		// Get all queues
-		await foreach (QueueProperties? queue in _adminClient.GetQueuesAsync())
-			_availableEntities.Add(new QueueEntityInfo(queue.Name));
-
-		// Get all topics and their subscriptions
-		await foreach (TopicProperties? topic in _adminClient.GetTopicsAsync()) {
-			_availableEntities.Add(new TopicEntityInfo(topic.Name));
-
-			await foreach (SubscriptionProperties? subscription in _adminClient.GetSubscriptionsAsync(topic.Name))
-				_availableEntities.Add(new SubscriptionEntityInfo(subscription.SubscriptionName, topic.Name));
-		}
+		return new ReceivedMessage(
+			message.Body.ToString(),
+			properties,
+			message.ApplicationProperties);
 	}
 
-	/// <summary>Switches the active entity without disconnecting from the Service Bus.</summary>
-	/// <param name="entity">The entity to switch to.</param>
-	/// <exception cref="InvalidOperationException">Thrown if not connected.</exception>
-	public void SwitchEntity(EntityInfo entity)
+	private static object ConvertApplicationPropertyValue(string value, ApplicationPropertyType type)
 	{
-		if (!Connected || _client is null)
-			throw new InvalidOperationException("Not connected to any Service Bus instance.");
-
-		// No need to create a new client, just update the entity information
-		switch (entity) {
-			case QueueEntityInfo queue:
-				EntityName = queue.Name;
-				SubscriptionName = null;
-				break;
-
-			case SubscriptionEntityInfo subscription:
-				EntityName = subscription.TopicName;
-				SubscriptionName = subscription.Name;
-				break;
-
-			case TopicEntityInfo topic:
-				throw new InvalidOperationException($"Please select the subscription for the topic {topic.Name}");
-
-			default:
-				throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}");
-		}
+		return type switch {
+			ApplicationPropertyType.String => value,
+			ApplicationPropertyType.Bool => bool.Parse(value),
+			ApplicationPropertyType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.SByte => sbyte.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Short => short.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.UShort => ushort.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Int => int.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.UInt => uint.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Long => long.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.ULong => ulong.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Float => float.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Double => double.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Decimal => decimal.Parse(value, CultureInfo.InvariantCulture),
+			ApplicationPropertyType.Char => value.Length == 1 ? value[0] : throw new FormatException("Char value must be a single character."),
+			ApplicationPropertyType.Guid => Guid.Parse(value),
+			ApplicationPropertyType.DateTime => DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+			ApplicationPropertyType.DateTimeOffset => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+			ApplicationPropertyType.TimeSpan => TimeSpan.Parse(value, CultureInfo.InvariantCulture),
+			_ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported application property type.")
+		};
 	}
 }

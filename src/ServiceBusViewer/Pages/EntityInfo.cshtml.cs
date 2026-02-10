@@ -18,15 +18,6 @@ public class EntityInfoModel(ServiceBusService serviceBusService) : PageModel
 	[BindProperty(SupportsGet = true)]
 	public string? TopicName { get; set; }
 
-	[BindProperty]
-	public string? SelectedEntityName { get; set; }
-
-	[BindProperty]
-	public string? SelectedEntityType { get; set; }
-
-	[BindProperty]
-	public string? SelectedTopicName { get; set; }
-
 	public string ServiceBusHostName { get; set; } = string.Empty;
 
 	public bool IsManagementApiAvailable => _serviceBusService.IsManagementApiAvailable;
@@ -35,19 +26,15 @@ public class EntityInfoModel(ServiceBusService serviceBusService) : PageModel
 
 	public string? ErrorMessage { get; private set; }
 
-	public IReadOnlyList<EntityInfo> AvailableEntities { get; private set; } = Array.Empty<EntityInfo>();
-
-	public string? EntityNameForSelection { get; private set; }
-
-	public string? SubscriptionNameForSelection { get; private set; }
+	public IReadOnlyList<EntityId> AvailableEntities { get; private set; } = [];
 
 	public async Task<IActionResult> OnGet()
 	{
 		if (!_serviceBusService.Connected)
-			return RedirectToPage("/Index");
+			return RedirectToPage("/Connect");
 
-		AvailableEntities = _serviceBusService.AvailableEntities;
-		SetSelectedEntityContext();
+		AvailableEntities = ConvertToEntityIdList(_serviceBusService.AvailableEntities);
+		ServiceBusHostName = _serviceBusService.Host;
 
 		if (string.IsNullOrWhiteSpace(Type) || string.IsNullOrWhiteSpace(Name)) {
 			ErrorMessage = "Entity type and name are required.";
@@ -55,95 +42,29 @@ public class EntityInfoModel(ServiceBusService serviceBusService) : PageModel
 		}
 
 		try {
-			EntityInfo entity = Type.ToLowerInvariant() switch {
-				"queue" => new QueueEntityInfo(Name!),
-				"topic" => new TopicEntityInfo(Name!),
-				"subscription" when !string.IsNullOrWhiteSpace(TopicName) => new SubscriptionEntityInfo(Name!, TopicName!),
+			EntityId entity = Type.ToLowerInvariant() switch {
+				"queue" => new QueueEntityId(Name!),
+				"topic" => new TopicEntityId(Name!),
+				"subscription" when !string.IsNullOrWhiteSpace(TopicName) => new SubscriptionEntityId(Name!, TopicName!),
 				_ => throw new InvalidOperationException("Unsupported entity type or missing topic name for subscription.")
 			};
 
-			Properties = await _serviceBusService.GetEntityPropertiesAsync(entity);
+			Properties = _serviceBusService.GetEntityPropertiesAsync(entity);
 		}
 		catch (Exception ex) {
 			ErrorMessage = ex.Message;
 		}
 
-		FillPageModel();
-
 		return Page();
 	}
 
-	public IActionResult OnPostSelectEntity()
+	private static IReadOnlyList<EntityId> ConvertToEntityIdList(IReadOnlyList<EntityProperties> properties)
 	{
-		if (!_serviceBusService.Connected)
-			return RedirectToPage("/Index");
-
-		AvailableEntities = _serviceBusService.AvailableEntities;
-
-		if (string.IsNullOrWhiteSpace(SelectedEntityName)) {
-			ModelState.AddModelError(string.Empty, "Entity name is required.");
-			Type = SelectedEntityType;
-			Name = SelectedEntityName;
-			TopicName = SelectedTopicName;
-			SetSelectedEntityContext();
-			return Page();
-		}
-
-		if (string.Equals(SelectedEntityType, "Subscription", StringComparison.OrdinalIgnoreCase)
-			&& string.IsNullOrWhiteSpace(SelectedTopicName)) {
-			ModelState.AddModelError(string.Empty, "Topic name is required for subscription selection.");
-			Type = SelectedEntityType;
-			Name = SelectedEntityName;
-			TopicName = SelectedTopicName;
-			SetSelectedEntityContext();
-			return Page();
-		}
-
-		try {
-			EntityInfo entityInfo = SelectedEntityType switch {
-				"Subscription" => new SubscriptionEntityInfo(SelectedEntityName!, SelectedTopicName!),
-				"Topic" => new TopicEntityInfo(SelectedEntityName!),
-				_ => new QueueEntityInfo(SelectedEntityName!)
-			};
-
-			_serviceBusService.SwitchEntity(entityInfo);
-
-			string targetType = SelectedEntityType ?? "Queue";
-			string? targetTopicName = SelectedEntityType == "Subscription" ? SelectedTopicName : null;
-
-			return RedirectToPage(new { type = targetType, name = SelectedEntityName, topicName = targetTopicName });
-		}
-		catch (Exception ex) {
-			ModelState.AddModelError(string.Empty, ex.Message);
-		}
-
-		Type = SelectedEntityType;
-		Name = SelectedEntityName;
-		TopicName = SelectedTopicName;
-
-		SetSelectedEntityContext();
-		FillPageModel();
-
-		return Page();
-	}
-
-	private void SetSelectedEntityContext()
-	{
-		switch (Type?.ToLowerInvariant()) {
-			case "subscription" when !string.IsNullOrWhiteSpace(TopicName):
-				EntityNameForSelection = TopicName;
-				SubscriptionNameForSelection = Name;
-				break;
-
-			default:
-				EntityNameForSelection = Name;
-				SubscriptionNameForSelection = null;
-				break;
-		}
-	}
-
-	private void FillPageModel()
-	{
-		ServiceBusHostName = _serviceBusService.Host;
+		return properties.Select(p => (EntityId)(p switch {
+			QueueEntityProperties queue => new QueueEntityId(queue.Name),
+			TopicEntityProperties topic => new TopicEntityId(topic.Name),
+			SubscriptionEntityProperties subscription => new SubscriptionEntityId(subscription.Name, subscription.TopicName),
+			_ => throw new ArgumentException($"Unknown entity properties type: {p.GetType().FullName}")
+		})).ToList();
 	}
 }

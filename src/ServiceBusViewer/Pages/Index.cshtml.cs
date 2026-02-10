@@ -5,93 +5,55 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using ServiceBusViewer.Infrastructure.ServiceBus;
 using ServiceBusViewer.Infrastructure.ServiceBus.Models;
 
-public enum MessageDisplayType
-{
-	None = 0,
-	Peeked,
-	Received
-}
-
-public record MessageProperty(string Key, string Value);
-
 public class IndexModel(ServiceBusService serviceBusService) : PageModel
 {
 	private readonly ServiceBusService _serviceBusService = serviceBusService;
-
-	[BindProperty(SupportsGet = true)]
-	public string? ConnectionString { get; set; } = Environment.GetEnvironmentVariable("CONNECTION_STRING")
-		?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"; // Use development connection string by default
-
-	[BindProperty(SupportsGet = true)]
-	public string? RootConnectionString { get; set; } = Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING");
-
-	[BindProperty(SupportsGet = true)]
-	public string? EntityName { get; set; }
-
-	[BindProperty(SupportsGet = true)]
-	public string? SubscriptionName { get; set; }
-
-	[BindProperty]
-	public string? SelectedEntityName { get; set; }
-
-	[BindProperty]
-	public string? SelectedEntityType { get; set; }
-
-	[BindProperty]
-	public string? SelectedTopicName { get; set; }
+	private const int MaxSystemPropertyLength = 128;
 
 	[BindProperty]
 	public string? SendMessageBody { get; set; }
 
 	[BindProperty]
-	public IList<MessageProperty> SendMessageProperties { get; set; } = new List<MessageProperty>();
+	public MessageProperties SendMessageProperties { get; set; } = new();
 
-	public bool IsConnected => _serviceBusService.Connected;
+	[BindProperty]
+	public List<ApplicationProperty> SendMessageApplicationProperties { get; set; } = new List<ApplicationProperty>();
+
+	[BindProperty]
+	public string? ReceiveSessionId { get; set; }
+
+	public string? EntityName { get; set; }
+
+	public string? TopicName { get; set; }
+
+	public bool RequiresSession { get; set; }
 
 	public bool IsManagementApiAvailable => _serviceBusService.IsManagementApiAvailable;
 
 	public string ServiceBusHostName { get; set; } = string.Empty;
 
-	public IReadOnlyList<EntityInfo> AvailableEntities { get; set; } = [];
+	public IReadOnlyList<EntityId> AvailableEntities { get; set; } = [];
 
-	public IReadOnlyList<MessageDetails> Messages { get; set; } = [];
+	public IReadOnlyList<ReceivedMessage> Messages { get; set; } = [];
 
 	public bool HasMoreMessages { get; set; }
 
-	public MessageDisplayType DisplayType { get; set; } = MessageDisplayType.None;
-
-	public MessageDetails? DisplayedMessage { get; set; }
+	public ReceivedMessage? DisplayedMessage { get; set; }
 
 	public string? SendResultMessage { get; set; }
 
-	public void OnGet()
+	public async Task<IActionResult> OnGet()
 	{
-		FillPageModel();
-	}
-
-	public async Task<IActionResult> OnPostConnect()
-	{
-		if (string.IsNullOrWhiteSpace(ConnectionString)) {
-			ModelState.AddModelError(string.Empty, "Connection string is required.");
-			return Page();
-		}
-
-		// If not in root mode, entity name is required
-		if (string.IsNullOrWhiteSpace(RootConnectionString) && string.IsNullOrWhiteSpace(EntityName)) {
-			ModelState.AddModelError(string.Empty, "Queue/Topic name is required when not using root connection.");
-			return Page();
-		}
+		if (!_serviceBusService.Connected)
+			return RedirectToPage("/Connect");
 
 		try {
-			await _serviceBusService.ConnectToAsync(ConnectionString, RootConnectionString, EntityName, SubscriptionName);
-
-			AvailableEntities = _serviceBusService.AvailableEntities;
-			var result = await _serviceBusService.PeekMessagesAsync();
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
 		}
 		catch (Exception ex) {
-			ModelState.AddModelError(string.Empty, $"Connection failed: {ex.Message}");
+			ModelState.AddModelError(string.Empty, $"Refresh failed: {ex.Message}");
 		}
 
 		FillPageModel();
@@ -101,30 +63,29 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	public async Task<IActionResult> OnPostDisconnect()
 	{
 		await _serviceBusService.DisconnectAsync();
-
-		FillPageModel();
-		return Page();
+		return RedirectToPage("/Connect");
 	}
 
-	public async Task<IActionResult> OnPostSelectEntity()
+	public async Task<IActionResult> OnPostSelectEntity(string selectedEntityType, string selectedEntityName, string? selectedTopicName)
 	{
-		if (string.IsNullOrWhiteSpace(SelectedEntityName)) {
+		if (!_serviceBusService.Connected)
+			return RedirectToPage("/Connect");
+
+		if (string.IsNullOrWhiteSpace(selectedEntityName)) {
 			ModelState.AddModelError(string.Empty, "Entity name is required.");
 			return Page();
 		}
 
 		try {
-			EntityInfo entityInfo = SelectedEntityType switch {
-				"Subscription" => new SubscriptionEntityInfo(SelectedEntityName!, SelectedTopicName!),
-				"Topic" => new TopicEntityInfo(SelectedEntityName!),
-				_ => new QueueEntityInfo(SelectedEntityName!)
+			EntityId entityInfo = selectedEntityType switch {
+				"Subscription" => new SubscriptionEntityId(selectedEntityName, selectedTopicName!),
+				"Topic" => new TopicEntityId(selectedEntityName),
+				_ => new QueueEntityId(selectedEntityName)
 			};
 
-			_serviceBusService.SwitchEntity(entityInfo);
-			AvailableEntities = _serviceBusService.AvailableEntities;
+			_serviceBusService.SwitchActiveEntity(entityInfo);
 
-			// Load messages for the selected entity
-			MessageList result = await _serviceBusService.PeekMessagesAsync();
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
 		}
@@ -138,13 +99,13 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostRefresh()
 	{
+		if (!_serviceBusService.Connected)
+			return RedirectToPage("/Connect");
+
 		try {
-			MessageList result = await _serviceBusService.PeekMessagesAsync();
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
-
-			// Maintain entity list
-			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Refresh failed: {ex.Message}");
@@ -156,16 +117,18 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostReceive()
 	{
-		try {
-			DisplayedMessage = await _serviceBusService.ReceiveMessageAsync();
-			DisplayType = MessageDisplayType.Received;
+		if (!_serviceBusService.Connected)
+			return RedirectToPage("/Connect");
 
-			var result = await _serviceBusService.PeekMessagesAsync();
+		try {
+			bool requiresSession = GetRequiresSession();
+			DisplayedMessage = requiresSession
+				? await _serviceBusService.ReceiveSessionMessageAsync(ReceiveSessionId)
+				: await _serviceBusService.ReceiveMessageAsync();
+
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
-
-			// Maintain entity list
-			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Receive failed: {ex.Message}");
@@ -177,32 +140,41 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	public async Task<IActionResult> OnPostSend()
 	{
+		if (!_serviceBusService.Connected)
+			return RedirectToPage("/Connect");
+
 		if (string.IsNullOrWhiteSpace(SendMessageBody)) {
 			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
 
-			var result = await _serviceBusService.PeekMessagesAsync();
+			AvailableEntities = ConvertToEntityIdList(_serviceBusService.AvailableEntities);
+
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
-
-			AvailableEntities = _serviceBusService.AvailableEntities;
 
 			return Page();
 		}
 
 		try {
-			Dictionary<string, object> properties = SendMessageProperties.ToDictionary(x => x.Key, x => (object)x.Value);
+			if (!ValidateSystemProperties()) {
+				ReceivedMessageList invalidResult = await _serviceBusService.PeekMessagesAsync();
+				Messages = invalidResult.Messages;
+				HasMoreMessages = invalidResult.HasMore;
 
-			await _serviceBusService.SendMessageAsync(SendMessageBody, "application/json", properties);
+				FillPageModel();
+				return Page();
+			}
+
+
+			await _serviceBusService.SendMessageAsync(SendMessageBody, SendMessageProperties, SendMessageApplicationProperties);
 			SendResultMessage = "Message sent successfully!";
 			SendMessageBody = string.Empty;
-			SendMessageProperties.Clear();
+			SendMessageApplicationProperties.Clear();
+			SendMessageProperties = new MessageProperties();
 
-			var result = await _serviceBusService.PeekMessagesAsync();
+			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
 			Messages = result.Messages;
 			HasMoreMessages = result.HasMore;
-
-			// Maintain entity list
-			AvailableEntities = _serviceBusService.AvailableEntities;
 		}
 		catch (Exception ex) {
 			ModelState.AddModelError(string.Empty, $"Send failed: {ex.Message}");
@@ -216,6 +188,58 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	{
 		ServiceBusHostName = _serviceBusService.Host;
 		EntityName = _serviceBusService.EntityName;
-		SubscriptionName = _serviceBusService.SubscriptionName;
+		TopicName = _serviceBusService.TopicName;
+		AvailableEntities = ConvertToEntityIdList(_serviceBusService.AvailableEntities);
+		RequiresSession = GetRequiresSession();
+		if (!RequiresSession)
+			ReceiveSessionId = string.Empty;
+	}
+
+	private bool GetRequiresSession()
+	{
+		if (string.IsNullOrWhiteSpace(_serviceBusService.EntityName))
+			return false;
+
+		if (!string.IsNullOrWhiteSpace(_serviceBusService.TopicName)) {
+			SubscriptionEntityProperties? subscription = _serviceBusService.AvailableEntities
+				.OfType<SubscriptionEntityProperties>()
+				.FirstOrDefault(s => s.Name == _serviceBusService.EntityName && s.TopicName == _serviceBusService.TopicName);
+
+			return subscription?.RequiresSession ?? false;
+		}
+
+		QueueEntityProperties? queue = _serviceBusService.AvailableEntities
+			.OfType<QueueEntityProperties>()
+			.FirstOrDefault(q => q.Name == _serviceBusService.EntityName);
+
+		return queue?.RequiresSession ?? false;
+	}
+
+	private bool ValidateSystemProperties()
+	{
+		bool isValid = true;
+		isValid &= ValidateSystemPropertyLength(SendMessageProperties.MessageId, nameof(SendMessageProperties.MessageId), "Message ID");
+		isValid &= ValidateSystemPropertyLength(SendMessageProperties.SessionId, nameof(SendMessageProperties.SessionId), "Session ID");
+		isValid &= ValidateSystemPropertyLength(SendMessageProperties.CorrelationId, nameof(SendMessageProperties.CorrelationId), "Correlation ID");
+		return isValid;
+	}
+
+	private bool ValidateSystemPropertyLength(string? value, string propertyName, string displayName)
+	{
+		if (string.IsNullOrWhiteSpace(value) || value.Length <= MaxSystemPropertyLength)
+			return true;
+
+		ModelState.AddModelError($"{nameof(SendMessageProperties)}.{propertyName}", $"The {displayName} must be {MaxSystemPropertyLength} characters or fewer.");
+		return false;
+	}
+
+	private static IReadOnlyList<EntityId> ConvertToEntityIdList(IReadOnlyList<EntityProperties> properties)
+	{
+		return properties.Select(p => (EntityId)(p switch {
+			QueueEntityProperties queue => new QueueEntityId(queue.Name),
+			TopicEntityProperties topic => new TopicEntityId(topic.Name),
+			SubscriptionEntityProperties subscription => new SubscriptionEntityId(subscription.Name, subscription.TopicName),
+			_ => throw new ArgumentException($"Unknown entity properties type: {p.GetType().FullName}")
+		})).ToList();
 	}
 }
