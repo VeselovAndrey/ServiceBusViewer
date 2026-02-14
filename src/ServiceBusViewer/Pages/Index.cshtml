@@ -150,7 +150,7 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addProperty()">+ Add Property</button>
                 </div>
 
-                <button type="submit" class="btn btn-success" id="sendMessageSubmitBtn">Send Message</button>
+                <button type="submit" class="btn btn-success" id="sendMessageSubmitBtn" @(!string.IsNullOrWhiteSpace(Model.EntityName) ? null : "disabled=\"disabled\"")>Send Message</button>
             </form>
 
             @if (!string.IsNullOrEmpty(Model.SendResultMessage)) {
