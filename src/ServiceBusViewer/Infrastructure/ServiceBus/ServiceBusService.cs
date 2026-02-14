@@ -57,7 +57,7 @@ public class ServiceBusService
 	/// <param name="queueOrTopicName">The queue or topic name.</param>
 	/// <param name="subscriptionName">The subscription name, or <c>null</c> for queues.</param>
 	/// <exception cref="InvalidOperationException">Thrown if already connected.</exception>
-	public async Task ConnectToAsync(string connectionString, string queueOrTopicName, string? subscriptionName)
+	public void ConnectTo(string connectionString, string queueOrTopicName, string? subscriptionName)
 	{
 		if (Connected)
 			throw new InvalidOperationException("Already connected to a Service Bus instance.");
@@ -412,26 +412,37 @@ public class ServiceBusService
 
 	private static object ConvertApplicationPropertyValue(string value, ApplicationPropertyType type)
 	{
-		return type switch {
-			ApplicationPropertyType.String => value,
-			ApplicationPropertyType.Bool => bool.Parse(value),
-			ApplicationPropertyType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.SByte => sbyte.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Short => short.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.UShort => ushort.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Int => int.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.UInt => uint.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Long => long.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.ULong => ulong.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Float => float.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Double => double.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Decimal => decimal.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Char => value.Length == 1 ? value[0] : throw new FormatException("Char value must be a single character."),
-			ApplicationPropertyType.Guid => Guid.Parse(value),
-			ApplicationPropertyType.DateTime => DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-			ApplicationPropertyType.DateTimeOffset => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-			ApplicationPropertyType.TimeSpan => TimeSpan.Parse(value, CultureInfo.InvariantCulture),
-			_ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported application property type.")
-		};
+		ArgumentNullException.ThrowIfNull(value);
+
+		try {
+			return type switch {
+				ApplicationPropertyType.String => value,
+				ApplicationPropertyType.Bool => bool.Parse(value),
+				ApplicationPropertyType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.SByte => sbyte.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Short => short.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.UShort => ushort.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Int => int.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.UInt => uint.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Long => long.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.ULong => ulong.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Float => float.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Double => double.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Decimal => decimal.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Char => value.Length == 1 ? value[0] : throw new FormatException("Char value must be a single character."),
+				ApplicationPropertyType.Guid => Guid.Parse(value),
+				ApplicationPropertyType.DateTime => DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+				ApplicationPropertyType.DateTimeOffset => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+				ApplicationPropertyType.TimeSpan => TimeSpan.Parse(value, CultureInfo.InvariantCulture),
+
+				_ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported application property type.")
+			};
+		}
+		catch (FormatException ex) {
+			throw new FormatException($"Cannot convert value '{value}' to type {type}. {ex.Message}", ex);
+		}
+		catch (OverflowException ex) {
+			throw new FormatException($"Value '{value}' is out of range for type {type}. {ex.Message}", ex);
+		}
 	}
 }

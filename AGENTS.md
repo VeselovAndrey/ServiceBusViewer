@@ -1,5 +1,7 @@
 # AI Coding Agent Instructions
 
+> 📌 **This document is the primary memory store for all AI agents working on this project.** All conventions, patterns, decisions, and coding standards documented here should be followed consistently across all code changes. When making updates to the codebase, ensure that all relevant team conventions from this file are applied.
+
 ## Project Context
 A **temporary, AI-generated** ASP.NET Razor Pages web app for viewing/interacting with Azure Service Bus queues/topics. Primary use case: local development with the [Azure Service Bus Emulator](https://github.com/Azure/azure-service-bus-emulator-installer). No long-term maintenance planned.
 
@@ -42,6 +44,7 @@ docker run -p 5000:8080 -e CONNECTION_STRING="..." servicebusviewer
 ### C# Patterns
 - **Records for DTOs**: All model classes use `record` types with positional parameters (e.g., `MessageDetails`, `PeekedMessageInfo`).
 - **XML docs**: Public methods/properties in `ServiceBusService` have `<summary>` tags. Apply same pattern to new public members.
+  - **Single-line summaries**: If `<summary>` text fits on a single line, format as `<summary>text</summary>` on one line instead of splitting across multiple lines.
 - **Nullable reference types**: Enabled via `<Nullable>enable</Nullable>`. Use `?` for optional parameters/properties.
 - **Primary constructors**: Page models use C# 12 primary constructors (e.g., `IndexModel(ServiceBusService serviceBusService)`).
 

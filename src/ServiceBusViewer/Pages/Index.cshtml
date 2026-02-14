@@ -150,7 +150,7 @@
                     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addProperty()">+ Add Property</button>
                 </div>
 
-                <button type="submit" class="btn btn-success" id="sendMessageSubmitBtn">Send Message</button>
+                <button type="submit" class="btn btn-success" id="sendMessageSubmitBtn" @(!string.IsNullOrWhiteSpace(Model.EntityName) ? null : "disabled=\"disabled\"")>Send Message</button>
             </form>
 
             @if (!string.IsNullOrEmpty(Model.SendResultMessage)) {
@@ -163,50 +163,49 @@
             <div class="mt-2 mb-3">
                 <h3>Received Message</h3>
 
-                <li class="list-group-item">
-                    <strong>Properties:</strong>
+                <strong>Properties:</strong>
+                <table class="table table-sm mt-0 mb-2">
+                    <tbody>
+                        <tr><td class="w-25">Message ID:</td><td>@Model.DisplayedMessage.Properties.MessageId</td></tr>
+                        <tr><td>Enqueued Time:</td><td>@Model.DisplayedMessage.Properties.EnqueuedTimeUtc.ToLocalTime()</td></tr>
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.SessionId)) {
+                            <tr><td>Session ID:</td><td>@Model.DisplayedMessage.Properties.SessionId</td></tr>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.PartitionKey)) {
+                            <tr><td>Partition Key:</td><td>@Model.DisplayedMessage.Properties.PartitionKey</td></tr>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.CorrelationId)) {
+                            <tr><td>Correlation ID:</td><td>@Model.DisplayedMessage.Properties.CorrelationId</td></tr>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.ContentType)) {
+                            <tr><td>Content Type:</td><td>@Model.DisplayedMessage.Properties.ContentType</td></tr>
+                        }
+                        @if (Model.DisplayedMessage.Properties.ScheduledEnqueueTime is not null) {
+                            <tr><td>Scheduled Enqueue Time:</td><td>@Model.DisplayedMessage.Properties.ScheduledEnqueueTime?.ToLocalTime()</td></tr>
+                        }
+                        @if (Model.DisplayedMessage.Properties.TimeToLive is not null) {
+                            <tr><td>Time To Live:</td><td>@Model.DisplayedMessage.Properties.TimeToLive</td></tr>
+                        }
+                    </tbody>
+                </table>
+
+                @if (Model.DisplayedMessage.ApplicationProperties?.Any() == true) {
+                    <strong>Application Properties:</strong>
                     <table class="table table-sm mt-0 mb-2">
                         <tbody>
-                            <tr><td class="w-25">Message ID:</td><td>@Model.DisplayedMessage.Properties.MessageId</td></tr>
-                            <tr><td>Enqueued Time:</td><td>@Model.DisplayedMessage.Properties.EnqueuedTimeUtc.ToLocalTime()</td></tr>
-                            @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.SessionId)) {
-                                <tr><td>Session ID:</td><td>@Model.DisplayedMessage.Properties.SessionId</td></tr>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.PartitionKey)) {
-                                <tr><td>Partition Key:</td><td>@Model.DisplayedMessage.Properties.PartitionKey</td></tr>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.CorrelationId)) {
-                                <tr><td>Correlation ID:</td><td>@Model.DisplayedMessage.Properties.CorrelationId</td></tr>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.ContentType)) {
-                                <tr><td>Content Type:</td><td>@Model.DisplayedMessage.Properties.ContentType</td></tr>
-                            }
-                            @if (Model.DisplayedMessage.Properties.ScheduledEnqueueTime is not null) {
-                                <tr><td>Scheduled Enqueue Time:</td><td>@Model.DisplayedMessage.Properties.ScheduledEnqueueTime?.ToLocalTime()</td></tr>
-                            }
-                            @if (Model.DisplayedMessage.Properties.TimeToLive is not null) {
-                                <tr><td>Time To Live:</td><td>@Model.DisplayedMessage.Properties.TimeToLive</td></tr>
+                            @foreach (var prop in Model.DisplayedMessage.ApplicationProperties) {
+                                <tr><td>@prop.Key</td><td>@prop.Value</td></tr>
                             }
                         </tbody>
                     </table>
+                }
 
-                    @if (Model.DisplayedMessage.ApplicationProperties?.Any() == true) {
-                        <strong>Application Properties:</strong>
-                        <table class="table table-sm mt-0 mb-2">
-                            <tbody>
-                                @foreach (var prop in Model.DisplayedMessage.ApplicationProperties) {
-                                    <tr><td>@prop.Key</td><td>@prop.Value</td></tr>
-                                }
-                            </tbody>
-                        </table>
-                    }
-
-                    <div class="d-flex justify-content-between align-items-center">
-                        <strong>Body:</strong>
-                        <button type="button" class="btn btn-sm btn-outline-secondary js-json-toggle" aria-pressed="false">Raw</button>
-                    </div>
-                    <pre class="mt-0 bg-light p-2 rounded js-message-body">@Model.DisplayedMessage.Body</pre>
-                    <hr />
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>Body:</strong>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-json-toggle" aria-pressed="false">Raw</button>
+                </div>
+                <pre class="mt-0 bg-light p-2 rounded js-message-body">@Model.DisplayedMessage.Body</pre>
+                <hr />
             </div>
         }
 
@@ -368,10 +367,14 @@
                 for (let i = 0; i < groups.length; i++) {
                     const group = groups[i];
                     const keyInput = group.querySelector('input[name$=".Key"]');
+                    const typeSelect = group.querySelector('select[name$=".Type"]');
                     const valueInput = group.querySelector('input[name$=".Value"]');
 
                     if (keyInput)
                         keyInput.name = `SendMessageApplicationProperties[${i}].Key`;
+
+                    if (typeSelect)
+                        typeSelect.name = `SendMessageApplicationProperties[${i}].Type`;
 
                     if (valueInput)
                         valueInput.name = `SendMessageApplicationProperties[${i}].Value`;
@@ -417,7 +420,7 @@
             document.querySelectorAll('.js-toggle-message').forEach(button => {
                 button.addEventListener('click', function () {
                     const messageId = this.getAttribute('data-message-id');
-                    const detailsDiv = document.querySelector(`.js-message-details[data-message-id="${messageId}"]`);
+                    const detailsDiv = document.querySelector(`.js-message-details[data-message-id="${CSS.escape(messageId)}"]`);
                     const expandText = this.querySelector('.js-expand-text');
                     const collapseText = this.querySelector('.js-collapse-text');
 

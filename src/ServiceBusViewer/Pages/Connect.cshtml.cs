@@ -4,23 +4,30 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ServiceBusViewer.Infrastructure.ServiceBus;
 
+[ValidateAntiForgeryToken]
 public class ConnectModel(ServiceBusService serviceBusService) : PageModel
 {
 	private readonly ServiceBusService _serviceBusService = serviceBusService;
 
-	[BindProperty(SupportsGet = true)]
+	/// <summary>Gets or sets the connection string for the Service Bus namespace.</summary>
+	[BindProperty]
 	public string? ConnectionString { get; set; } = Environment.GetEnvironmentVariable("CONNECTION_STRING")
 		?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
 
-	[BindProperty(SupportsGet = true)]
+	/// <summary>Gets or sets the root connection string with management API access for entity discovery.</summary>
+	[BindProperty]
 	public string? RootConnectionString { get; set; } = Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING");
 
-	[BindProperty(SupportsGet = true)]
+	/// <summary>Gets or sets the name of the queue or topic to connect to.</summary>
+	[BindProperty]
 	public string? QueueOrTopicName { get; set; }
 
-	[BindProperty(SupportsGet = true)]
+	/// <summary>Gets or sets the subscription name for topic subscriptions.</summary>
+	[BindProperty]
 	public string? SubscriptionName { get; set; }
 
+	/// <summary>Handles the GET request to display the connection page.</summary>
+	/// <returns>The connection page if not connected; otherwise redirects to the Index page.</returns>
 	public IActionResult OnGet()
 	{
 		if (_serviceBusService.Connected) {
@@ -30,6 +37,8 @@ public class ConnectModel(ServiceBusService serviceBusService) : PageModel
 		return Page();
 	}
 
+	/// <summary>Handles the connect action to establish a Service Bus connection.</summary>
+	/// <returns>The Index page if connection succeeds; otherwise the connection page with error details.</returns>
 	public async Task<IActionResult> OnPostConnect()
 	{
 		if (string.IsNullOrWhiteSpace(ConnectionString)) {
@@ -46,7 +55,7 @@ public class ConnectModel(ServiceBusService serviceBusService) : PageModel
 			if (!string.IsNullOrWhiteSpace(RootConnectionString))
 				await _serviceBusService.ConnectToAsync(ConnectionString, RootConnectionString);
 			else
-				await _serviceBusService.ConnectToAsync(ConnectionString, QueueOrTopicName!, SubscriptionName);
+				_serviceBusService.ConnectTo(ConnectionString, QueueOrTopicName!, SubscriptionName);
 
 			return RedirectToPage("/Index");
 		}
