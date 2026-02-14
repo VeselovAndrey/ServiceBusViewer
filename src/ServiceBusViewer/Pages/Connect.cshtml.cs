@@ -46,7 +46,7 @@ public class ConnectModel(ServiceBusService serviceBusService) : PageModel
 			if (!string.IsNullOrWhiteSpace(RootConnectionString))
 				await _serviceBusService.ConnectToAsync(ConnectionString, RootConnectionString);
 			else
-				await _serviceBusService.ConnectToAsync(ConnectionString, QueueOrTopicName!, SubscriptionName);
+				_serviceBusService.ConnectTo(ConnectionString, QueueOrTopicName!, SubscriptionName);
 
 			return RedirectToPage("/Index");
 		}

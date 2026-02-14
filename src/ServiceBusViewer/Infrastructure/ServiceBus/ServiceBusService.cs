@@ -57,7 +57,7 @@ public class ServiceBusService
 	/// <param name="queueOrTopicName">The queue or topic name.</param>
 	/// <param name="subscriptionName">The subscription name, or <c>null</c> for queues.</param>
 	/// <exception cref="InvalidOperationException">Thrown if already connected.</exception>
-	public async Task ConnectToAsync(string connectionString, string queueOrTopicName, string? subscriptionName)
+	public void ConnectTo(string connectionString, string queueOrTopicName, string? subscriptionName)
 	{
 		if (Connected)
 			throw new InvalidOperationException("Already connected to a Service Bus instance.");
@@ -431,6 +431,7 @@ public class ServiceBusService
 			ApplicationPropertyType.DateTime => DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
 			ApplicationPropertyType.DateTimeOffset => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
 			ApplicationPropertyType.TimeSpan => TimeSpan.Parse(value, CultureInfo.InvariantCulture),
+
 			_ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported application property type.")
 		};
 	}
