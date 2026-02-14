@@ -417,7 +417,7 @@
             document.querySelectorAll('.js-toggle-message').forEach(button => {
                 button.addEventListener('click', function () {
                     const messageId = this.getAttribute('data-message-id');
-                    const detailsDiv = document.querySelector(`.js-message-details[data-message-id="${messageId}"]`);
+                    const detailsDiv = document.querySelector(`.js-message-details[data-message-id="${CSS.escape(messageId)}"]`);
                     const expandText = this.querySelector('.js-expand-text');
                     const collapseText = this.querySelector('.js-collapse-text');
 
