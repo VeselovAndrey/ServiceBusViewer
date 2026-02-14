@@ -8,17 +8,17 @@ public class ConnectModel(ServiceBusService serviceBusService) : PageModel
 {
 	private readonly ServiceBusService _serviceBusService = serviceBusService;
 
-	[BindProperty(SupportsGet = true)]
+	[BindProperty]
 	public string? ConnectionString { get; set; } = Environment.GetEnvironmentVariable("CONNECTION_STRING")
 		?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
 
-	[BindProperty(SupportsGet = true)]
+	[BindProperty]
 	public string? RootConnectionString { get; set; } = Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING");
 
-	[BindProperty(SupportsGet = true)]
+	[BindProperty]
 	public string? QueueOrTopicName { get; set; }
 
-	[BindProperty(SupportsGet = true)]
+	[BindProperty]
 	public string? SubscriptionName { get; set; }
 
 	public IActionResult OnGet()
