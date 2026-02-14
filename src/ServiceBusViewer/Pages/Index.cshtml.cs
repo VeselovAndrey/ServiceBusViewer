@@ -146,26 +146,15 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 		if (string.IsNullOrWhiteSpace(SendMessageBody)) {
 			ModelState.AddModelError(string.Empty, "Message body cannot be empty.");
-
-			AvailableEntities = ConvertToEntityIdList(_serviceBusService.AvailableEntities);
-
-			ReceivedMessageList result = await _serviceBusService.PeekMessagesAsync();
-			Messages = result.Messages;
-			HasMoreMessages = result.HasMore;
-
+			FillPageModel();
 			return Page();
 		}
 
 		try {
 			if (!ValidateSystemProperties()) {
-				ReceivedMessageList invalidResult = await _serviceBusService.PeekMessagesAsync();
-				Messages = invalidResult.Messages;
-				HasMoreMessages = invalidResult.HasMore;
-
 				FillPageModel();
 				return Page();
 			}
-
 
 			await _serviceBusService.SendMessageAsync(SendMessageBody, SendMessageProperties, SendMessageApplicationProperties);
 			SendResultMessage = "Message sent successfully!";
