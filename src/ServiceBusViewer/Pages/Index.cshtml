@@ -368,10 +368,14 @@
                 for (let i = 0; i < groups.length; i++) {
                     const group = groups[i];
                     const keyInput = group.querySelector('input[name$=".Key"]');
+                    const typeSelect = group.querySelector('select[name$=".Type"]');
                     const valueInput = group.querySelector('input[name$=".Value"]');
 
                     if (keyInput)
                         keyInput.name = `SendMessageApplicationProperties[${i}].Key`;
+
+                    if (typeSelect)
+                        typeSelect.name = `SendMessageApplicationProperties[${i}].Type`;
 
                     if (valueInput)
                         valueInput.name = `SendMessageApplicationProperties[${i}].Value`;
