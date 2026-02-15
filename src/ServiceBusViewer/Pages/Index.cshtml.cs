@@ -206,8 +206,8 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 	private void FillPageModel()
 	{
 		ServiceBusHostName = _serviceBusService.Host;
-		EntityName = _serviceBusService.EntityName;
-		TopicName = _serviceBusService.TopicName;
+		EntityName = _serviceBusService.ActiveEntity?.Name;
+		TopicName = (_serviceBusService.ActiveEntity as SubscriptionEntityProperties)?.TopicName;
 		AvailableEntities = ConvertToEntityIdList(_serviceBusService.AvailableEntities);
 		RequiresSession = GetRequiresSession();
 		if (!RequiresSession)
@@ -216,22 +216,11 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 	private bool GetRequiresSession()
 	{
-		if (string.IsNullOrWhiteSpace(_serviceBusService.EntityName))
-			return false;
-
-		if (!string.IsNullOrWhiteSpace(_serviceBusService.TopicName)) {
-			SubscriptionEntityProperties? subscription = _serviceBusService.AvailableEntities
-				.OfType<SubscriptionEntityProperties>()
-				.FirstOrDefault(s => s.Name == _serviceBusService.EntityName && s.TopicName == _serviceBusService.TopicName);
-
-			return subscription?.RequiresSession ?? false;
-		}
-
-		QueueEntityProperties? queue = _serviceBusService.AvailableEntities
-			.OfType<QueueEntityProperties>()
-			.FirstOrDefault(q => q.Name == _serviceBusService.EntityName);
-
-		return queue?.RequiresSession ?? false;
+		return _serviceBusService.ActiveEntity switch {
+			SubscriptionEntityProperties subscription => subscription.RequiresSession,
+			QueueEntityProperties queue => queue.RequiresSession,
+			_ => false
+		};
 	}
 
 	private bool ValidateSystemProperties()

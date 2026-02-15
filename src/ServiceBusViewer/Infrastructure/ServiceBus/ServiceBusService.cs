@@ -20,11 +20,8 @@ public class ServiceBusService
 	/// <summary>Gets the host name of the connected Service Bus instance.</summary>
 	public string Host { get; private set; } = string.Empty;
 
-	/// <summary>Gets the entity name (queue or topic) currently connected to.</summary>
-	public string EntityName { get; private set; } = string.Empty;
-
-	/// <summary>Gets the parent topic if connected to a topic subscription; otherwise, null.</summary>
-	public string? TopicName { get; private set; }
+	/// <summary>Gets the currently active entity.</summary>
+	public EntityProperties? ActiveEntity { get; private set; }
 
 	/// <summary>Gets a value indicating whether connected using a root connection string with admin privileges.</summary>
 	public bool IsManagementApiAvailable => _adminClient is not null;
@@ -45,8 +42,7 @@ public class ServiceBusService
 		_adminClient = new ServiceBusAdministrationClient(rootConnectionString);
 
 		Host = GetServiceBusHost(connectionString);
-		EntityName = string.Empty;
-		TopicName = null;
+		ActiveEntity = null;
 		Connected = true;
 
 		await UpdateAvailableEntitiesListAsync();
@@ -66,8 +62,6 @@ public class ServiceBusService
 		_adminClient = null;
 
 		Host = GetServiceBusHost(connectionString);
-		EntityName = subscriptionName ?? queueOrTopicName;
-		TopicName = subscriptionName is not null ? queueOrTopicName : null;
 		Connected = true;
 
 		// Non-admin mode: create minimal property objects for the connected entity
@@ -84,7 +78,8 @@ public class ServiceBusService
 				true,
 				false,
 				TimeSpan.MaxValue));
-			_availableEntities.Add(new SubscriptionEntityProperties(
+
+			var subscriptionProperties = new SubscriptionEntityProperties(
 				subscriptionName,
 				queueOrTopicName,
 				TimeSpan.FromMinutes(1),
@@ -94,11 +89,13 @@ public class ServiceBusService
 				false,
 				true,
 				TimeSpan.MaxValue,
-				[]));
+				[]);
+			_availableEntities.Add(subscriptionProperties);
+			ActiveEntity = subscriptionProperties;
 		}
 		else {
 			// For queues, create a queue property placeholder
-			_availableEntities.Add(new QueueEntityProperties(
+			var queueProperties = new QueueEntityProperties(
 				queueOrTopicName,
 				TimeSpan.FromMinutes(1),
 				10,
@@ -109,7 +106,9 @@ public class ServiceBusService
 				true,
 				false,
 				false,
-				TimeSpan.MaxValue));
+				TimeSpan.MaxValue);
+			_availableEntities.Add(queueProperties);
+			ActiveEntity = queueProperties;
 		}
 	}
 
@@ -147,8 +146,7 @@ public class ServiceBusService
 		_availableEntities.Clear();
 
 		Host = string.Empty;
-		EntityName = string.Empty;
-		TopicName = null;
+		ActiveEntity = null;
 		Connected = false;
 	}
 
@@ -157,7 +155,7 @@ public class ServiceBusService
 	/// <returns>A <see cref="ReceivedMessageList"/> containing the peeked messages and a flag indicating if more messages exist.</returns>
 	public async Task<ReceivedMessageList> PeekMessagesAsync(int maxMessages = _maxMessagesToPeek)
 	{
-		if (string.IsNullOrWhiteSpace(EntityName))
+		if (ActiveEntity is null)
 			return ReceivedMessageList.Empty;
 
 		await using ServiceBusReceiver receiver = GetReceiver();
@@ -313,23 +311,15 @@ public class ServiceBusService
 			throw new InvalidOperationException("Not connected to any Service Bus instance.");
 
 		// No need to create a new client, just update the entity information
-		switch (entity) {
-			case QueueEntityId queueId:
-				EntityName = queueId.Name;
-				TopicName = null;
-				break;
+		ActiveEntity = entity switch {
+			QueueEntityId queueId => _availableEntities.FirstOrDefault(p => p is QueueEntityProperties && p.Name == queueId.Name),
+			SubscriptionEntityId subscriptionId => _availableEntities.FirstOrDefault(p => p is SubscriptionEntityProperties sp && sp.Name == subscriptionId.Name && sp.TopicName == subscriptionId.TopicName),
+			TopicEntityId topicId => throw new InvalidOperationException($"Please select the subscription for the topic {topicId.Name}"),
+			_ => throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}")
+		};
 
-			case SubscriptionEntityId subscriptionId:
-				EntityName = subscriptionId.Name;
-				TopicName = subscriptionId.TopicName;
-				break;
-
-			case TopicEntityId topicId:
-				throw new InvalidOperationException($"Please select the subscription for the topic {topicId.Name}");
-
-			default:
-				throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}");
-		}
+		if (ActiveEntity is null)
+			throw new InvalidOperationException($"Entity '{entity.Name}' not found in available entities.");
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusReceiver"/> for the current entity and subscription.</summary>
@@ -340,15 +330,22 @@ public class ServiceBusService
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Service Bus is not connected.");
 
-		if (!string.IsNullOrWhiteSpace(TopicName)) {
-			return _client.CreateReceiver(TopicName, EntityName, new ServiceBusReceiverOptions {
+		if (ActiveEntity is null)
+			throw new InvalidOperationException("No active entity selected.");
+
+		if (ActiveEntity is SubscriptionEntityProperties subscription) {
+			return _client.CreateReceiver(subscription.TopicName, subscription.Name, new ServiceBusReceiverOptions {
 				ReceiveMode = ServiceBusReceiveMode.PeekLock
 			});
 		}
 
-		return _client.CreateReceiver(EntityName, new ServiceBusReceiverOptions {
-			ReceiveMode = ServiceBusReceiveMode.PeekLock
-		});
+		if (ActiveEntity is QueueEntityProperties queue) {
+			return _client.CreateReceiver(queue.Name, new ServiceBusReceiverOptions {
+				ReceiveMode = ServiceBusReceiveMode.PeekLock
+			});
+		}
+
+		throw new InvalidOperationException($"Cannot create receiver for entity type '{ActiveEntity.GetType().Name}'. Only queues and subscriptions support receiving messages.");
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusSessionReceiver"/> for the current entity.</summary>
@@ -360,15 +357,22 @@ public class ServiceBusService
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Service Bus is not connected.");
 
-		if (!string.IsNullOrWhiteSpace(TopicName)) {
+		if (ActiveEntity is null)
+			throw new InvalidOperationException("No active entity selected.");
+
+		if (ActiveEntity is SubscriptionEntityProperties subscription) {
 			return string.IsNullOrEmpty(sessionId)
-				? await _client.AcceptNextSessionAsync(TopicName, EntityName)
-				: await _client.AcceptSessionAsync(TopicName, EntityName, sessionId);
+				? await _client.AcceptNextSessionAsync(subscription.TopicName, subscription.Name)
+				: await _client.AcceptSessionAsync(subscription.TopicName, subscription.Name, sessionId);
 		}
 
-		return string.IsNullOrEmpty(sessionId)
-			? await _client.AcceptNextSessionAsync(EntityName)
-			: await _client.AcceptSessionAsync(EntityName, sessionId);
+		if (ActiveEntity is QueueEntityProperties queue) {
+			return string.IsNullOrEmpty(sessionId)
+				? await _client.AcceptNextSessionAsync(queue.Name)
+				: await _client.AcceptSessionAsync(queue.Name, sessionId);
+		}
+
+		throw new InvalidOperationException($"Cannot create session receiver for entity type '{ActiveEntity.GetType().Name}'. Only queues and subscriptions support sessions.");
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusSender"/> for the current entity.</summary>
@@ -379,12 +383,15 @@ public class ServiceBusService
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Service Bus is not connected.");
 
-		// When connected to a subscription, send to the parent topic
-		if (!string.IsNullOrWhiteSpace(TopicName)) {
-			return _client.CreateSender(TopicName);
-		}
+		if (ActiveEntity is null)
+			throw new InvalidOperationException("No active entity selected.");
 
-		return _client.CreateSender(EntityName);
+		return ActiveEntity switch {
+			QueueEntityProperties queue => _client.CreateSender(queue.Name),
+			SubscriptionEntityProperties subscription => _client.CreateSender(subscription.TopicName),
+			TopicEntityProperties topic => _client.CreateSender(topic.Name),
+			_ => throw new InvalidOperationException($"Cannot create sender for entity type '{ActiveEntity.GetType().Name}'.")
+		};
 	}
 
 	/// <summary>Extracts the Service Bus host from the connection string.</summary>
