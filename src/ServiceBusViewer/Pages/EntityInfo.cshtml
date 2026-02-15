@@ -65,6 +65,23 @@
                             <tr><th scope="row">Default TTL</th><td>@subscription.DefaultMessageTimeToLive</td></tr>
                             <tr><th scope="row">Dead-letter on Expiration</th><td>@subscription.DeadLetteringOnMessageExpiration</td></tr>
                             <tr><th scope="row">Auto Delete on Idle</th><td>@subscription.AutoDeleteOnIdle</td></tr>
+                            @if (subscription.Rules.Count > 0) {
+                                <tr class="table-secondary">
+                                    <th scope="row" colspan="2">Subscription Rules (@subscription.Rules.Count)</th>
+                                </tr>
+                                @foreach (var rule in subscription.Rules) {
+                                    <tr>
+                                        <th scope="row">Rule: @rule.Name</th>
+                                        <td>
+                                            <div><strong>Filter Type:</strong> @rule.FilterType</div>
+                                            <div><strong>Filter:</strong> @rule.FilterExpression</div>
+                                            @if (!string.IsNullOrEmpty(rule.ActionExpression)) {
+                                                <div><strong>Action:</strong> @rule.ActionExpression</div>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
                             break;
 
                         default:

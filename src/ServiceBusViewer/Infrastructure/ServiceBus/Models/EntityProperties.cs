@@ -55,6 +55,7 @@ public sealed record TopicEntityProperties(
 /// <param name="RequiresSession">Indicates whether sessions are required.</param>
 /// <param name="EnableBatchedOperations">Enable batched operations.</param>
 /// <param name="AutoDeleteOnIdle">The <see cref="TimeSpan"/> idle interval after which the queue is automatically deleted.</param>
+/// <param name="Rules">Subscription rules (filters and actions).</param>
 public sealed record SubscriptionEntityProperties(
 	string Name,
 	string TopicName,
@@ -64,4 +65,35 @@ public sealed record SubscriptionEntityProperties(
 	bool DeadLetteringOnMessageExpiration,
 	bool RequiresSession,
 	bool EnableBatchedOperations,
-	TimeSpan AutoDeleteOnIdle) : EntityProperties(Name);
+	TimeSpan AutoDeleteOnIdle,
+	IReadOnlyList<SubscriptionRule> Rules) : EntityProperties(Name);
+
+/// <summary>Represents a subscription rule (filter and action).</summary>
+/// <param name="Name">Rule name.</param>
+/// <param name="FilterType">Type of filter.</param>
+/// <param name="FilterExpression">Filter expression or details.</param>
+/// <param name="ActionExpression">Action expression if present.</param>
+public sealed record SubscriptionRule(
+	string Name,
+	RuleFilterType FilterType,
+	string FilterExpression,
+	string? ActionExpression);
+
+/// <summary>Represents the type of filter applied to a Service Bus subscription rule.</summary>
+public enum RuleFilterType
+{
+	/// <summary>Unknown or unsupported filter type.</summary>
+	Unknown = 0,
+
+	/// <summary>SQL filter that evaluates expressions against message properties.</summary>
+	Sql = 1,
+
+	/// <summary>Correlation filter that matches specific message properties.</summary>
+	Correlation = 2,
+
+	/// <summary>True filter that accepts all messages.</summary>
+	True = 3,
+
+	/// <summary>False filter that rejects all messages.</summary>
+	False = 4
+}
