@@ -379,6 +379,11 @@ public class ServiceBusService
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Service Bus is not connected.");
 
+		// When connected to a subscription, send to the parent topic
+		if (!string.IsNullOrWhiteSpace(TopicName)) {
+			return _client.CreateSender(TopicName);
+		}
+
 		return _client.CreateSender(EntityName);
 	}
 
