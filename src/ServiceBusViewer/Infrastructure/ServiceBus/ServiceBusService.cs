@@ -93,7 +93,8 @@ public class ServiceBusService
 				false,
 				false,
 				true,
-				TimeSpan.MaxValue));
+				TimeSpan.MaxValue,
+				[]));
 		}
 		else {
 			// For queues, create a queue property placeholder
@@ -281,6 +282,12 @@ public class ServiceBusService
 				topic.AutoDeleteOnIdle));
 
 			await foreach (SubscriptionProperties subscription in _adminClient.GetSubscriptionsAsync(topic.Name)) {
+				// Get subscription rules (filters)
+				List<SubscriptionFilterRule> rules = [];
+				await foreach (RuleProperties rule in _adminClient.GetRulesAsync(topic.Name, subscription.SubscriptionName)) {
+					rules.Add(ConvertToSubscriptionRule(rule));
+				}
+
 				_availableEntities.Add(new SubscriptionEntityProperties(
 					subscription.SubscriptionName,
 					subscription.TopicName,
@@ -290,7 +297,8 @@ public class ServiceBusService
 					subscription.DeadLetteringOnMessageExpiration,
 					subscription.RequiresSession,
 					subscription.EnableBatchedOperations,
-					subscription.AutoDeleteOnIdle));
+					subscription.AutoDeleteOnIdle,
+					rules));
 			}
 		}
 	}
@@ -444,5 +452,44 @@ public class ServiceBusService
 		catch (OverflowException ex) {
 			throw new FormatException($"Value '{value}' is out of range for type {type}. {ex.Message}", ex);
 		}
+	}
+
+	private static SubscriptionFilterRule ConvertToSubscriptionRule(RuleProperties rule)
+	{
+		if (rule.Filter is SqlRuleFilter sqlFilter) {
+			string? actionExpression = rule.Action is SqlRuleAction sqlAction
+				? sqlAction.SqlExpression
+				: null;
+
+			return new SqlSubscriptionFilterRule(rule.Name, sqlFilter.SqlExpression, actionExpression);
+		}
+
+		if (rule.Filter is CorrelationRuleFilter correlationFilter) {
+			string? actionExpression = rule.Action is SqlRuleAction sqlAction
+				? sqlAction.SqlExpression
+				: null;
+
+			var applicationProperties = correlationFilter.ApplicationProperties
+				.ToDictionary(x => x.Key, x => x.Value) as IReadOnlyDictionary<string, object>
+				?? new Dictionary<string, object>();
+
+			return new CorrelationSubscriptionFilterRule(
+				rule.Name,
+				correlationFilter.CorrelationId,
+				correlationFilter.MessageId,
+				correlationFilter.To,
+				correlationFilter.ReplyTo,
+				correlationFilter.Subject,
+				correlationFilter.SessionId,
+				correlationFilter.ReplyToSessionId,
+				correlationFilter.ContentType,
+				applicationProperties,
+				actionExpression);
+		}
+
+		return new UnknownSubscriptionFilterRule(
+			rule.Name,
+			rule.Filter?.GetType().Name ?? "null",
+			"Unknown filter type");
 	}
 }

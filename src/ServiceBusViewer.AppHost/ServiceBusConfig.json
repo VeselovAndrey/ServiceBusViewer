@@ -120,7 +120,7 @@
                     "properties": {
                       "filterType": "Sql",
                       "sqlFilter": {
-                        "sqlExpression": "group > 2"
+                        "sqlExpression": "1 = 1"
                       },
                       "action": {}
                     }
@@ -212,7 +212,7 @@
                     "properties": {
                       "filterType": "Sql",
                       "sqlFilter": {
-                        "sqlExpression": "group > 2"
+                        "sqlExpression": "1 = 1"
                       },
                       "action": {}
                     }
