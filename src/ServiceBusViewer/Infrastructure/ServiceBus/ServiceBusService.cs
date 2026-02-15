@@ -283,7 +283,7 @@ public class ServiceBusService
 
 			await foreach (SubscriptionProperties subscription in _adminClient.GetSubscriptionsAsync(topic.Name)) {
 				// Get subscription rules (filters)
-				List<SubscriptionRule> rules = [];
+				List<SubscriptionFilterRule> rules = [];
 				await foreach (RuleProperties rule in _adminClient.GetRulesAsync(topic.Name, subscription.SubscriptionName)) {
 					rules.Add(ConvertToSubscriptionRule(rule));
 				}
@@ -454,67 +454,42 @@ public class ServiceBusService
 		}
 	}
 
-	private static SubscriptionRule ConvertToSubscriptionRule(RuleProperties rule)
+	private static SubscriptionFilterRule ConvertToSubscriptionRule(RuleProperties rule)
 	{
-		RuleFilterType filterType;
-		string filterExpression;
+		if (rule.Filter is SqlRuleFilter sqlFilter) {
+			string? actionExpression = rule.Action is SqlRuleAction sqlAction
+				? sqlAction.SqlExpression
+				: null;
 
-		switch (rule.Filter) {
-
-			case CorrelationRuleFilter correlationFilter: {
-				filterType = RuleFilterType.Correlation;
-				var correlationParts = new List<string>();
-
-				if (!string.IsNullOrEmpty(correlationFilter.CorrelationId))
-					correlationParts.Add($"CorrelationId = '{correlationFilter.CorrelationId}'");
-
-				if (!string.IsNullOrEmpty(correlationFilter.MessageId))
-					correlationParts.Add($"MessageId = '{correlationFilter.MessageId}'");
-
-				if (!string.IsNullOrEmpty(correlationFilter.To))
-					correlationParts.Add($"To = '{correlationFilter.To}'");
-
-				if (!string.IsNullOrEmpty(correlationFilter.ReplyTo))
-					correlationParts.Add($"ReplyTo = '{correlationFilter.ReplyTo}'");
-
-				if (!string.IsNullOrEmpty(correlationFilter.Subject))
-					correlationParts.Add($"Subject = '{correlationFilter.Subject}'");
-
-				if (!string.IsNullOrEmpty(correlationFilter.SessionId))
-					correlationParts.Add($"SessionId = '{correlationFilter.SessionId}'");
-
-				if (!string.IsNullOrEmpty(correlationFilter.ReplyToSessionId))
-					correlationParts.Add($"ReplyToSessionId = '{correlationFilter.ReplyToSessionId}'");
-
-				if (!string.IsNullOrEmpty(correlationFilter.ContentType))
-					correlationParts.Add($"ContentType = '{correlationFilter.ContentType}'");
-
-				if (correlationFilter.ApplicationProperties.Count > 0) {
-					foreach (KeyValuePair<string, object> prop in correlationFilter.ApplicationProperties)
-						correlationParts.Add($"{prop.Key} = '{prop.Value}'");
-				}
-
-				filterExpression = correlationParts.Any()
-					? string.Join(", ", correlationParts)
-					: "No properties set";
-				break;
-			}
-
-			case SqlRuleFilter sqlFilter:
-				filterType = RuleFilterType.Sql;
-				filterExpression = sqlFilter.SqlExpression;
-				break;
-
-			default:
-				filterType = RuleFilterType.Unknown;
-				filterExpression = rule.Filter?.GetType().Name ?? "null";
-				break;
+			return new SqlSubscriptionFilterRule(rule.Name, sqlFilter.SqlExpression, actionExpression);
 		}
 
-		string? actionExpression = rule.Action is SqlRuleAction sqlAction
-			? sqlAction.SqlExpression
-			: null;
+		if (rule.Filter is CorrelationRuleFilter correlationFilter) {
+			string? actionExpression = rule.Action is SqlRuleAction sqlAction
+				? sqlAction.SqlExpression
+				: null;
 
-		return new SubscriptionRule(rule.Name, filterType, filterExpression, actionExpression);
+			var applicationProperties = correlationFilter.ApplicationProperties
+				.ToDictionary(x => x.Key, x => x.Value) as IReadOnlyDictionary<string, object>
+				?? new Dictionary<string, object>();
+
+			return new CorrelationSubscriptionFilterRule(
+				rule.Name,
+				correlationFilter.CorrelationId,
+				correlationFilter.MessageId,
+				correlationFilter.To,
+				correlationFilter.ReplyTo,
+				correlationFilter.Subject,
+				correlationFilter.SessionId,
+				correlationFilter.ReplyToSessionId,
+				correlationFilter.ContentType,
+				applicationProperties,
+				actionExpression);
+		}
+
+		return new UnknownSubscriptionFilterRule(
+			rule.Name,
+			rule.Filter?.GetType().Name ?? "null",
+			"Unknown filter type");
 	}
 }

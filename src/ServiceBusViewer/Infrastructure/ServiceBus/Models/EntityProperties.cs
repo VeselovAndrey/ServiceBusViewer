@@ -66,18 +66,7 @@ public sealed record SubscriptionEntityProperties(
 	bool RequiresSession,
 	bool EnableBatchedOperations,
 	TimeSpan AutoDeleteOnIdle,
-	IReadOnlyList<SubscriptionRule> Rules) : EntityProperties(Name);
-
-/// <summary>Represents a subscription rule (filter and action).</summary>
-/// <param name="Name">Rule name.</param>
-/// <param name="FilterType">Type of filter.</param>
-/// <param name="FilterExpression">Filter expression or details.</param>
-/// <param name="ActionExpression">Action expression if present.</param>
-public sealed record SubscriptionRule(
-	string Name,
-	RuleFilterType FilterType,
-	string FilterExpression,
-	string? ActionExpression);
+	IReadOnlyList<SubscriptionFilterRule> Rules) : EntityProperties(Name);
 
 /// <summary>Represents the type of filter applied to a Service Bus subscription rule.</summary>
 public enum RuleFilterType
