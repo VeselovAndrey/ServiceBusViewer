@@ -102,6 +102,12 @@ Endpoint=sb://host.docker.internal:[PORT];SharedAccessKeyName=RootManageSharedAc
 
 ## Version history
 
+- 0.10.0 (2025-02-15): Added/fixed:
+  - client-side JSON formatting and toggle for message body;
+  - display of subscription filters;
+  - bugfix: unable to send messages to topics;
+  - miscellaneous bugfixes.
+
 - 0.9.0 (2025-02-10): Added support for:
   - session-enabled message receive with Session ID input;
   - sending messages with properties (MessageId, SessionId, CorrelationId, ScheduledEnqueueTime, TimeToLive);
