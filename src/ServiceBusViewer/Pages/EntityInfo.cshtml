@@ -65,6 +65,75 @@
                             <tr><th scope="row">Default TTL</th><td>@subscription.DefaultMessageTimeToLive</td></tr>
                             <tr><th scope="row">Dead-letter on Expiration</th><td>@subscription.DeadLetteringOnMessageExpiration</td></tr>
                             <tr><th scope="row">Auto Delete on Idle</th><td>@subscription.AutoDeleteOnIdle</td></tr>
+                            @if (subscription.Rules.Count > 0) {
+                                <tr class="table-secondary">
+                                    <th scope="row" colspan="2">Subscription Rules (@subscription.Rules.Count)</th>
+                                </tr>
+                                @foreach (var rule in subscription.Rules) {
+                                    <tr>
+                                        <th scope="row">Rule: @rule.Name</th>
+                                        <td>
+                                            @switch (rule) {
+                                                case SqlSubscriptionFilterRule sqlRule:
+                                                    <div><strong>Type:</strong> SQL Filter</div>
+                                                    <div><strong>Expression:</strong> @sqlRule.SqlExpression</div>
+                                                    @if (!string.IsNullOrEmpty(sqlRule.ActionExpression)) {
+                                                        <div><strong>Action:</strong> @sqlRule.ActionExpression</div>
+                                                    }
+                                                    break;
+
+                                                case CorrelationSubscriptionFilterRule correlationRule:
+                                                    <div><strong>Type:</strong> Correlation Filter</div>
+                                                    @if (!string.IsNullOrEmpty(correlationRule.CorrelationId)) {
+                                                        <div><strong>CorrelationId:</strong> @correlationRule.CorrelationId</div>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(correlationRule.MessageId)) {
+                                                        <div><strong>MessageId:</strong> @correlationRule.MessageId</div>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(correlationRule.To)) {
+                                                        <div><strong>To:</strong> @correlationRule.To</div>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(correlationRule.ReplyTo)) {
+                                                        <div><strong>ReplyTo:</strong> @correlationRule.ReplyTo</div>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(correlationRule.Subject)) {
+                                                        <div><strong>Subject:</strong> @correlationRule.Subject</div>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(correlationRule.SessionId)) {
+                                                        <div><strong>SessionId:</strong> @correlationRule.SessionId</div>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(correlationRule.ReplyToSessionId)) {
+                                                        <div><strong>ReplyToSessionId:</strong> @correlationRule.ReplyToSessionId</div>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(correlationRule.ContentType)) {
+                                                        <div><strong>ContentType:</strong> @correlationRule.ContentType</div>
+                                                    }
+                                                    @if (correlationRule.ApplicationProperties.Count > 0) {
+                                                        <div><strong>Application Properties:</strong></div>
+                                                        <ul class="mt-5">
+                                                            @foreach (var prop in correlationRule.ApplicationProperties) {
+                                                                <li>@prop.Key = @prop.Value</li>
+                                                            }
+                                                        </ul>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(correlationRule.ActionExpression)) {
+                                                        <div><strong>Action:</strong> @correlationRule.ActionExpression</div>
+                                                    }
+                                                    break;
+
+                                                case UnknownSubscriptionFilterRule unknownRule:
+                                                    <div><strong>Type:</strong> @unknownRule.FilterTypeName</div>
+                                                    <div><strong>Details:</strong> @unknownRule.FilterExpression</div>
+                                                    break;
+
+                                                default:
+                                                    <div>Unsupported rule type.</div>
+                                                    break;
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
                             break;
 
                         default:

@@ -2,424 +2,558 @@
 @using ServiceBusViewer.Pages.Shared
 @model ServiceBusViewer.Pages.IndexModel
 @{
-	ViewData["Title"] = "Service Bus Viewer";
-	ViewData["ServiceBusHostName"] = Model.ServiceBusHostName;
+    ViewData["Title"] = "Service Bus Viewer";
+    ViewData["ServiceBusHostName"] = Model.ServiceBusHostName;
 }
 
 @section CSS {
-	<style>
-		.animation-effect {
-			transition: opacity 0.3s ease, max-height 0.3s ease;
-		}
+    <style>
+        .animation-effect {
+            transition: opacity 0.3s ease, max-height 0.3s ease;
+        }
 
-		#sendFormWrapper {
-			opacity: 1;
-			max-height: 1000px;
-			overflow: hidden;
-		}
+        .json-key {
+            color: #0b7285;
+        }
 
-			#sendFormWrapper.js-send-form-hidden {
-				opacity: 0;
-				max-height: 0;
-				pointer-events: none;
-			}
-	</style>
+        .json-string {
+            color: #2f9e44;
+        }
+
+        .json-number {
+            color: #f08c00;
+        }
+
+        .json-boolean {
+            color: #6741d9;
+        }
+
+        .json-null {
+            color: #868e96;
+        }
+
+        .js-json-toggle {
+            display: none;
+        }
+
+            .js-json-toggle.js-json-toggle-visible {
+                display: inline-flex;
+            }
+
+        #sendFormWrapper {
+            opacity: 1;
+            max-height: 1000px;
+            overflow: hidden;
+        }
+
+            #sendFormWrapper.js-send-form-hidden {
+                opacity: 0;
+                max-height: 0;
+                pointer-events: none;
+            }
+    </style>
 }
 
 
 @if (!ViewData.ModelState.IsValid) {
-	<div class="alert alert-danger mt-0 mb-2">
-		@foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
-			<div>@error.ErrorMessage</div>
-		}
-	</div>
+    <div class="alert alert-danger mt-0 mb-2">
+        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
+            <div>@error.ErrorMessage</div>
+        }
+    </div>
 }
 
 <div class="row" style="height: calc(100vh - 200px);">
-	<!-- Left Panel: Entity List -->
-	@await Html.PartialAsync("_EntityList", new EntityListModel(Model.AvailableEntities, Model.EntityName, Model.TopicName, Model.IsManagementApiAvailable))
+    <!-- Left Panel: Entity List -->
+    @await Html.PartialAsync("_EntityList", new EntityListModel(Model.AvailableEntities, Model.EntityName, Model.TopicName, Model.IsManagementApiAvailable))
 
-	<!-- Right Panel: Messages and Operations -->
-	<div class="col-md-9" style="overflow-y: auto; height: 100%;">
-	<div class="d-flex flex-wrap align-items-center gap-2 pt-2 mb-3">
-			<form method="post" asp-page-handler="Refresh" class="mb-0" id="refreshForm">
-				@Html.AntiForgeryToken()
-				<button type="submit" class="btn btn-outline-success" id="refreshSubmitBtn">Refresh</button>
-			</form>
+    <!-- Right Panel: Messages and Operations -->
+    <div class="col-md-9" style="overflow-y: auto; height: 100%;">
+        <div class="d-flex flex-wrap align-items-center gap-2 pt-2 mb-3">
+            <form method="post" asp-page-handler="Refresh" class="mb-0" id="refreshForm">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-success" id="refreshSubmitBtn">Refresh</button>
+            </form>
 
-		<form method="post" asp-page-handler="Receive" class="mb-0" id="receiveForm">
-			@Html.AntiForgeryToken()
-			<div class="input-group">
-				<input type="text" id="receiveSessionIdInput" name="ReceiveSessionId" value="@Model.ReceiveSessionId" placeholder="Session ID" class="form-control" style="max-width: 200px;" @(!Model.RequiresSession ? "disabled='disabled'" : null) />
-				<button type="submit" class="btn btn-outline-primary" id="receiveSubmitBtn">Receive</button>
-			</div>
-		</form>
+            <form method="post" asp-page-handler="Receive" class="mb-0" id="receiveForm">
+                @Html.AntiForgeryToken()
+                <div class="input-group">
+                    <input type="text" id="receiveSessionIdInput" name="ReceiveSessionId" value="@Model.ReceiveSessionId" placeholder="Session ID" class="form-control" style="max-width: 200px;" @(!Model.RequiresSession ? "disabled='disabled'" : null) />
+                    <button type="submit" class="btn btn-outline-primary" id="receiveSubmitBtn">Receive</button>
+                </div>
+            </form>
 
-			<button type="button" id="toggleSendFormBtn" class="btn btn-outline-secondary">Show Send Message</button>
+            <button type="button" id="toggleSendFormBtn" class="btn btn-outline-secondary">Show Send Message</button>
 
-			<form method="post" asp-page-handler="Disconnect" class="mb-0" id="disconnectForm">
-				@Html.AntiForgeryToken()
-				<button type="submit" class="btn btn-outline-danger" id="disconnectSubmitBtn">Disconnect</button>
-			</form>
-		</div>
+            <form method="post" asp-page-handler="Disconnect" class="mb-0" id="disconnectForm">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-danger" id="disconnectSubmitBtn">Disconnect</button>
+            </form>
+        </div>
 
-		<div id="sendFormWrapper" class="mt-0 js-send-form-hidden">
-			<form method="post" asp-page-handler="Send" class="mt-0" id="sendMessageForm">
-				@Html.AntiForgeryToken()
-				<div class="mb-3">
-					<h3>Send Message (text or JSON)</h3>
-					<textarea name="SendMessageBody" class="form-control" rows="5">@Model.SendMessageBody</textarea>
-				</div>
+        <div id="sendFormWrapper" class="mt-0 js-send-form-hidden">
+            <form method="post" asp-page-handler="Send" class="mt-0" id="sendMessageForm">
+                @Html.AntiForgeryToken()
+                <div class="mb-3">
+                    <h3>Send Message (text or JSON)</h3>
+                    <textarea name="SendMessageBody" class="form-control" rows="5">@Model.SendMessageBody</textarea>
+                </div>
 
-				<div class="mb-3">
-					<label class="form-label"><strong>Properties</strong></label>
-					<div class="row g-2">
-						<div class="col-md-4">
-							<label class="form-label">Message ID</label>
-							<input type="text" name="SendMessageProperties.MessageId" value="@Model.SendMessageProperties.MessageId" maxlength="128" class="form-control" />
-						</div>
-						<div class="col-md-4">
-							<label class="form-label">Session ID</label>
-							<input type="text" name="SendMessageProperties.SessionId" value="@Model.SendMessageProperties.SessionId" maxlength="128" class="form-control" />
-						</div>
-						<div class="col-md-4">
-							<label class="form-label">Correlation ID</label>
-							<input type="text" name="SendMessageProperties.CorrelationId" value="@Model.SendMessageProperties.CorrelationId" maxlength="128" class="form-control" />
-						</div>
-						<div class="col-md-4">
-							<label class="form-label">Content Type</label>
-							<input type="text" name="SendMessageProperties.ContentType" value="@Model.SendMessageProperties.ContentType" class="form-control" />
-						</div>
-					</div>
-					<div class="row g-2 mt-1">
-						<div class="col-md-6">
-							<label class="form-label">Scheduled Enqueue Time</label>
-							<input type="datetime-local" name="SendMessageProperties.ScheduledEnqueueTime" value="@Model.SendMessageProperties.ScheduledEnqueueTime?.ToString("yyyy-MM-ddTHH:mm")" class="form-control" />
-						</div>
-						<div class="col-md-6">
-							<label class="form-label">Time To Live</label>
-							<input type="text" name="SendMessageProperties.TimeToLive" value="@Model.SendMessageProperties.TimeToLive" placeholder="hh:mm:ss" class="form-control" />
-						</div>
-					</div>
-				</div>
+                <div class="mb-3">
+                    <label class="form-label"><strong>Properties</strong></label>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label">Message ID</label>
+                            <input type="text" name="SendMessageProperties.MessageId" value="@Model.SendMessageProperties.MessageId" maxlength="128" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Session ID</label>
+                            <input type="text" name="SendMessageProperties.SessionId" value="@Model.SendMessageProperties.SessionId" maxlength="128" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Correlation ID</label>
+                            <input type="text" name="SendMessageProperties.CorrelationId" value="@Model.SendMessageProperties.CorrelationId" maxlength="128" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Content Type</label>
+                            <input type="text" name="SendMessageProperties.ContentType" value="@Model.SendMessageProperties.ContentType" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-6">
+                            <label class="form-label">Scheduled Enqueue Time</label>
+                            <input type="datetime-local" name="SendMessageProperties.ScheduledEnqueueTime" value="@Model.SendMessageProperties.ScheduledEnqueueTime?.ToString("yyyy-MM-ddTHH:mm")" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Time To Live</label>
+                            <input type="text" name="SendMessageProperties.TimeToLive" value="@Model.SendMessageProperties.TimeToLive" placeholder="hh:mm:ss" class="form-control" />
+                        </div>
+                    </div>
+                </div>
 
-				<div class="mb-3">
-					<label class="form-label"><strong>Application properties</strong></label>
-					<div id="properties-container">
-						@for (int i = 0; i < Model.SendMessageApplicationProperties.Count; i++) {
-							<div class="input-group mb-2">
-								<input type="text" name="SendMessageApplicationProperties[@i].Key" value="@Model.SendMessageApplicationProperties[i].Key" placeholder="Key" />
-								<select name="SendMessageApplicationProperties[@i].Type" class="form-select" style="max-width: 180px;">
-									@foreach (var type in Enum.GetValues<ServiceBusViewer.Infrastructure.ServiceBus.Models.ApplicationPropertyType>()) {
-										<option value="@type" selected="@(type == Model.SendMessageApplicationProperties[i].Type)">@type</option>
-									}
-								</select>
-								<input type="text" name="SendMessageApplicationProperties[@i].Value" value="@Model.SendMessageApplicationProperties[i].Value" class="form-control" placeholder="Value" />
-								<button type="button" class="btn btn-outline-danger">×</button>
-							</div>
-						}
-					</div>
-					<button type="button" class="btn btn-outline-secondary btn-sm" onclick="addProperty()">+ Add Property</button>
-				</div>
+                <div class="mb-3">
+                    <label class="form-label"><strong>Application properties</strong></label>
+                    <div id="properties-container">
+                        @for (int i = 0; i < Model.SendMessageApplicationProperties.Count; i++) {
+                            <div class="input-group mb-2">
+                                <input type="text" name="SendMessageApplicationProperties[@i].Key" value="@Model.SendMessageApplicationProperties[i].Key" placeholder="Key" />
+                                <select name="SendMessageApplicationProperties[@i].Type" class="form-select" style="max-width: 180px;">
+                                    @foreach (var type in Enum.GetValues<ServiceBusViewer.Infrastructure.ServiceBus.Models.ApplicationPropertyType>()) {
+                                        <option value="@type" selected="@(type == Model.SendMessageApplicationProperties[i].Type)">@type</option>
+                                    }
+                                </select>
+                                <input type="text" name="SendMessageApplicationProperties[@i].Value" value="@Model.SendMessageApplicationProperties[i].Value" class="form-control" placeholder="Value" />
+                                <button type="button" class="btn btn-outline-danger">×</button>
+                            </div>
+                        }
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addProperty()">+ Add Property</button>
+                </div>
 
-				<button type="submit" class="btn btn-success" id="sendMessageSubmitBtn">Send Message</button>
-			</form>
+                <button type="submit" class="btn btn-success" id="sendMessageSubmitBtn" @(!string.IsNullOrWhiteSpace(Model.EntityName) ? null : "disabled=\"disabled\"")>Send Message</button>
+            </form>
 
-			@if (!string.IsNullOrEmpty(Model.SendResultMessage)) {
-				<div class="alert alert-success mt-3">@Model.SendResultMessage</div>
-			}
-			<hr />
-		</div>
+            @if (!string.IsNullOrEmpty(Model.SendResultMessage)) {
+                <div class="alert alert-success mt-3">@Model.SendResultMessage</div>
+            }
+            <hr />
+        </div>
 
-		@if (Model.DisplayedMessage is not null) {
-			<div class="mt-2 mb-3">
-				<h3>Received Message</h3>
+        @if (Model.DisplayedMessage is not null) {
+            <div class="mt-2 mb-3">
+                <h3>Received Message</h3>
 
-				<li class="list-group-item">
-					<strong>Properties:</strong>
-					<table class="table table-sm mt-0 mb-2">
-						<tbody>
-							<tr><td class="w-25">Message ID:</td><td>@Model.DisplayedMessage.Properties.MessageId</td></tr>
-							<tr><td>Enqueued Time:</td><td>@Model.DisplayedMessage.Properties.EnqueuedTimeUtc.ToLocalTime()</td></tr>
-							@if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.SessionId)) {
-								<tr><td>Session ID:</td><td>@Model.DisplayedMessage.Properties.SessionId</td></tr>
-							}
-							@if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.PartitionKey)) {
-								<tr><td>Partition Key:</td><td>@Model.DisplayedMessage.Properties.PartitionKey</td></tr>
-							}
-							@if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.CorrelationId)) {
-								<tr><td>Correlation ID:</td><td>@Model.DisplayedMessage.Properties.CorrelationId</td></tr>
-							}
-							@if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.ContentType)) {
-								<tr><td>Content Type:</td><td>@Model.DisplayedMessage.Properties.ContentType</td></tr>
-							}
-							@if (Model.DisplayedMessage.Properties.ScheduledEnqueueTime is not null) {
-								<tr><td>Scheduled Enqueue Time:</td><td>@Model.DisplayedMessage.Properties.ScheduledEnqueueTime?.ToLocalTime()</td></tr>
-							}
-							@if (Model.DisplayedMessage.Properties.TimeToLive is not null) {
-								<tr><td>Time To Live:</td><td>@Model.DisplayedMessage.Properties.TimeToLive</td></tr>
-							}
-						</tbody>
-					</table>
+                <strong>Properties:</strong>
+                <table class="table table-sm mt-0 mb-2">
+                    <tbody>
+                        <tr><td class="w-25">Message ID:</td><td>@Model.DisplayedMessage.Properties.MessageId</td></tr>
+                        <tr><td>Enqueued Time:</td><td>@Model.DisplayedMessage.Properties.EnqueuedTimeUtc.ToLocalTime()</td></tr>
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.SessionId)) {
+                            <tr><td>Session ID:</td><td>@Model.DisplayedMessage.Properties.SessionId</td></tr>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.PartitionKey)) {
+                            <tr><td>Partition Key:</td><td>@Model.DisplayedMessage.Properties.PartitionKey</td></tr>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.CorrelationId)) {
+                            <tr><td>Correlation ID:</td><td>@Model.DisplayedMessage.Properties.CorrelationId</td></tr>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.DisplayedMessage.Properties.ContentType)) {
+                            <tr><td>Content Type:</td><td>@Model.DisplayedMessage.Properties.ContentType</td></tr>
+                        }
+                        @if (Model.DisplayedMessage.Properties.ScheduledEnqueueTime is not null) {
+                            <tr><td>Scheduled Enqueue Time:</td><td>@Model.DisplayedMessage.Properties.ScheduledEnqueueTime?.ToLocalTime()</td></tr>
+                        }
+                        @if (Model.DisplayedMessage.Properties.TimeToLive is not null) {
+                            <tr><td>Time To Live:</td><td>@Model.DisplayedMessage.Properties.TimeToLive</td></tr>
+                        }
+                    </tbody>
+                </table>
 
-					@if (Model.DisplayedMessage.ApplicationProperties?.Any() == true) {
-						<strong>Application Properties:</strong>
-						<table class="table table-sm mt-0 mb-2">
-							<tbody>
-								@foreach (var prop in Model.DisplayedMessage.ApplicationProperties) {
-									<tr><td>@prop.Key</td><td>@prop.Value</td></tr>
-								}
-							</tbody>
-						</table>
-					}
+                @if (Model.DisplayedMessage.ApplicationProperties?.Any() == true) {
+                    <strong>Application Properties:</strong>
+                    <table class="table table-sm mt-0 mb-2">
+                        <tbody>
+                            @foreach (var prop in Model.DisplayedMessage.ApplicationProperties) {
+                                <tr><td>@prop.Key</td><td>@prop.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
 
-					<strong>Body:</strong>
-					<pre class="mt-0 bg-light p-2 rounded">@Model.DisplayedMessage.Body</pre>
-					<hr />
-			</div>
-		}
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>Body:</strong>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-json-toggle" aria-pressed="false">Raw</button>
+                </div>
+                <pre class="mt-0 bg-light p-2 rounded js-message-body">@Model.DisplayedMessage.Body</pre>
+                <hr />
+            </div>
+        }
 
-		<h3>Peeked messages @(Model.HasMoreMessages ? $"(first {Model.Messages.Count})" : $"({Model.Messages.Count} total)")</h3>
-		@if (Model.Messages.Count == 0) {
-			<p>No messages found.</p>
-		}
-		else {
-			<ul class="list-group mb-3">
-				@foreach (var message in Model.Messages) {
-					<li class="list-group-item">
-						<div class="d-flex justify-content-between align-items-center">
-							<div>
-							<strong>@message.Properties.MessageId</strong> -
-							@if (Model.RequiresSession && !string.IsNullOrWhiteSpace(message.Properties.SessionId)) {
-								<em> Session ID: @message.Properties.SessionId - </em>
-							}
-								<em> @message.Properties.EnqueuedTimeUtc.ToLocalTime().ToString("g")</em>
-							</div>
-							<button type="button" class="btn btn-sm btn-outline-primary js-toggle-message" data-message-id="@message.Properties.MessageId">
-								<span class="js-expand-text">▼ Expand</span>
-								<span class="js-collapse-text" style="display: none;">▲ Collapse</span>
-							</button>
-						</div>
-						<div class="js-message-details mt-3" data-message-id="@message.Properties.MessageId" style="display: none;">
-							<strong>Properties:</strong>
-							<table class="table table-sm mt-0 mb-2">
-								<tbody>
-									<tr><td class="w-25">Message ID:</td><td>@message.Properties.MessageId</td></tr>
-									<tr><td>Enqueued Time:</td><td>@message.Properties.EnqueuedTimeUtc.ToLocalTime()</td></tr>
+        <h3>Peeked messages @(Model.HasMoreMessages ? $"(first {Model.Messages.Count})" : $"({Model.Messages.Count} total)")</h3>
+        @if (Model.Messages.Count == 0) {
+            <p>No messages found.</p>
+        }
+        else {
+            <ul class="list-group mb-3">
+                @foreach (var message in Model.Messages) {
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>@message.Properties.MessageId</strong> -
+                                @if (Model.RequiresSession && !string.IsNullOrWhiteSpace(message.Properties.SessionId)) {
+                                    <em> Session ID: @message.Properties.SessionId - </em>
+                                }
+                                <em> @message.Properties.EnqueuedTimeUtc.ToLocalTime().ToString("g")</em>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary js-toggle-message" data-message-id="@message.Properties.MessageId">
+                                <span class="js-expand-text">▼ Expand</span>
+                                <span class="js-collapse-text" style="display: none;">▲ Collapse</span>
+                            </button>
+                        </div>
+                        <div class="js-message-details mt-3" data-message-id="@message.Properties.MessageId" style="display: none;">
+                            <strong>Properties:</strong>
+                            <table class="table table-sm mt-0 mb-2">
+                                <tbody>
+                                    <tr><td class="w-25">Message ID:</td><td>@message.Properties.MessageId</td></tr>
+                                    <tr><td>Enqueued Time:</td><td>@message.Properties.EnqueuedTimeUtc.ToLocalTime()</td></tr>
 
-									@if (!string.IsNullOrWhiteSpace(message.Properties.SessionId)) {
-										<tr><td>Session ID:</td><td>@message.Properties.SessionId</td></tr>
-									}
-									@if (!string.IsNullOrWhiteSpace(message.Properties.PartitionKey)) {
-										<tr><td>Partition Key:</td><td>@message.Properties.PartitionKey</td></tr>
-									}
-									@if (!string.IsNullOrWhiteSpace(message.Properties.CorrelationId)) {
-										<tr><td>Correlation ID:</td><td>@message.Properties.CorrelationId</td></tr>
-									}
-									@if (!string.IsNullOrWhiteSpace(message.Properties.ContentType)) {
-										<tr><td>Content Type:</td><td>@message.Properties.ContentType</td></tr>
-									}
-									@if (message.Properties.TimeToLive is not null) {
-										<tr><td>Time To Live:</td><td>@message.Properties.TimeToLive</td></tr>
-									}
-									@if (message.Properties.ScheduledEnqueueTime is not null) {
-										<tr><td>Scheduled Enqueue Time:</td><td>@message.Properties.ScheduledEnqueueTime</td></tr>
-									}
-								</tbody>
-							</table>
+                                    @if (!string.IsNullOrWhiteSpace(message.Properties.SessionId)) {
+                                        <tr><td>Session ID:</td><td>@message.Properties.SessionId</td></tr>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(message.Properties.PartitionKey)) {
+                                        <tr><td>Partition Key:</td><td>@message.Properties.PartitionKey</td></tr>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(message.Properties.CorrelationId)) {
+                                        <tr><td>Correlation ID:</td><td>@message.Properties.CorrelationId</td></tr>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(message.Properties.ContentType)) {
+                                        <tr><td>Content Type:</td><td>@message.Properties.ContentType</td></tr>
+                                    }
+                                    @if (message.Properties.TimeToLive is not null) {
+                                        <tr><td>Time To Live:</td><td>@message.Properties.TimeToLive</td></tr>
+                                    }
+                                    @if (message.Properties.ScheduledEnqueueTime is not null) {
+                                        <tr><td>Scheduled Enqueue Time:</td><td>@message.Properties.ScheduledEnqueueTime</td></tr>
+                                    }
+                                </tbody>
+                            </table>
 
-							@if (message.ApplicationProperties?.Any() == true) {
-								<strong>Application Properties:</strong>
-								<table class="table table-sm mt-0 mb-2">
-									<tbody>
-										@foreach (var prop in message.ApplicationProperties) {
-											<tr>
-												<td class="w-25">@prop.Key</td>
-												<td>@prop.Value</td>
-											</tr>
-										}
-									</tbody>
-								</table>
-							}
+                            @if (message.ApplicationProperties?.Any() == true) {
+                                <strong>Application Properties:</strong>
+                                <table class="table table-sm mt-0 mb-2">
+                                    <tbody>
+                                        @foreach (var prop in message.ApplicationProperties) {
+                                            <tr>
+                                                <td class="w-25">@prop.Key</td>
+                                                <td>@prop.Value</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
 
-							<strong>Body:</strong>
-							<pre class="mt-0 bg-light p-2 rounded">@message.Body</pre>
-						</div>
-					</li>
-				}
-			</ul>
-		}
-	</div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <strong>Body:</strong>
+                                <button type="button" class="btn btn-sm mb-1 btn-outline-secondary js-json-toggle" aria-pressed="false">Raw</button>
+                            </div>
+                            <pre class="mt-0 bg-light p-2 rounded js-message-body">@message.Body</pre>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
 </div>
 
 @section Scripts {
-	<script>
-				function addProperty() {
-					const container = document.getElementById('properties-container');
-					const index = container.querySelectorAll('.input-group').length;
-					const group = document.createElement('div');
-					group.className = 'input-group mb-2';
-					group.innerHTML = `
-		<input type="text" name="SendMessageApplicationProperties[${index}].Key" class="form-control" placeholder="Key" />
-		<select name="SendMessageApplicationProperties[${index}].Type" class="form-select" style="max-width: 180px;">
-			<option value="String" selected>String</option>
-			<option value="Bool">Bool</option>
-			<option value="Byte">Byte</option>
-			<option value="SByte">SByte</option>
-			<option value="Short">Short</option>
-			<option value="UShort">UShort</option>
-			<option value="Int">Int</option>
-			<option value="UInt">UInt</option>
-			<option value="Long">Long</option>
-			<option value="ULong">ULong</option>
-			<option value="Float">Float</option>
-			<option value="Double">Double</option>
-			<option value="Decimal">Decimal</option>
-			<option value="Char">Char</option>
-			<option value="Guid">Guid</option>
-			<option value="DateTime">DateTime</option>
-			<option value="DateTimeOffset">DateTimeOffset</option>
-			<option value="TimeSpan">TimeSpan</option>
-		</select>
-		<input type="text" name="SendMessageApplicationProperties[${index}].Value" class="form-control" placeholder="Value" />
-		<button type="button" class="btn btn-outline-danger">×</button>`;
-					container.appendChild(group);
-				}
+    <script>
+        function addProperty() {
+            const container = document.getElementById('properties-container');
+            const index = container.querySelectorAll('.input-group').length;
+            const group = document.createElement('div');
 
-				document.addEventListener('DOMContentLoaded', function () {
-				function disableButtonOnValidSubmit(formId, submitButtonId, relatedInputIds) {
-						const form = document.getElementById(formId);
-						if (!(form instanceof HTMLFormElement)) {
-							return;
-						}
+            group.className = 'input-group mb-2';
+            group.innerHTML = `
+                <input type="text" name="SendMessageApplicationProperties[${index}].Key" class="form-control" placeholder="Key" />
+                <select name="SendMessageApplicationProperties[${index}].Type" class="form-select" style="max-width: 180px;">
+                    <option value="String" selected>String</option>
+                    <option value="Bool">Bool</option>
+                    <option value="Byte">Byte</option>
+                    <option value="SByte">SByte</option>
+                    <option value="Short">Short</option>
+                    <option value="UShort">UShort</option>
+                    <option value="Int">Int</option>
+                    <option value="UInt">UInt</option>
+                    <option value="Long">Long</option>
+                    <option value="ULong">ULong</option>
+                    <option value="Float">Float</option>
+                    <option value="Double">Double</option>
+                    <option value="Decimal">Decimal</option>
+                    <option value="Char">Char</option>
+                    <option value="Guid">Guid</option>
+                    <option value="DateTime">DateTime</option>
+                    <option value="DateTimeOffset">DateTimeOffset</option>
+                    <option value="TimeSpan">TimeSpan</option>
+                </select>
+                <input type="text" name="SendMessageApplicationProperties[${index}].Value" class="form-control" placeholder="Value" />
+                <button type="button" class="btn btn-outline-danger">×</button>`;
+            container.appendChild(group);
+        }
 
-						form.addEventListener('submit', function () {
-							// If browser validation blocks submit, this handler won't run.
-							// Use checkValidity in case custom constraints are added later.
-							if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
-								return;
-							}
+        document.addEventListener('DOMContentLoaded', function () {
 
-						const btn = document.getElementById(submitButtonId);
-						if (btn instanceof HTMLButtonElement) {
-							btn.disabled = true;
-						}
+            function disableButtonOnValidSubmit(formId, submitButtonId, relatedInputIds) {
+                const form = document.getElementById(formId);
+                if (!(form instanceof HTMLFormElement))
+                            return;
 
-						if (Array.isArray(relatedInputIds)) {
-							relatedInputIds.forEach(id => {
-								const input = document.getElementById(id);
-								if (input instanceof HTMLInputElement) {
-									input.readOnly = true;
-									input.setAttribute('aria-disabled', 'true');
-									input.classList.add('disabled');
-								}
-							});
-						}
-						});
-					}
+                form.addEventListener('submit', function () {
+                    // If browser validation blocks submit, this handler won't run.
+                    // Use checkValidity in case custom constraints are added later.
+                    if (typeof form.checkValidity === 'function' && !form.checkValidity())
+                        return;
 
-					// Disable action buttons after a valid submit to prevent double-posting.
-					disableButtonOnValidSubmit('sendMessageForm', 'sendMessageSubmitBtn');
-					disableButtonOnValidSubmit('refreshForm', 'refreshSubmitBtn');
-					disableButtonOnValidSubmit('receiveForm', 'receiveSubmitBtn', ['receiveSessionIdInput']);
-					disableButtonOnValidSubmit('disconnectForm', 'disconnectSubmitBtn');
 
-					function renumberApplicationProperties() {
-						const container = document.getElementById('properties-container');
-						if (!container) {
-							return;
-						}
+                    const btn = document.getElementById(submitButtonId);
+                    if (btn instanceof HTMLButtonElement)
+                        btn.disabled = true;
 
-						const groups = Array.from(container.querySelectorAll('.input-group'));
-						for (let i = 0; i < groups.length; i++) {
-							const group = groups[i];
-							const keyInput = group.querySelector('input[name$=".Key"]');
-							const valueInput = group.querySelector('input[name$=".Value"]');
 
-							if (keyInput) {
-								keyInput.name = `SendMessageApplicationProperties[${i}].Key`;
-							}
+                    if (Array.isArray(relatedInputIds)) {
+                        relatedInputIds.forEach(id => {
+                            const input = document.getElementById(id);
+                            if (input instanceof HTMLInputElement) {
+                                input.readOnly = true;
+                                input.setAttribute('aria-disabled', 'true');
+                                input.classList.add('disabled');
+                            }
+                        });
+                    }
+                });
+            }
 
-							if (valueInput) {
-								valueInput.name = `SendMessageApplicationProperties[${i}].Value`;
-							}
-						}
-					}
+            // Disable action buttons after a valid submit to prevent double-posting.
+            disableButtonOnValidSubmit('sendMessageForm', 'sendMessageSubmitBtn');
+            disableButtonOnValidSubmit('refreshForm', 'refreshSubmitBtn');
+            disableButtonOnValidSubmit('receiveForm', 'receiveSubmitBtn', ['receiveSessionIdInput']);
+            disableButtonOnValidSubmit('disconnectForm', 'disconnectSubmitBtn');
 
-					const sendFormWrapper = document.getElementById('sendFormWrapper');
-					const toggleBtn = document.getElementById('toggleSendFormBtn');
+            function renumberApplicationProperties() {
+                const container = document.getElementById('properties-container');
+                if (!container)
+                    return;
 
-					if (sendFormWrapper != null && toggleBtn != null) {
-						const storageKey = 'sendFormOpen';
-						let isOpen = localStorage.getItem(storageKey);
-						if (isOpen === null) {
-							isOpen = 'true';
-							localStorage.setItem(storageKey, isOpen);
-						}
-						isOpen = isOpen === 'true';
+                const groups = Array.from(container.querySelectorAll('.input-group'));
+                for (let i = 0; i < groups.length; i++) {
+                    const group = groups[i];
+                    const keyInput = group.querySelector('input[name$=".Key"]');
+                    const typeSelect = group.querySelector('select[name$=".Type"]');
+                    const valueInput = group.querySelector('input[name$=".Value"]');
 
-						function updateFormVisibility() {
-							if (isOpen) {
-								sendFormWrapper.classList.remove('js-send-form-hidden');
-								toggleBtn.textContent = 'Hide Send Message';
-							} else {
-								sendFormWrapper.classList.add('js-send-form-hidden');
-								toggleBtn.textContent = 'Show Send Message';
-							}
-						}
+                    if (keyInput)
+                        keyInput.name = `SendMessageApplicationProperties[${i}].Key`;
 
-						updateFormVisibility();
+                    if (typeSelect)
+                        typeSelect.name = `SendMessageApplicationProperties[${i}].Type`;
 
-						toggleBtn.addEventListener('click', function () {
-							sendFormWrapper.classList.add('animation-effect');
-							isOpen = !isOpen;
-							localStorage.setItem(storageKey, isOpen);
-							updateFormVisibility();
-						});
-					}
+                    if (valueInput)
+                        valueInput.name = `SendMessageApplicationProperties[${i}].Value`;
+                }
+            }
 
-					// Message expand/collapse functionality
-					document.querySelectorAll('.js-toggle-message').forEach(button => {
-						button.addEventListener('click', function () {
-							const messageId = this.getAttribute('data-message-id');
-							const detailsDiv = document.querySelector(`.js-message-details[data-message-id="${messageId}"]`);
-							const expandText = this.querySelector('.js-expand-text');
-							const collapseText = this.querySelector('.js-collapse-text');
+            const sendFormWrapper = document.getElementById('sendFormWrapper');
+            const toggleBtn = document.getElementById('toggleSendFormBtn');
 
-							if (detailsDiv.style.display === 'none') {
-								detailsDiv.style.display = 'block';
-								expandText.style.display = 'none';
-								collapseText.style.display = 'inline';
-							} else {
-								detailsDiv.style.display = 'none';
-								expandText.style.display = 'inline';
-								collapseText.style.display = 'none';
-							}
-						});
-					});
+            if (sendFormWrapper != null && toggleBtn != null) {
+                const storageKey = 'sendFormOpen';
 
-					// Ensure indexes stay contiguous for ASP.NET Core model binding.
-					const propertiesContainer = document.getElementById('properties-container');
-					if (propertiesContainer) {
-						propertiesContainer.addEventListener('click', function (e) {
-							const target = e.target;
-							if (!(target instanceof HTMLElement)) {
-								return;
-							}
+                let isOpen = localStorage.getItem(storageKey);
+                if (isOpen === null) {
+                    isOpen = 'true';
+                    localStorage.setItem(storageKey, isOpen);
+                }
 
-							if (!target.matches('button')) {
-								return;
-							}
+                isOpen = isOpen === 'true';
 
-							const group = target.closest('.input-group');
-							if (!group || !propertiesContainer.contains(group)) {
-								return;
-							}
+                function updateFormVisibility() {
+                    if (isOpen) {
+                        sendFormWrapper.classList.remove('js-send-form-hidden');
+                        toggleBtn.textContent = 'Hide Send Message';
+                    }
+                    else {
+                        sendFormWrapper.classList.add('js-send-form-hidden');
+                        toggleBtn.textContent = 'Show Send Message';
+                    }
+                }
 
-							group.remove();
-							renumberApplicationProperties();
-						});
-					}
-				});
-	</script>
+                updateFormVisibility();
+
+                toggleBtn.addEventListener('click', function () {
+                    sendFormWrapper.classList.add('animation-effect');
+                    isOpen = !isOpen;
+                    localStorage.setItem(storageKey, isOpen);
+                    updateFormVisibility();
+                });
+            }
+
+            // Message expand/collapse functionality
+            document.querySelectorAll('.js-toggle-message').forEach(button => {
+                button.addEventListener('click', function () {
+                    const messageId = this.getAttribute('data-message-id');
+                    const detailsDiv = document.querySelector(`.js-message-details[data-message-id="${CSS.escape(messageId)}"]`);
+                    const expandText = this.querySelector('.js-expand-text');
+                    const collapseText = this.querySelector('.js-collapse-text');
+
+                    if (detailsDiv.style.display === 'none') {
+                        detailsDiv.style.display = 'block';
+                        expandText.style.display = 'none';
+                        collapseText.style.display = 'inline';
+                    }
+                    else {
+                        detailsDiv.style.display = 'none';
+                        expandText.style.display = 'inline';
+                        collapseText.style.display = 'none';
+                    }
+                });
+            });
+
+            function escapeHtml(value) {
+                return value
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            }
+
+            function syntaxHighlightJson(jsonText) {
+                return jsonText.replace(
+                    /("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+                    function (match) {
+                        let cssClass = 'json-number';
+
+                        if (match.startsWith('"'))
+                            cssClass = match.endsWith(':') ? 'json-key' : 'json-string';
+                        else if (match === 'true' || match === 'false')
+                            cssClass = 'json-boolean';
+                        else if (match === 'null')
+                            cssClass = 'json-null';
+
+                        return `<span class="${cssClass}">${match}</span>`;
+                    });
+            }
+
+            function getAssociatedBody(toggleButton) {
+                const container = toggleButton.closest('.js-message-details') ?? toggleButton.closest('li') ?? toggleButton.parentElement;
+                return container ? container.querySelector('.js-message-body') : null;
+            }
+
+            function tryFormatJsonBody(preElement) {
+                if (!(preElement instanceof HTMLElement))
+                    return;
+
+                const rawText = preElement.textContent;
+                if (!rawText)
+                    return;
+
+                const trimmed = rawText.trim();
+                if (!trimmed)
+                    return;
+
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    const formatted = JSON.stringify(parsed, null, 2);
+                    const escaped = escapeHtml(formatted);
+
+                    preElement.dataset.raw = rawText;
+                    preElement.dataset.formatted = formatted;
+                    preElement.dataset.jsonState = 'formatted';
+                    preElement.innerHTML = syntaxHighlightJson(escaped);
+
+                    const toggleButton = preElement.closest('.js-message-details')?.querySelector('.js-json-toggle')
+                        ?? preElement.closest('li')?.querySelector('.js-json-toggle')
+                        ?? preElement.parentElement?.querySelector('.js-json-toggle');
+
+                    if (toggleButton instanceof HTMLButtonElement) {
+                        toggleButton.classList.add('js-json-toggle-visible');
+                        toggleButton.textContent = 'Raw';
+                        toggleButton.setAttribute('aria-pressed', 'true');
+                    }
+                }
+                catch {
+                    // Not JSON, keep original content.
+                }
+            }
+
+            document.querySelectorAll('.js-message-body').forEach(tryFormatJsonBody);
+
+            document.querySelectorAll('.js-json-toggle').forEach(button => {
+                button.addEventListener('click', function () {
+                    const preElement = getAssociatedBody(this);
+
+                    if (!(preElement instanceof HTMLElement))
+                        return;
+
+                    const raw = preElement.dataset.raw;
+                    const formatted = preElement.dataset.formatted;
+                    if (!raw || !formatted)
+                        return;
+
+                    const isFormatted = preElement.dataset.jsonState !== 'raw';
+
+                    if (isFormatted) {
+                        preElement.textContent = raw;
+                        preElement.dataset.jsonState = 'raw';
+                        this.textContent = 'Formatted';
+                        this.setAttribute('aria-pressed', 'false');
+                    }
+                    else {
+                        const escaped = escapeHtml(formatted);
+                        preElement.innerHTML = syntaxHighlightJson(escaped);
+                        preElement.dataset.jsonState = 'formatted';
+                        this.textContent = 'Raw';
+                        this.setAttribute('aria-pressed', 'true');
+                    }
+                });
+            });
+
+            // Ensure indexes stay contiguous for ASP.NET Core model binding.
+            const propertiesContainer = document.getElementById('properties-container');
+            if (propertiesContainer) {
+                propertiesContainer.addEventListener('click', function (e) {
+                    const target = e.target;
+                    if (!(target instanceof HTMLElement))
+                        return;
+
+                    if (!target.matches('button'))
+                        return;
+
+                    const group = target.closest('.input-group');
+                    if (!group || !propertiesContainer.contains(group))
+                        return;
+
+                    group.remove();
+                    renumberApplicationProperties();
+                });
+            }
+        });
+    </script>
 }

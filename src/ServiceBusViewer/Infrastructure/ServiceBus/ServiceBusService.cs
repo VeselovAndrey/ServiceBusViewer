@@ -20,11 +20,8 @@ public class ServiceBusService
 	/// <summary>Gets the host name of the connected Service Bus instance.</summary>
 	public string Host { get; private set; } = string.Empty;
 
-	/// <summary>Gets the entity name (queue or topic) currently connected to.</summary>
-	public string EntityName { get; private set; } = string.Empty;
-
-	/// <summary>Gets the parent topic if connected to a topic subscription; otherwise, null.</summary>
-	public string? TopicName { get; private set; }
+	/// <summary>Gets the currently active entity.</summary>
+	public EntityProperties? ActiveEntity { get; private set; }
 
 	/// <summary>Gets a value indicating whether connected using a root connection string with admin privileges.</summary>
 	public bool IsManagementApiAvailable => _adminClient is not null;
@@ -45,8 +42,7 @@ public class ServiceBusService
 		_adminClient = new ServiceBusAdministrationClient(rootConnectionString);
 
 		Host = GetServiceBusHost(connectionString);
-		EntityName = string.Empty;
-		TopicName = null;
+		ActiveEntity = null;
 		Connected = true;
 
 		await UpdateAvailableEntitiesListAsync();
@@ -57,7 +53,7 @@ public class ServiceBusService
 	/// <param name="queueOrTopicName">The queue or topic name.</param>
 	/// <param name="subscriptionName">The subscription name, or <c>null</c> for queues.</param>
 	/// <exception cref="InvalidOperationException">Thrown if already connected.</exception>
-	public async Task ConnectToAsync(string connectionString, string queueOrTopicName, string? subscriptionName)
+	public void ConnectTo(string connectionString, string queueOrTopicName, string? subscriptionName)
 	{
 		if (Connected)
 			throw new InvalidOperationException("Already connected to a Service Bus instance.");
@@ -66,8 +62,6 @@ public class ServiceBusService
 		_adminClient = null;
 
 		Host = GetServiceBusHost(connectionString);
-		EntityName = subscriptionName ?? queueOrTopicName;
-		TopicName = subscriptionName is not null ? queueOrTopicName : null;
 		Connected = true;
 
 		// Non-admin mode: create minimal property objects for the connected entity
@@ -84,7 +78,8 @@ public class ServiceBusService
 				true,
 				false,
 				TimeSpan.MaxValue));
-			_availableEntities.Add(new SubscriptionEntityProperties(
+
+			var subscriptionProperties = new SubscriptionEntityProperties(
 				subscriptionName,
 				queueOrTopicName,
 				TimeSpan.FromMinutes(1),
@@ -93,11 +88,14 @@ public class ServiceBusService
 				false,
 				false,
 				true,
-				TimeSpan.MaxValue));
+				TimeSpan.MaxValue,
+				[]);
+			_availableEntities.Add(subscriptionProperties);
+			ActiveEntity = subscriptionProperties;
 		}
 		else {
 			// For queues, create a queue property placeholder
-			_availableEntities.Add(new QueueEntityProperties(
+			var queueProperties = new QueueEntityProperties(
 				queueOrTopicName,
 				TimeSpan.FromMinutes(1),
 				10,
@@ -108,7 +106,9 @@ public class ServiceBusService
 				true,
 				false,
 				false,
-				TimeSpan.MaxValue));
+				TimeSpan.MaxValue);
+			_availableEntities.Add(queueProperties);
+			ActiveEntity = queueProperties;
 		}
 	}
 
@@ -146,8 +146,7 @@ public class ServiceBusService
 		_availableEntities.Clear();
 
 		Host = string.Empty;
-		EntityName = string.Empty;
-		TopicName = null;
+		ActiveEntity = null;
 		Connected = false;
 	}
 
@@ -156,7 +155,7 @@ public class ServiceBusService
 	/// <returns>A <see cref="ReceivedMessageList"/> containing the peeked messages and a flag indicating if more messages exist.</returns>
 	public async Task<ReceivedMessageList> PeekMessagesAsync(int maxMessages = _maxMessagesToPeek)
 	{
-		if (string.IsNullOrWhiteSpace(EntityName))
+		if (ActiveEntity is null)
 			return ReceivedMessageList.Empty;
 
 		await using ServiceBusReceiver receiver = GetReceiver();
@@ -281,6 +280,12 @@ public class ServiceBusService
 				topic.AutoDeleteOnIdle));
 
 			await foreach (SubscriptionProperties subscription in _adminClient.GetSubscriptionsAsync(topic.Name)) {
+				// Get subscription rules (filters)
+				List<SubscriptionFilterRule> rules = [];
+				await foreach (RuleProperties rule in _adminClient.GetRulesAsync(topic.Name, subscription.SubscriptionName)) {
+					rules.Add(ConvertToSubscriptionRule(rule));
+				}
+
 				_availableEntities.Add(new SubscriptionEntityProperties(
 					subscription.SubscriptionName,
 					subscription.TopicName,
@@ -290,7 +295,8 @@ public class ServiceBusService
 					subscription.DeadLetteringOnMessageExpiration,
 					subscription.RequiresSession,
 					subscription.EnableBatchedOperations,
-					subscription.AutoDeleteOnIdle));
+					subscription.AutoDeleteOnIdle,
+					rules));
 			}
 		}
 	}
@@ -305,23 +311,15 @@ public class ServiceBusService
 			throw new InvalidOperationException("Not connected to any Service Bus instance.");
 
 		// No need to create a new client, just update the entity information
-		switch (entity) {
-			case QueueEntityId queueId:
-				EntityName = queueId.Name;
-				TopicName = null;
-				break;
+		ActiveEntity = entity switch {
+			QueueEntityId queueId => _availableEntities.FirstOrDefault(p => p is QueueEntityProperties && p.Name == queueId.Name),
+			SubscriptionEntityId subscriptionId => _availableEntities.FirstOrDefault(p => p is SubscriptionEntityProperties sp && sp.Name == subscriptionId.Name && sp.TopicName == subscriptionId.TopicName),
+			TopicEntityId topicId => throw new InvalidOperationException($"Please select the subscription for the topic {topicId.Name}"),
+			_ => throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}")
+		};
 
-			case SubscriptionEntityId subscriptionId:
-				EntityName = subscriptionId.Name;
-				TopicName = subscriptionId.TopicName;
-				break;
-
-			case TopicEntityId topicId:
-				throw new InvalidOperationException($"Please select the subscription for the topic {topicId.Name}");
-
-			default:
-				throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}");
-		}
+		if (ActiveEntity is null)
+			throw new InvalidOperationException($"Entity '{entity.Name}' not found in available entities.");
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusReceiver"/> for the current entity and subscription.</summary>
@@ -332,15 +330,22 @@ public class ServiceBusService
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Service Bus is not connected.");
 
-		if (!string.IsNullOrWhiteSpace(TopicName)) {
-			return _client.CreateReceiver(TopicName, EntityName, new ServiceBusReceiverOptions {
+		if (ActiveEntity is null)
+			throw new InvalidOperationException("No active entity selected.");
+
+		if (ActiveEntity is SubscriptionEntityProperties subscription) {
+			return _client.CreateReceiver(subscription.TopicName, subscription.Name, new ServiceBusReceiverOptions {
 				ReceiveMode = ServiceBusReceiveMode.PeekLock
 			});
 		}
 
-		return _client.CreateReceiver(EntityName, new ServiceBusReceiverOptions {
-			ReceiveMode = ServiceBusReceiveMode.PeekLock
-		});
+		if (ActiveEntity is QueueEntityProperties queue) {
+			return _client.CreateReceiver(queue.Name, new ServiceBusReceiverOptions {
+				ReceiveMode = ServiceBusReceiveMode.PeekLock
+			});
+		}
+
+		throw new InvalidOperationException($"Cannot create receiver for entity type '{ActiveEntity.GetType().Name}'. Only queues and subscriptions support receiving messages.");
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusSessionReceiver"/> for the current entity.</summary>
@@ -352,15 +357,22 @@ public class ServiceBusService
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Service Bus is not connected.");
 
-		if (!string.IsNullOrWhiteSpace(TopicName)) {
+		if (ActiveEntity is null)
+			throw new InvalidOperationException("No active entity selected.");
+
+		if (ActiveEntity is SubscriptionEntityProperties subscription) {
 			return string.IsNullOrEmpty(sessionId)
-				? await _client.AcceptNextSessionAsync(TopicName, EntityName)
-				: await _client.AcceptSessionAsync(TopicName, EntityName, sessionId);
+				? await _client.AcceptNextSessionAsync(subscription.TopicName, subscription.Name)
+				: await _client.AcceptSessionAsync(subscription.TopicName, subscription.Name, sessionId);
 		}
 
-		return string.IsNullOrEmpty(sessionId)
-			? await _client.AcceptNextSessionAsync(EntityName)
-			: await _client.AcceptSessionAsync(EntityName, sessionId);
+		if (ActiveEntity is QueueEntityProperties queue) {
+			return string.IsNullOrEmpty(sessionId)
+				? await _client.AcceptNextSessionAsync(queue.Name)
+				: await _client.AcceptSessionAsync(queue.Name, sessionId);
+		}
+
+		throw new InvalidOperationException($"Cannot create session receiver for entity type '{ActiveEntity.GetType().Name}'. Only queues and subscriptions support sessions.");
 	}
 
 	/// <summary>Gets a <see cref="ServiceBusSender"/> for the current entity.</summary>
@@ -371,7 +383,15 @@ public class ServiceBusService
 		if (!Connected || _client is null)
 			throw new InvalidOperationException("Service Bus is not connected.");
 
-		return _client.CreateSender(EntityName);
+		if (ActiveEntity is null)
+			throw new InvalidOperationException("No active entity selected.");
+
+		return ActiveEntity switch {
+			QueueEntityProperties queue => _client.CreateSender(queue.Name),
+			SubscriptionEntityProperties subscription => _client.CreateSender(subscription.TopicName),
+			TopicEntityProperties topic => _client.CreateSender(topic.Name),
+			_ => throw new InvalidOperationException($"Cannot create sender for entity type '{ActiveEntity.GetType().Name}'.")
+		};
 	}
 
 	/// <summary>Extracts the Service Bus host from the connection string.</summary>
@@ -412,26 +432,76 @@ public class ServiceBusService
 
 	private static object ConvertApplicationPropertyValue(string value, ApplicationPropertyType type)
 	{
-		return type switch {
-			ApplicationPropertyType.String => value,
-			ApplicationPropertyType.Bool => bool.Parse(value),
-			ApplicationPropertyType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.SByte => sbyte.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Short => short.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.UShort => ushort.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Int => int.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.UInt => uint.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Long => long.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.ULong => ulong.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Float => float.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Double => double.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Decimal => decimal.Parse(value, CultureInfo.InvariantCulture),
-			ApplicationPropertyType.Char => value.Length == 1 ? value[0] : throw new FormatException("Char value must be a single character."),
-			ApplicationPropertyType.Guid => Guid.Parse(value),
-			ApplicationPropertyType.DateTime => DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-			ApplicationPropertyType.DateTimeOffset => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-			ApplicationPropertyType.TimeSpan => TimeSpan.Parse(value, CultureInfo.InvariantCulture),
-			_ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported application property type.")
-		};
+		ArgumentNullException.ThrowIfNull(value);
+
+		try {
+			return type switch {
+				ApplicationPropertyType.String => value,
+				ApplicationPropertyType.Bool => bool.Parse(value),
+				ApplicationPropertyType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.SByte => sbyte.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Short => short.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.UShort => ushort.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Int => int.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.UInt => uint.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Long => long.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.ULong => ulong.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Float => float.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Double => double.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Decimal => decimal.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Char => value.Length == 1 ? value[0] : throw new FormatException("Char value must be a single character."),
+				ApplicationPropertyType.Guid => Guid.Parse(value),
+				ApplicationPropertyType.DateTime => DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+				ApplicationPropertyType.DateTimeOffset => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+				ApplicationPropertyType.TimeSpan => TimeSpan.Parse(value, CultureInfo.InvariantCulture),
+
+				_ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported application property type.")
+			};
+		}
+		catch (FormatException ex) {
+			throw new FormatException($"Cannot convert value '{value}' to type {type}. {ex.Message}", ex);
+		}
+		catch (OverflowException ex) {
+			throw new FormatException($"Value '{value}' is out of range for type {type}. {ex.Message}", ex);
+		}
+	}
+
+	private static SubscriptionFilterRule ConvertToSubscriptionRule(RuleProperties rule)
+	{
+		if (rule.Filter is SqlRuleFilter sqlFilter) {
+			string? actionExpression = rule.Action is SqlRuleAction sqlAction
+				? sqlAction.SqlExpression
+				: null;
+
+			return new SqlSubscriptionFilterRule(rule.Name, sqlFilter.SqlExpression, actionExpression);
+		}
+
+		if (rule.Filter is CorrelationRuleFilter correlationFilter) {
+			string? actionExpression = rule.Action is SqlRuleAction sqlAction
+				? sqlAction.SqlExpression
+				: null;
+
+			var applicationProperties = correlationFilter.ApplicationProperties
+				.ToDictionary(x => x.Key, x => x.Value) as IReadOnlyDictionary<string, object>
+				?? new Dictionary<string, object>();
+
+			return new CorrelationSubscriptionFilterRule(
+				rule.Name,
+				correlationFilter.CorrelationId,
+				correlationFilter.MessageId,
+				correlationFilter.To,
+				correlationFilter.ReplyTo,
+				correlationFilter.Subject,
+				correlationFilter.SessionId,
+				correlationFilter.ReplyToSessionId,
+				correlationFilter.ContentType,
+				applicationProperties,
+				actionExpression);
+		}
+
+		return new UnknownSubscriptionFilterRule(
+			rule.Name,
+			rule.Filter?.GetType().Name ?? "null",
+			"Unknown filter type");
 	}
 }
