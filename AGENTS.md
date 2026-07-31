@@ -25,14 +25,14 @@ cd src\ServiceBusViewer
 dotnet run
 ```
 Defaults to `localhost` emulator connection string (see [Index.cshtml.cs#L25-26](src/ServiceBusViewer/Pages/Index.cshtml.cs)).
+Debug builds run `npm run build:assets` automatically from the repository root, and restore front-end dependencies with `npm ci` when `node_modules` is missing.
 
-### Docker Build (from solution directory)
+### Docker Build (from repository root)
 ```powershell
-cd src
-docker build -f ServiceBusViewer/Dockerfile -t servicebusviewer .
+docker build -f src/ServiceBusViewer/Dockerfile -t servicebusviewer .
 docker run -p 5000:8080 -e CONNECTION_STRING="..." servicebusviewer
 ```
-**Critical**: Dockerfile expects to run from `src/` (solution directory), not project directory.
+**Critical**: Dockerfile expects to run from the repository root so it can build the npm-based UI assets before publishing the app.
 
 ### Connection String Patterns
 - **Emulator from host**: `Endpoint=sb://localhost;SharedAccessKeyName=...;UseDevelopmentEmulator=true;`

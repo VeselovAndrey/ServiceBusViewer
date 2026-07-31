@@ -5,6 +5,10 @@ on:
   push:
     branches: [ "release" ]
     paths:
+    - '.dockerignore'
+    - 'package.json'
+    - 'package-lock.json'
+    - 'scripts/**'
     - 'src/ServiceBusViewer/**'
 
 jobs:
@@ -53,7 +57,7 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: ./src
+        context: .
         file: ./src/ServiceBusViewer/Dockerfile
         push: true
         tags: |

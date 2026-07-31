@@ -5,14 +5,25 @@ EXPOSE 8080
 EXPOSE 8081
 ENV CONNECTION_STRING=""
 
+# This stage restores npm dependencies and builds the static UI assets.
+FROM node:24-slim AS assets
+WORKDIR /workspace
+COPY ["package.json", "package-lock.json", "./"]
+RUN npm ci
+COPY ["scripts/", "scripts/"]
+COPY ["src/ServiceBusViewer/Styles/", "src/ServiceBusViewer/Styles/"]
+COPY ["src/ServiceBusViewer/wwwroot/", "src/ServiceBusViewer/wwwroot/"]
+RUN npm run build:assets
+
 # This stage is used to build the service project
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
-WORKDIR /src
-COPY ["ServiceBusViewer/ServiceBusViewer.csproj", "ServiceBusViewer/"]
-RUN dotnet restore "./ServiceBusViewer/ServiceBusViewer.csproj"
-COPY . .
-WORKDIR "/src/ServiceBusViewer"
+WORKDIR /workspace
+COPY ["src/ServiceBusViewer/ServiceBusViewer.csproj", "src/ServiceBusViewer/"]
+RUN dotnet restore "./src/ServiceBusViewer/ServiceBusViewer.csproj"
+COPY ["src/", "src/"]
+COPY --from=assets /workspace/src/ServiceBusViewer/wwwroot ./src/ServiceBusViewer/wwwroot
+WORKDIR "/workspace/src/ServiceBusViewer"
 RUN dotnet build "./ServiceBusViewer.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
@@ -26,3 +37,4 @@ LABEL org.opencontainers.image.description="Service Bus Viewer is a web applicat
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "ServiceBusViewer.dll"]
+
