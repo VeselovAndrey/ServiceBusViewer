@@ -11,6 +11,7 @@ WORKDIR /workspace
 COPY ["package.json", "package-lock.json", "./"]
 RUN npm ci
 COPY ["scripts/", "scripts/"]
+COPY ["src/ServiceBusViewer/Pages/", "src/ServiceBusViewer/Pages/"]
 COPY ["src/ServiceBusViewer/Styles/", "src/ServiceBusViewer/Styles/"]
 COPY ["src/ServiceBusViewer/wwwroot/", "src/ServiceBusViewer/wwwroot/"]
 RUN npm run build:assets
