@@ -122,7 +122,7 @@ Endpoint=sb://host.docker.internal:[PORT];SharedAccessKeyName=RootManageSharedAc
 - 0.11.0 (2026-08-01): Added/fixed:
   - Redesigned application UI and UX: new visual design.
   - Miscellaneous packaging and build improvements.
-	- 
+
 - 0.10.0 (2026-02-15): Added/fixed:
   - client-side JSON formatting and toggle for message body;
   - display of subscription filters;
