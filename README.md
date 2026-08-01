@@ -33,15 +33,15 @@ podman run --name ServiceBusViewer -p 5000:8080 -d ghcr.io/veselovandrey/service
 
 ### Build the container image using Docker / Podman
 
-Use the provided `Dockerfile` to build the Service Bus Viewer image. Run the build command from the solution directory (where the solution file is located):
+Use the provided `Dockerfile` to build the Service Bus Viewer image. Run the build command from the repository root:
 With Docker:
 ```bash
-docker build -f ServiceBusViewer/Dockerfile -t servicebusviewer .
+docker build -f src/ServiceBusViewer/Dockerfile -t servicebusviewer .
 ```
 
 Or with Podman:
 ```bash
-podman build -f ServiceBusViewer/Dockerfile -t servicebusviewer .
+podman build -f src/ServiceBusViewer/Dockerfile -t servicebusviewer .
 ```
 
 You can provide the Service Bus connection string via:
@@ -71,12 +71,29 @@ If `CONNECTION_STRING` is not set, the app falls back to its built-in developmen
 ### Running from source
 To run the Service Bus Viewer from source, you need to have the following prerequisites installed:
 - .NET SDK 10.0 or later
+- Node.js 24 LTS or later
 
 Navigate to the project directory and use 
 ```powershell
 dotnet run
 ```
 to restore dependencies and start the application.
+
+Local Debug builds now run `npm run build:assets` automatically. If `node_modules` is missing, the build first restores the front-end dependencies with `npm ci`.
+
+### Front-end assets
+
+The UI now uses a locally installed Tailwind CSS pipeline plus bundled Inter and JetBrains Mono fonts.
+
+Install the front-end dependencies from the repository root if you want to manage them manually:
+```powershell
+npm install
+```
+
+Rebuild the bundled CSS and font assets after changing the UI:
+```powershell
+npm run build:assets
+```
 
 ## Accessing the Service Bus Emulator
 
@@ -102,13 +119,17 @@ Endpoint=sb://host.docker.internal:[PORT];SharedAccessKeyName=RootManageSharedAc
 
 ## Version history
 
-- 0.10.0 (2025-02-15): Added/fixed:
+- 0.11.0 (2026-08-01): Added/fixed:
+  - Redesigned application UI and UX: new visual design.
+  - Miscellaneous packaging and build improvements.
+
+- 0.10.0 (2026-02-15): Added/fixed:
   - client-side JSON formatting and toggle for message body;
   - display of subscription filters;
   - bugfix: unable to send messages to topics;
   - miscellaneous bugfixes.
 
-- 0.9.0 (2025-02-10): Added support for:
+- 0.9.0 (2026-02-10): Added support for:
   - session-enabled message receive with Session ID input;
   - sending messages with properties (MessageId, SessionId, CorrelationId, ScheduledEnqueueTime, TimeToLive);
   - application property type;

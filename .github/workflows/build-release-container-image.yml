@@ -5,6 +5,10 @@ on:
   push:
     branches: [ "release" ]
     paths:
+    - '.dockerignore'
+    - 'package.json'
+    - 'package-lock.json'
+    - 'scripts/**'
     - 'src/ServiceBusViewer/**'
 
 jobs:
@@ -18,10 +22,10 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '10.0.x'
 
@@ -44,16 +48,16 @@ jobs:
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
     - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
-        context: ./src
+        context: .
         file: ./src/ServiceBusViewer/Dockerfile
         push: true
         tags: |
