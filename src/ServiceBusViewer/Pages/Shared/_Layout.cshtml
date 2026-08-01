@@ -1,35 +1,157 @@
+@using ServiceBusViewer.Pages.Shared
 @{
-    var title = ViewData["Title"] ?? "Service Bus Viewer";
+    var title = ViewData["Title"]?.ToString();
+    var headerModel = (HeaderBarModel)ViewData["HeaderBarModel"]!;
+    var footerModel = (FooterBarModel)ViewData["FooterBarModel"]!;
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <title>@title</title>
-    <link rel="stylesheet" href="~/lib/bootstrap/5.3.6/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="~/components/entity-list/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(string.IsNullOrWhiteSpace(title) ? "Service Bus Viewer" : $"{title} | Service Bus Viewer")</title>
+    <script>
+        (function () {
+            const storedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
+            if (storedTheme === 'dark' || (!storedTheme && prefersDark))
+                document.documentElement.classList.add('dark');
+        })();
+    </script>
+    <link rel="preload" href="/css/app.css" as="style" />
+    <link rel="preload" href="/fonts/inter/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/inter/inter-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/jetbrains-mono/jetbrains-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/material-icons/MaterialIcons-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/css/app.css" />
     @await RenderSectionAsync("CSS", required: false)
-    <style>
-        .page-cloak {
-            display: none !important;
-        }
-    </style>
 </head>
-<body class="container my-4 page-cloak">
-    <h1>@ViewData["Title"]</h1>
-    @if (!string.IsNullOrEmpty(ViewData["ServiceBusHostName"]?.ToString())) {
-        <div class="d-flex gap-2 mb-3">
-            <span class="small text-muted">Target host: <em>@ViewData["ServiceBusHostName"]</em></span>
-        </div>
-    }
+<body>
+    <div class="flex min-h-screen flex-col">
+        @await Html.PartialAsync("_HeaderBar", headerModel)
+        @RenderBody()
+        @await Html.PartialAsync("_FooterBar", footerModel)
+    </div>
+    <div id="entityNameTooltip" class="entity-name-tooltip" hidden></div>
 
-    @RenderBody()
-
-    <script src="~/lib/bootstrap/5.3.6/js/bootstrap.bundle.min.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
     <script>
-        document.body.classList.remove('page-cloak');
+        (function () {
+            const themeToggle = document.querySelector('[data-theme-toggle]');
+            const root = document.documentElement;
+            const entityTooltip = document.getElementById('entityNameTooltip');
+            const entityTooltipDelayMs = 3000;
+            let entityTooltipTimer = 0;
+            let activeEntityTooltipTarget = null;
+            let activeEntityPointer = null;
+
+            function syncThemeToggle() {
+                if (!themeToggle)
+                    return;
+
+                const isDark = root.classList.contains('dark');
+                const darkIcon = themeToggle.querySelector('[data-theme-icon="dark"]');
+                const lightIcon = themeToggle.querySelector('[data-theme-icon="light"]');
+
+                if (darkIcon instanceof HTMLElement)
+                    darkIcon.hidden = isDark;
+
+                if (lightIcon instanceof HTMLElement)
+                    lightIcon.hidden = !isDark;
+
+                themeToggle.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+            }
+
+            if (themeToggle instanceof HTMLButtonElement) {
+                themeToggle.addEventListener('click', function () {
+                    root.classList.toggle('dark');
+                    localStorage.setItem('theme', root.classList.contains('dark') ? 'dark' : 'light');
+                    syncThemeToggle();
+                });
+            }
+
+            function hideEntityTooltip(target) {
+                window.clearTimeout(entityTooltipTimer);
+                activeEntityTooltipTarget = null;
+                activeEntityPointer = null;
+
+                if (entityTooltip instanceof HTMLElement)
+                    entityTooltip.hidden = true;
+
+                if (target instanceof HTMLElement)
+                    target.removeAttribute('title');
+            }
+
+            function showEntityTooltip(target) {
+                const tooltipText = target.getAttribute('data-entity-tooltip');
+                if (!tooltipText || !(entityTooltip instanceof HTMLElement))
+                    return;
+
+                entityTooltip.textContent = tooltipText;
+                entityTooltip.hidden = false;
+
+                const tooltipRect = entityTooltip.getBoundingClientRect();
+                const targetRect = target.getBoundingClientRect();
+                const anchorX = activeEntityPointer?.x ?? (targetRect.left + targetRect.width / 2);
+                const anchorY = activeEntityPointer?.y ?? targetRect.top;
+                const left = Math.min(
+                    window.innerWidth - tooltipRect.width - 12,
+                    Math.max(12, anchorX - tooltipRect.width / 2)
+                );
+                const preferredTop = anchorY - tooltipRect.height - 16;
+                const top = preferredTop >= 12
+                    ? preferredTop
+                    : Math.min(window.innerHeight - tooltipRect.height - 12, targetRect.bottom + 12);
+
+                entityTooltip.style.left = `${left}px`;
+                entityTooltip.style.top = `${top}px`;
+            }
+
+            function scheduleEntityTooltip(target) {
+                window.clearTimeout(entityTooltipTimer);
+                activeEntityTooltipTarget = target;
+                entityTooltipTimer = window.setTimeout(function () {
+                    if (activeEntityTooltipTarget === target)
+                        showEntityTooltip(target);
+                }, entityTooltipDelayMs);
+            }
+
+            document.querySelectorAll('[data-entity-tooltip]').forEach(function (element) {
+                if (!(element instanceof HTMLElement))
+                    return;
+
+                element.addEventListener('mouseenter', function () {
+                    scheduleEntityTooltip(element);
+                });
+
+                element.addEventListener('mousemove', function (event) {
+                    activeEntityPointer = { x: event.clientX, y: event.clientY };
+                });
+
+                element.addEventListener('mouseleave', function () {
+                    hideEntityTooltip(element);
+                });
+                element.addEventListener('focus', function () {
+                    scheduleEntityTooltip(element);
+                });
+                element.addEventListener('blur', function () {
+                    hideEntityTooltip(element);
+                });
+
+                element.addEventListener('touchstart', function () {
+                    scheduleEntityTooltip(element);
+                }, { passive: true });
+
+                ['touchend', 'touchcancel', 'touchmove'].forEach(function (eventName) {
+                    element.addEventListener(eventName, function () {
+                        hideEntityTooltip(element);
+                    }, { passive: true });
+                });
+            });
+
+            syncThemeToggle();
+        })();
     </script>
 </body>
 </html>

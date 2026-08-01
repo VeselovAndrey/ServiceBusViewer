@@ -1,0 +1,20 @@
+@model ServiceBusViewer.Pages.Shared.FooterBarModel
+@{
+    var applicationVersion = typeof(ServiceBusViewer.Pages.Shared.EntityListModel).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+}
+<footer class="flex h-12 items-center justify-between border-t border-slate-200 bg-white/75 px-4 text-[11px] text-slate-500 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-400">
+    <div class="flex items-center gap-1.5">
+        <span class="inline-flex items-center leading-none">Service Bus Viewer @applicationVersion</span>
+        <span class="inline-flex items-center leading-none" aria-hidden="true">|</span>
+        <span class="inline-flex items-center leading-none">
+            <span class="material-icons-round text-sm leading-none">copyright</span>
+        </span>
+        <span class="inline-flex items-center leading-none">2026 Andrey Veselov</span>
+        <a href="https://github.com/VeselovAndrey/ServiceBusViewer" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-lg p-1 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Open GitHub repository">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2C6.48 2 2 6.58 2 12.22c0 4.5 2.87 8.32 6.84 9.66.5.09.68-.22.68-.49 0-.24-.01-1.03-.01-1.87-2.78.62-3.37-1.21-3.37-1.21-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.9 1.57 2.36 1.12 2.93.85.09-.67.35-1.12.63-1.38-2.22-.26-4.55-1.14-4.55-5.08 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.72 0 0 .84-.28 2.75 1.05A9.32 9.32 0 0 1 12 6.84c.85 0 1.71.12 2.51.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.46.1 2.72.64.72 1.03 1.63 1.03 2.75 0 3.95-2.33 4.82-4.56 5.08.36.32.68.95.68 1.92 0 1.39-.01 2.5-.01 2.84 0 .27.18.59.69.49A10.24 10.24 0 0 0 22 12.22C22 6.58 17.52 2 12 2Z"/>
+            </svg>
+        </a>
+    </div>
+    <div class="font-mono">@Model.StatusText</div>
+</footer>

@@ -97,6 +97,7 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 		if (string.IsNullOrWhiteSpace(selectedEntityName)) {
 			ModelState.AddModelError(string.Empty, "Entity name is required.");
+			FillPageModel();
 			return Page();
 		}
 
@@ -185,8 +186,10 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 				return Page();
 			}
 
+			string? sentContentType = SendMessageProperties.ContentType;
+			string? sentMessageId = SendMessageProperties.MessageId;
 			await _serviceBusService.SendMessageAsync(SendMessageBody, SendMessageProperties, SendMessageApplicationProperties);
-			SendResultMessage = "Message sent successfully!";
+			SendResultMessage = BuildSendResultMessage(sentContentType, sentMessageId);
 			SendMessageBody = string.Empty;
 			SendMessageApplicationProperties.Clear();
 			SendMessageProperties = new MessageProperties();
@@ -239,6 +242,17 @@ public class IndexModel(ServiceBusService serviceBusService) : PageModel
 
 		ModelState.AddModelError($"{nameof(SendMessageProperties)}.{propertyName}", $"The {displayName} must be {MaxSystemPropertyLength} characters or fewer.");
 		return false;
+	}
+
+	private static string BuildSendResultMessage(string? sentContentType, string? sentMessageId)
+	{
+		string contentTypeDescription = string.IsNullOrWhiteSpace(sentContentType)
+			? "without a content type"
+			: $"with content type '{sentContentType}'";
+
+		return string.IsNullOrWhiteSpace(sentMessageId)
+			? $"Message sent successfully {contentTypeDescription}."
+			: $"Message '{sentMessageId}' sent successfully {contentTypeDescription}.";
 	}
 
 	private static IReadOnlyList<EntityId> ConvertToEntityIdList(IReadOnlyList<EntityProperties> properties)
