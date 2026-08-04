@@ -38,14 +38,26 @@ public class ServiceBusService
 		if (Connected)
 			throw new InvalidOperationException("Already connected to a Service Bus instance.");
 
-		_client = new ServiceBusClient(connectionString);
-		_adminClient = new ServiceBusAdministrationClient(rootConnectionString);
+		string host = GetServiceBusHost(connectionString);
+		ServiceBusClient client = new ServiceBusClient(connectionString);
+		ServiceBusAdministrationClient adminClient = new ServiceBusAdministrationClient(rootConnectionString);
 
-		Host = GetServiceBusHost(connectionString);
-		ActiveEntity = null;
-		Connected = true;
+		try {
+			List<EntityProperties> availableEntities = await LoadAvailableEntitiesAsync(adminClient);
+			await ValidateConnectionAsync(client, availableEntities);
 
-		await UpdateAvailableEntitiesListAsync();
+			_client = client;
+			_adminClient = adminClient;
+			Host = host;
+			ActiveEntity = null;
+			_availableEntities.Clear();
+			_availableEntities.AddRange(availableEntities);
+			Connected = true;
+		}
+		catch {
+			await client.DisposeAsync();
+			throw;
+		}
 	}
 
 	/// <summary>Connects to the specified Service Bus entity without using ServiceBusAdministrationClient to get the list of entities.</summary>
@@ -53,24 +65,23 @@ public class ServiceBusService
 	/// <param name="queueOrTopicName">The queue or topic name.</param>
 	/// <param name="subscriptionName">The subscription name, or <c>null</c> for queues.</param>
 	/// <exception cref="InvalidOperationException">Thrown if already connected.</exception>
-	public void ConnectTo(string connectionString, string queueOrTopicName, string? subscriptionName)
+	public async Task ConnectToAsync(string connectionString, string queueOrTopicName, string? subscriptionName)
 	{
 		if (Connected)
 			throw new InvalidOperationException("Already connected to a Service Bus instance.");
 
-		_client = new ServiceBusClient(connectionString);
-		_adminClient = null;
-
-		Host = GetServiceBusHost(connectionString);
-		Connected = true;
-
-		// Non-admin mode: create minimal property objects for the connected entity
 		if (string.IsNullOrWhiteSpace(queueOrTopicName))
 			throw new InvalidOperationException("The topic or subscription name required.");
 
+		string host = GetServiceBusHost(connectionString);
+		ServiceBusClient client = new ServiceBusClient(connectionString);
+		var availableEntities = new List<EntityProperties>();
+		EntityProperties activeEntity;
+
+		// Non-admin mode: create minimal property objects for the connected entity
 		if (!string.IsNullOrWhiteSpace(subscriptionName)) {
 			// For subscriptions, create both topic and subscription property placeholders
-			_availableEntities.Add(new TopicEntityProperties(
+			availableEntities.Add(new TopicEntityProperties(
 				queueOrTopicName,
 				TimeSpan.MaxValue,
 				false,
@@ -79,7 +90,7 @@ public class ServiceBusService
 				false,
 				TimeSpan.MaxValue));
 
-			var subscriptionProperties = new SubscriptionEntityProperties(
+			activeEntity = new SubscriptionEntityProperties(
 				subscriptionName,
 				queueOrTopicName,
 				TimeSpan.FromMinutes(1),
@@ -90,12 +101,11 @@ public class ServiceBusService
 				true,
 				TimeSpan.MaxValue,
 				[]);
-			_availableEntities.Add(subscriptionProperties);
-			ActiveEntity = subscriptionProperties;
+			availableEntities.Add(activeEntity);
 		}
 		else {
 			// For queues, create a queue property placeholder
-			var queueProperties = new QueueEntityProperties(
+			activeEntity = new QueueEntityProperties(
 				queueOrTopicName,
 				TimeSpan.FromMinutes(1),
 				10,
@@ -107,9 +117,24 @@ public class ServiceBusService
 				false,
 				false,
 				TimeSpan.MaxValue);
-			_availableEntities.Add(queueProperties);
-			ActiveEntity = queueProperties;
+			availableEntities.Add(activeEntity);
 		}
+
+		try {
+			await ValidateConnectionAsync(client, activeEntity);
+		}
+		catch {
+			await client.DisposeAsync();
+			throw;
+		}
+
+		_client = client;
+		_adminClient = null;
+		Host = host;
+		_availableEntities.Clear();
+		_availableEntities.AddRange(availableEntities);
+		ActiveEntity = activeEntity;
+		Connected = true;
 	}
 
 	/// <summary>Returns properties for the specified entity from the cache.</summary>
@@ -250,11 +275,18 @@ public class ServiceBusService
 		if (_adminClient is null)
 			throw new InvalidOperationException("Entity list refresh is only available when connected with a root connection string.");
 
+		List<EntityProperties> availableEntities = await LoadAvailableEntitiesAsync(_adminClient);
 		_availableEntities.Clear();
+		_availableEntities.AddRange(availableEntities);
+	}
+
+	private static async Task<List<EntityProperties>> LoadAvailableEntitiesAsync(ServiceBusAdministrationClient adminClient)
+	{
+		var availableEntities = new List<EntityProperties>();
 
 		// Get all queues with properties
-		await foreach (QueueProperties queue in _adminClient.GetQueuesAsync()) {
-			_availableEntities.Add(new QueueEntityProperties(
+		await foreach (QueueProperties queue in adminClient.GetQueuesAsync()) {
+			availableEntities.Add(new QueueEntityProperties(
 				queue.Name,
 				queue.LockDuration,
 				queue.MaxDeliveryCount,
@@ -269,8 +301,8 @@ public class ServiceBusService
 		}
 
 		// Get all topics and their subscriptions with properties
-		await foreach (TopicProperties topic in _adminClient.GetTopicsAsync()) {
-			_availableEntities.Add(new TopicEntityProperties(
+		await foreach (TopicProperties topic in adminClient.GetTopicsAsync()) {
+			availableEntities.Add(new TopicEntityProperties(
 				topic.Name,
 				topic.DefaultMessageTimeToLive,
 				topic.RequiresDuplicateDetection,
@@ -279,14 +311,14 @@ public class ServiceBusService
 				topic.EnablePartitioning,
 				topic.AutoDeleteOnIdle));
 
-			await foreach (SubscriptionProperties subscription in _adminClient.GetSubscriptionsAsync(topic.Name)) {
+			await foreach (SubscriptionProperties subscription in adminClient.GetSubscriptionsAsync(topic.Name)) {
 				// Get subscription rules (filters)
 				List<SubscriptionFilterRule> rules = [];
-				await foreach (RuleProperties rule in _adminClient.GetRulesAsync(topic.Name, subscription.SubscriptionName)) {
+				await foreach (RuleProperties rule in adminClient.GetRulesAsync(topic.Name, subscription.SubscriptionName)) {
 					rules.Add(ConvertToSubscriptionRule(rule));
 				}
 
-				_availableEntities.Add(new SubscriptionEntityProperties(
+				availableEntities.Add(new SubscriptionEntityProperties(
 					subscription.SubscriptionName,
 					subscription.TopicName,
 					subscription.LockDuration,
@@ -298,6 +330,48 @@ public class ServiceBusService
 					subscription.AutoDeleteOnIdle,
 					rules));
 			}
+		}
+
+		return availableEntities;
+	}
+
+	private static async Task ValidateConnectionAsync(ServiceBusClient client, IReadOnlyList<EntityProperties> availableEntities)
+	{
+		EntityProperties? entityToValidate = availableEntities.OfType<QueueEntityProperties>().Cast<EntityProperties>().FirstOrDefault()
+			?? availableEntities.OfType<SubscriptionEntityProperties>().Cast<EntityProperties>().FirstOrDefault()
+			?? availableEntities.OfType<TopicEntityProperties>().Cast<EntityProperties>().FirstOrDefault();
+
+		if (entityToValidate is not null)
+			await ValidateConnectionAsync(client, entityToValidate);
+	}
+
+	private static async Task ValidateConnectionAsync(ServiceBusClient client, EntityProperties entity)
+	{
+		switch (entity) {
+			case QueueEntityProperties queue:
+				await using (ServiceBusReceiver receiver = client.CreateReceiver(queue.Name, new ServiceBusReceiverOptions {
+					ReceiveMode = ServiceBusReceiveMode.PeekLock
+				})) {
+					await receiver.PeekMessagesAsync(1);
+				}
+
+				break;
+
+			case SubscriptionEntityProperties subscription:
+				await using (ServiceBusReceiver receiver = client.CreateReceiver(subscription.TopicName, subscription.Name, new ServiceBusReceiverOptions {
+					ReceiveMode = ServiceBusReceiveMode.PeekLock
+				})) {
+					await receiver.PeekMessagesAsync(1);
+				}
+
+				break;
+
+			case TopicEntityProperties topic:
+				await using (ServiceBusSender sender = client.CreateSender(topic.Name)) {
+					using ServiceBusMessageBatch _ = await sender.CreateMessageBatchAsync();
+				}
+
+				break;
 		}
 	}
 
