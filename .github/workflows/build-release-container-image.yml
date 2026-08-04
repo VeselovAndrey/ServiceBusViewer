@@ -1,4 +1,4 @@
-name: Build and publish the release container image
+name: Build and publish the release container images
 
 on:
   workflow_dispatch:
@@ -6,19 +6,22 @@ on:
     branches: [ "release" ]
     paths:
     - '.dockerignore'
-    - 'package.json'
-    - 'package-lock.json'
-    - 'scripts/**'
     - 'src/ServiceBusViewer/**'
+    - 'src/ServiceBusViewer.Web/**'
 
 jobs:
-
   build-and-push:
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+        - image_name: ServiceBusViewer
+          dockerfile: ./src/ServiceBusViewer/Dockerfile
+        - image_name: servicebusviewer-web
+          dockerfile: ./src/ServiceBusViewer.Web/Dockerfile
 
     steps:
     - name: Checkout repository
@@ -58,8 +61,8 @@ jobs:
       uses: docker/build-push-action@v7
       with:
         context: .
-        file: ./src/ServiceBusViewer/Dockerfile
+        file: ${{ matrix.dockerfile }}
         push: true
         tags: |
-          ghcr.io/veselovandrey/servicebusviewer:latest
-          ghcr.io/veselovandrey/servicebusviewer:${{ steps.version.outputs.version }}
+          ghcr.io/veselovandrey/${{ matrix.image_name }}:latest
+          ghcr.io/veselovandrey/${{ matrix.image_name }}:${{ steps.version.outputs.version }}

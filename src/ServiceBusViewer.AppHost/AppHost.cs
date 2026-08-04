@@ -1,3 +1,5 @@
+#pragma warning disable ASPIREJAVASCRIPT001
+using Aspire.Hosting.JavaScript;
 using Projects;
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
@@ -30,11 +32,21 @@ IResourceBuilder<ContainerResource> serviceBusEmulator = builder.AddContainer("s
 	.WithEnvironment("MSSQL_SA_PASSWORD", sqlPassword)
 	.WithEnvironment("ACCEPT_EULA", "Y");
 
-// Add Service Bus Viewer
-IResourceBuilder<ProjectResource> serviceBusViewer = builder.AddProject<ServiceBusViewer>("ServiceBusViewer")
+// Add Service Bus Viewer API
+IResourceBuilder<ProjectResource> serviceBusViewerApi = builder.AddProject<ServiceBusViewer>("ServiceBusViewer")
 	.WithEnvironment("CONNECTION_STRING", serviceBusEmulatorConnectionString)
 	.WithEnvironment("ROOT_CONNECTION_STRING", serviceBusEmulatorManagementConnectionString)
+	.WithExternalHttpEndpoints()
 	.WaitFor(serviceBusEmulator, WaitBehavior.WaitOnResourceUnavailable);
+
+// Add Service Bus Viewer SPA
+builder.AddViteApp("servicebusviewer-web", @"..\ServiceBusViewer.Web")
+	.WithHttpEndpoint(port: 5173, env: "PORT")
+	.WithExternalHttpEndpoints()
+	.WithReference(serviceBusViewerApi)
+	.WithEnvironment("VITE_PROXY_TARGET", serviceBusViewerApi.GetEndpoint("http"))
+	.WaitFor(serviceBusViewerApi, WaitBehavior.WaitOnResourceUnavailable)
+	.PublishAsStaticWebsite("/api", serviceBusViewerApi);
 
 DistributedApplication app = builder.Build();
 

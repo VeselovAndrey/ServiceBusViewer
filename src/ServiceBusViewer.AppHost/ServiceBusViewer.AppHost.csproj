@@ -13,7 +13,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\ServiceBusViewer\ServiceBusViewer.csproj" />
+		<PackageReference Include="Aspire.Hosting.JavaScript" Version="13.4.6" />
+		<ProjectReference Include="..\\ServiceBusViewer\\ServiceBusViewer.csproj" />
 	</ItemGroup>
 
 </Project>

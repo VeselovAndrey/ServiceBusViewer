@@ -1,69 +1,107 @@
 # AI Coding Agent Instructions
 
-> 📌 **This document is the primary memory store for all AI agents working on this project.** All conventions, patterns, decisions, and coding standards documented here should be followed consistently across all code changes. When making updates to the codebase, ensure that all relevant team conventions from this file are applied.
+> 📌 This document is the primary memory store for all AI agents working on this project. Conventions, architecture notes, and developer workflows recorded here should be followed and updated when making repository changes.
 
 ## Project Context
-A **temporary, AI-generated** ASP.NET Razor Pages web app for viewing/interacting with Azure Service Bus queues/topics. Primary use case: local development with the [Azure Service Bus Emulator](https://github.com/Azure/azure-service-bus-emulator-installer). No long-term maintenance planned.
+A temporary, AI-assisted Service Bus viewer now reorganized into three cooperating projects:
+- `src\ServiceBusViewer` — ASP.NET Core minimal API (backend)
+- `src\ServiceBusViewer.Web` — React + Vite SPA (frontend)
+- `src\ServiceBusViewer.AppHost` — AppHost orchestration for local development (emulator, SQL, and dev servers)
+
+Primary use case: local development and testing with the Azure Service Bus Emulator.
 
 ## Architecture
 
 ### Core Components
-- **[ServiceBusService.cs](src/ServiceBusViewer/Infrastructure/ServiceBus/ServiceBusService.cs)**: Singleton service managing a single persistent `ServiceBusClient` connection. Provides peek/receive/send operations.
-- **[Index.cshtml.cs](src/ServiceBusViewer/Pages/Index.cshtml.cs)**: The only page. Handles all UI interactions via `OnPost*` handlers (Connect, Disconnect, Refresh, Peek, Receive, Send).
-- **Models**: Simple record types ([MessageDetails](src/ServiceBusViewer/Infrastructure/ServiceBus/Models/MessageDetails.cs), [PeekedMessageInfo](src/ServiceBusViewer/Infrastructure/ServiceBus/Models/PeekedMessageInfo.cs)) with no business logic.
+- `src\ServiceBusViewer/Program.cs` — minimal API host; registers business services, session-state middleware, CORS, and maps API endpoints via `MapApiEndpoints()`.
+- `src\ServiceBusViewer/Api/**/*` — HTTP endpoint handlers and request/response contracts. The API surface is implemented as grouped minimal API endpoints.
+- `src\ServiceBusViewer/Business/**/*` — domain/business services (e.g., `ViewerBusinessService`) and contracts used by the API.
+- `src\ServiceBusViewer/Business/Services/ServiceBusSessionConnectionService.cs` — session-aware Service Bus connection/session manager (replaces the older singleton Razor `ServiceBusService`).
+- `src\ServiceBusViewer/SessionState/*` — browser session-state registry and middleware (BrowserSessionStateRegistry, middleware, and cleanup hosted service) for per-browser-session isolation.
+- `src\ServiceBusViewer.Web` — SPA source and build config (Vite, React, TypeScript). The SPA talks to the API under `/api`.
+- `src\ServiceBusViewer.AppHost` — orchestration host that starts local services (emulator, SQL) and the SPA dev server for an integrated dev experience.
 
 ### Key Design Patterns
-- **Singleton Service**: `ServiceBusService` is registered as singleton in [Program.cs](src/ServiceBusViewer/Program.cs). Only one connection active at a time.
-- **State Management**: Connection state tracked via `Connected` property + string fields (`Host`, `EntityName`, `SubscriptionName`). No distributed state.
-- **Error Handling**: Exceptions caught in `OnPost*` handlers, added to `ModelState.AddModelError()`, displayed in UI via Razor validation summary.
+- Singleton registration for infrastructure services where appropriate (ServiceBus client factory/manager).
+- Session-scoped viewer state stored in a server-side registry keyed by a browser cookie (`sbv-session`) and exposed via middleware.
+- Minimal API endpoints organized into logical groups under `Api` with request/response DTOs in `Business.Contracts`.
 
 ## Development Workflows
 
-### Running Locally
+### Run the full local stack (recommended)
+Install SPA deps once from the repo root:
+
 ```powershell
-cd src\ServiceBusViewer
-dotnet run
+npm run web:install
 ```
-Defaults to `localhost` emulator connection string (see [Index.cshtml.cs#L25-26](src/ServiceBusViewer/Pages/Index.cshtml.cs)).
-Debug builds run `npm run build:assets` automatically from the repository root, and restore front-end dependencies with `npm ci` when `node_modules` is missing.
 
-### Docker Build (from repository root)
+Start the AppHost to orchestrate emulator + API + SPA dev server:
+
 ```powershell
-docker build -f src/ServiceBusViewer/Dockerfile -t servicebusviewer .
-docker run -p 5000:8080 -e CONNECTION_STRING="..." servicebusviewer
+dotnet run --project src\ServiceBusViewer.AppHost
 ```
-**Critical**: Dockerfile expects to run from the repository root so it can build the npm-based UI assets before publishing the app.
 
-### Connection String Patterns
-- **Emulator from host**: `Endpoint=sb://localhost;SharedAccessKeyName=...;UseDevelopmentEmulator=true;`
-- **Emulator from container**: Use `host.docker.internal` instead of `localhost`
-- See [README.md](README.md#accessing-the-service-bus-emulator) for full examples
+AppHost brings up required services and proxies the SPA dev server to the API during development.
 
-## Project-Specific Conventions
+### Run components independently
+Start the API (choose a port via ASPNETCORE_URLS):
+
+```powershell
+setx ASPNETCORE_URLS "http://localhost:5221"; dotnet run --project src\ServiceBusViewer
+```
+
+Start the SPA dev server in another terminal (point proxy to the API):
+
+```powershell
+$env:VITE_PROXY_TARGET='http://localhost:5221'
+npm run web:dev --prefix src\ServiceBusViewer.Web
+```
+
+Note: ensure VITE_PROXY_TARGET matches the API URL (ASPNETCORE_URLS) used.
+
+### Build for production
+- Build the .NET solution: `dotnet build src\ServiceBusViewer.sln`
+- Build the SPA bundle: `npm run web:build --prefix src\ServiceBusViewer.Web`
+
+## Containers
+- Dockerfiles exist for both the API and the SPA: `src\ServiceBusViewer\Dockerfile` and `src\ServiceBusViewer.Web\Dockerfile`.
+- CI workflows publish images for the API and the SPA.
+- When running containers, use `host.docker.internal` for host emulator access or attach containers to a shared Docker network.
+
+## Service Bus usage
+- The code uses Azure.Messaging.ServiceBus for SDK calls; the session-aware connection manager handles receivers/senders per-session.
+- Prefer `await using` on receivers/senders to ensure disposal.
+- Receivers are created in PeekLock by default; follow the Business/Services implementation for details.
 
 ### C# Patterns
-- **Records for DTOs**: All model classes use `record` types with positional parameters (e.g., `MessageDetails`, `PeekedMessageInfo`).
-- **XML docs**: Public methods/properties in `ServiceBusService` have `<summary>` tags. Apply same pattern to new public members.
-  - **Single-line summaries**: If `<summary>` text fits on a single line, format as `<summary>text</summary>` on one line instead of splitting across multiple lines.
-- **Nullable reference types**: Enabled via `<Nullable>enable</Nullable>`. Use `?` for optional parameters/properties.
-- **Primary constructors**: Page models use C# 12 primary constructors (e.g., `IndexModel(ServiceBusService serviceBusService)`).
+- Use `record` types for DTOs and simple data carriers (positional records preferred for compactness).
+- Public methods and properties on services must have XML `<summary>` documentation. If the summary fits on one line, keep it on a single line: `<summary>Short description.</summary>`.
+- Nullable reference types are enabled; annotate optional values with `?` and prefer explicit null checks where appropriate.
+- Prefer primary constructors for simple page models or small types when it improves readability.
+- ServiceBus clients and receivers: prefer `await using var receiver = GetReceiver()` for deterministic disposal and to avoid resource leaks.
+- Receivers should be created in `ServiceBusReceiveMode.PeekLock` unless a different mode is explicitly required by the handler.
+- Keep minimal API handlers thin: validate requests, call `Business` services (in `Business.Services`), and map results to response DTOs from `Business.Contracts`.
+- Name DTOs with the `{Action}Request/Response` convention and keep them in the `Api` subfolders to match endpoint grouping.
+- Add concise `<summary>` docs to request/response DTOs where the intent is not obvious from property names.
 
-### Razor Pages
-- **Single-page app**: All functionality in `Index.cshtml` + code-behind. No navigation/routing beyond root.
-- **Form handlers**: Each action has dedicated `OnPost{Action}` method. Always call `FillHeaderValue()` before returning `Page()`.
-- **Model binding**: Use `[BindProperty]` for form inputs. Use `[BindProperty(SupportsGet = true)]` for query string params.
+## Project-specific conventions
+- Minimal API handlers live under `Api` and should use request/response DTOs from `Business.Contracts`.
+- Follow the repository-wide patterns above when adding or refactoring code.
 
-### Service Bus Client Usage
-- **Receiver disposal**: Always use `await using var receiver = GetReceiver()` for automatic cleanup.
-- **PeekLock mode**: All receivers created with `ServiceBusReceiveMode.PeekLock` (see [ServiceBusService.cs#L148](src/ServiceBusViewer/Infrastructure/ServiceBus/ServiceBusService.cs)).
-- **Queue vs Topic**: `GetReceiver()` auto-detects based on `SubscriptionName` presence. Senders ignore subscriptions (topics only).
-
-## External Dependencies
-- **Azure.Messaging.ServiceBus 7.20.1**: Primary SDK. No custom wrappers/abstractions beyond `ServiceBusService`.
-- **Bootstrap 5.3.6**: Vendored in [wwwroot/lib/bootstrap](src/ServiceBusViewer/wwwroot/lib/bootstrap). No CDN usage.
-- **.NET 10.0**: Targeting `net10.0` framework. Uses implicit usings and file-scoped namespaces.
+## External dependencies
+- Azure.Messaging.ServiceBus (project-managed version)
+- React + Vite + TypeScript for the SPA (see `src\ServiceBusViewer.Web/package.json`)
+- .NET 10.0 target framework for backend projects
 
 ## Testing & Debugging
-- **No automated tests**: Project has no test projects or test code. Manual testing only.
-- **Launch profiles**: See [launchSettings.json](src/ServiceBusViewer/Properties/launchSettings.json). Use "ServiceBusViewer" for local dev, "Container (Dockerfile)" for Docker testing.
-- **Environment variable**: Set `CONNECTION_STRING` env var to override default connection string.
+- No automated tests in the repo — manual testing only.
+- Launch profiles exist in each project where applicable (see `Properties/launchSettings.json`).
+- Environment variables:
+  - `CONNECTION_STRING` overrides the default Service Bus connection string for the API.
+  - `ROOT_CONNECTION_STRING` may be used when emulating namespace/root operations.
+  - `ASPNETCORE_URLS` is recommended to fix the API listening port for local dev and container scenarios.
+
+
+---
+
+If any further repository-specific conventions or utility scripts should be added here (e.g., standardized dev commands, linting rules for the SPA), provide them and this document will be updated accordingly.
