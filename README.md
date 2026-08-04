@@ -119,6 +119,9 @@ Endpoint=sb://host.docker.internal:[PORT];SharedAccessKeyName=RootManageSharedAc
 
 ## Version history
 
+- 0.11.1 (2026-08-04): Fixed:
+  - failed connection attempts no longer leave the app stuck in a connected state, so you can immediately retry with a corrected connection string.
+
 - 0.11.0 (2026-08-01): Added/fixed:
   - Redesigned application UI and UX: new visual design.
   - Miscellaneous packaging and build improvements.
