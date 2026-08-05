@@ -1,107 +1,71 @@
 # AI Coding Agent Instructions
 
-> 📌 This document is the primary memory store for all AI agents working on this project. Conventions, architecture notes, and developer workflows recorded here should be followed and updated when making repository changes.
+> 📌 This document is the primary agent-facing guide for repository-specific implementation rules. Keep it concise, accurate, and update it when repository conventions change.
 
 ## Project Context
-A temporary, AI-assisted Service Bus viewer now reorganized into three cooperating projects:
-- `src\ServiceBusViewer` — ASP.NET Core minimal API (backend)
-- `src\ServiceBusViewer.Web` — React + Vite SPA (frontend)
-- `src\ServiceBusViewer.AppHost` — AppHost orchestration for local development (emulator, SQL, and dev servers)
+
+ServiceBusViewer is split into three cooperating projects:
+
+- `src\ServiceBusViewer` — ASP.NET Core minimal API backend
+- `src\ServiceBusViewer.Web` — React + Vite SPA frontend
+- `src\ServiceBusViewer.AppHost` — local Aspire/AppHost orchestration
 
 Primary use case: local development and testing with the Azure Service Bus Emulator.
 
-## Architecture
+## Source-of-Truth Documents
 
-### Core Components
-- `src\ServiceBusViewer/Program.cs` — minimal API host; registers business services, session-state middleware, CORS, and maps API endpoints via `MapApiEndpoints()`.
-- `src\ServiceBusViewer/Api/**/*` — HTTP endpoint handlers and request/response contracts. The API surface is implemented as grouped minimal API endpoints.
-- `src\ServiceBusViewer/Business/**/*` — domain/business services (e.g., `ViewerBusinessService`) and contracts used by the API.
-- `src\ServiceBusViewer/Business/Services/ServiceBusSessionConnectionService.cs` — session-aware Service Bus connection/session manager (replaces the older singleton Razor `ServiceBusService`).
-- `src\ServiceBusViewer/SessionState/*` — browser session-state registry and middleware (BrowserSessionStateRegistry, middleware, and cleanup hosted service) for per-browser-session isolation.
-- `src\ServiceBusViewer.Web` — SPA source and build config (Vite, React, TypeScript). The SPA talks to the API under `/api`.
-- `src\ServiceBusViewer.AppHost` — orchestration host that starts local services (emulator, SQL) and the SPA dev server for an integrated dev experience.
+- `docs\PROJECT_STRUCTURE.md` — repository layout, folder responsibilities, and dependency boundaries
+- `README.md` — developer workflows, container usage, and product overview
+- `.agents\specs\CSHARP_CODESTYLE.md` — C# coding conventions and style rules
 
-### Key Design Patterns
-- Singleton registration for infrastructure services where appropriate (ServiceBus client factory/manager).
-- Session-scoped viewer state stored in a server-side registry keyed by a browser cookie (`sbv-session`) and exposed via middleware.
-- Minimal API endpoints organized into logical groups under `Api` with request/response DTOs in `Business.Contracts`.
+Do not duplicate detailed structure or workflow guidance here when those files already cover it.
 
-## Development Workflows
+Follow `.agents\specs\CSHARP_CODESTYLE.md` for all C# style rules.
 
-### Run the full local stack (recommended)
-Install SPA deps once from the repo root:
+## Architecture Rules
 
-```powershell
-npm run web:install
-```
+See docs\PROJECT_STRUCTURE.md for the canonical architecture and folder responsibilities.
 
-Start the AppHost to orchestrate emulator + API + SPA dev server:
+Enforced rules for agents:
+- Minimal API handlers must remain thin: validate input, call `Business\Services`, and map results to HTTP responses.
+- Preserve browser-session isolation: keep viewer and Service Bus connection state scoped to the `sbv-session` browser cookie.
 
-```powershell
-dotnet run --project src\ServiceBusViewer.AppHost
-```
+## Service Bus Implementation Notes
 
-AppHost brings up required services and proxies the SPA dev server to the API during development.
+- The code uses `Azure.Messaging.ServiceBus`.
+- Prefer `await using` for receivers and senders to ensure deterministic disposal.
+- Receivers should use `ServiceBusReceiveMode.PeekLock` unless a specific handler requires a different mode.
+- Follow existing session-aware connection management patterns instead of introducing shared viewer state.
 
-### Run components independently
-Start the API (choose a port via ASPNETCORE_URLS):
+## Frontend Conventions
 
-```powershell
-setx ASPNETCORE_URLS "http://localhost:5221"; dotnet run --project src\ServiceBusViewer
-```
+- Keep frontend code organized by responsibility under `src\ServiceBusViewer.Web\src` (`api`, `components`, `hooks`, `lib`, `pages`, `state`, `types`).
+- Keep API-calling code in the frontend API layer instead of scattering fetch logic across components.
+- Preserve the existing `/api` proxy/runtime contract when changing frontend or container configuration.
 
-Start the SPA dev server in another terminal (point proxy to the API):
+## Environment Notes
 
-```powershell
-$env:VITE_PROXY_TARGET='http://localhost:5221'
-npm run web:dev --prefix src\ServiceBusViewer.Web
-```
+- `CONNECTION_STRING` overrides the default Service Bus connection string for the API.
+- `ROOT_CONNECTION_STRING` is used for namespace/root operations when available.
+- `ASPNETCORE_URLS` can be used to pin the backend port for local development and container scenarios.
+- `VITE_PROXY_TARGET` should match the backend URL when running the SPA separately.
 
-Note: ensure VITE_PROXY_TARGET matches the API URL (ASPNETCORE_URLS) used.
+## Testing and Validation
 
-### Build for production
-- Build the .NET solution: `dotnet build src\ServiceBusViewer.sln`
-- Build the SPA bundle: `npm run web:build --prefix src\ServiceBusViewer.Web`
+- There are currently no automated tests in the repository.
+- Prefer targeted manual validation aligned with the changed behavior.
+- Keep Dockerfiles, nginx config, and AppHost emulator/configuration assets aligned with runtime changes.
 
-## Containers
-- Dockerfiles exist for both the API and the SPA: `src\ServiceBusViewer\Dockerfile` and `src\ServiceBusViewer.Web\Dockerfile`.
-- CI workflows publish images for the API and the SPA.
-- When running containers, use `host.docker.internal` for host emulator access or attach containers to a shared Docker network.
+## Agent Operational Guidelines
 
-## Service Bus usage
-- The code uses Azure.Messaging.ServiceBus for SDK calls; the session-aware connection manager handles receivers/senders per-session.
-- Prefer `await using` on receivers/senders to ensure disposal.
-- Receivers are created in PeekLock by default; follow the Business/Services implementation for details.
-
-### C# Patterns
-- Use `record` types for DTOs and simple data carriers (positional records preferred for compactness).
-- Public methods and properties on services must have XML `<summary>` documentation. If the summary fits on one line, keep it on a single line: `<summary>Short description.</summary>`.
-- Nullable reference types are enabled; annotate optional values with `?` and prefer explicit null checks where appropriate.
-- Prefer primary constructors for simple page models or small types when it improves readability.
-- ServiceBus clients and receivers: prefer `await using var receiver = GetReceiver()` for deterministic disposal and to avoid resource leaks.
-- Receivers should be created in `ServiceBusReceiveMode.PeekLock` unless a different mode is explicitly required by the handler.
-- Keep minimal API handlers thin: validate requests, call `Business` services (in `Business.Services`), and map results to response DTOs from `Business.Contracts`.
-- Name DTOs with the `{Action}Request/Response` convention and keep them in the `Api` subfolders to match endpoint grouping.
-- Add concise `<summary>` docs to request/response DTOs where the intent is not obvious from property names.
-
-## Project-specific conventions
-- Minimal API handlers live under `Api` and should use request/response DTOs from `Business.Contracts`.
-- Follow the repository-wide patterns above when adding or refactoring code.
-
-## External dependencies
-- Azure.Messaging.ServiceBus (project-managed version)
-- React + Vite + TypeScript for the SPA (see `src\ServiceBusViewer.Web/package.json`)
-- .NET 10.0 target framework for backend projects
-
-## Testing & Debugging
-- No automated tests in the repo — manual testing only.
-- Launch profiles exist in each project where applicable (see `Properties/launchSettings.json`).
-- Environment variables:
-  - `CONNECTION_STRING` overrides the default Service Bus connection string for the API.
-  - `ROOT_CONNECTION_STRING` may be used when emulating namespace/root operations.
-  - `ASPNETCORE_URLS` is recommended to fix the API listening port for local dev and container scenarios.
-
-
----
-
-If any further repository-specific conventions or utility scripts should be added here (e.g., standardized dev commands, linting rules for the SPA), provide them and this document will be updated accordingly.
+- Record repository-specific decisions or exceptions in `.agents/specs/PROJECT_DECISIONS.md`
+- Do not commit changes if it was not explicitly requested by developer. If you are unsure, ask for clarification.
+- Make surgical, minimal changes that fully address the user's request. Avoid broad refactors unless requested.
+- When changing runtime or API contracts, do it only with explicit confirmation and update `docs\PROJECT_STRUCTURE.md` and `README.md` accordingly.
+- Validate changes with the smallest-targeted tests or manual checks appropriate to the change; do not add global test suites.
+- If any ambiguity exists, ask a clarifying questions using tool before making edits. Prefer multiple-choice options when possible.
+- Prefer repo-provided tools and scripts (e.g., `npm run web:install`, `dotnet run --project ...`) for validation rather than installing new global tools.
+- Never rewrite existing working tests without explicit confirmation.
+- Never install any new tools without explicit confirmation.
+- Never commit or push any changes without explicit confirmation.
+- Use language servers (LSP) for code navigation and refactoring when available for higher confidence edits.
