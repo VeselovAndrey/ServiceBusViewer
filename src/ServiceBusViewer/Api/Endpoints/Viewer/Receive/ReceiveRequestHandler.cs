@@ -12,10 +12,11 @@ internal static class ReceiveRequestHandler
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
-			if (!ReceiveRequestValidator.Validate(request, out var receiveErrors) && receiveErrors is not null) {
-				foreach (var kv in receiveErrors)
+			if (!ReceiveRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? receiveErrors) && receiveErrors is not null) {
+				foreach (KeyValuePair<string, string[]> kv in receiveErrors)
 					errors[kv.Key] = kv.Value;
 			}
+
 			if (errors.Count > 0)
 				throw ApiProblemException.Validation(errors);
 

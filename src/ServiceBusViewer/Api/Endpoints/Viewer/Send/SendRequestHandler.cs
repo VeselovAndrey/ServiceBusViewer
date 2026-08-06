@@ -17,13 +17,13 @@ internal static class SendRequestHandler
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
 
-			if (!SendRequestValidator.Validate(request, out var sendRequestErrors) && sendRequestErrors is not null) {
-				foreach (var kv in sendRequestErrors)
+			if (!SendRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? sendRequestErrors) && sendRequestErrors is not null) {
+				foreach (KeyValuePair<string, string[]> kv in sendRequestErrors)
 					errors[kv.Key] = kv.Value;
 			}
 
-			if (!SendMessagePropertiesRequestValidator.Validate(request.SendMessageProperties, out var propsErrors) && propsErrors is not null) {
-				foreach (var kv in propsErrors)
+			if (!SendMessagePropertiesRequestValidator.Validate(request.SendMessageProperties, out IReadOnlyDictionary<string, string[]>? propsErrors) && propsErrors is not null) {
+				foreach (KeyValuePair<string, string[]> kv in propsErrors)
 					errors[kv.Key] = kv.Value;
 			}
 
@@ -70,11 +70,11 @@ internal static class SendRequestHandler
 		string? timeToLive = RequestValidation.NormalizeOptional(request?.TimeToLive);
 
 		DateTimeOffset? scheduled = null;
-		if (scheduledEnqueueTime is not null && DateTimeOffset.TryParse(scheduledEnqueueTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+		if (scheduledEnqueueTime is not null && DateTimeOffset.TryParse(scheduledEnqueueTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTimeOffset dto))
 			scheduled = dto;
 
 		TimeSpan? ttl = null;
-		if (timeToLive is not null && TimeSpan.TryParse(timeToLive, CultureInfo.InvariantCulture, out var ts))
+		if (timeToLive is not null && TimeSpan.TryParse(timeToLive, CultureInfo.InvariantCulture, out TimeSpan ts))
 			ttl = ts;
 
 		return new MessageProperties {

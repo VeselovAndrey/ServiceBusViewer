@@ -15,8 +15,8 @@ internal static class DetailsRequestHandler
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
 
-			if (!DetailsRequestValidator.Validate(request, out var detailsErrors) && detailsErrors is not null) {
-				foreach (var kv in detailsErrors)
+			if (!DetailsRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? detailsErrors) && detailsErrors is not null) {
+				foreach (KeyValuePair<string, string[]> kv in detailsErrors)
 					errors[kv.Key] = kv.Value;
 			}
 

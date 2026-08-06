@@ -13,8 +13,8 @@ internal static class SelectEntityRequestHandler
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
 
-			if (!SelectEntityRequestValidator.Validate(request, out var selectErrors) && selectErrors is not null) {
-				foreach (var kv in selectErrors)
+			if (!SelectEntityRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? selectErrors) && selectErrors is not null) {
+				foreach (KeyValuePair<string, string[]> kv in selectErrors)
 					errors[kv.Key] = kv.Value;
 			}
 
