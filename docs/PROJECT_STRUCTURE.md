@@ -30,7 +30,7 @@ ServiceBusViewer.sln
 │  │  │  │  └─ Viewer/                       <-- Viewer commands, queries, and state contracts
 │  │  │  └─ Services/                        <-- Backend business-service implementations and connection management
 │  │  ├─ Infrastructure/                     <-- Backend infrastructure concerns outside the HTTP/business layers
-│  │  │  └─ BrowserSession/                  <-- Browser-session isolation and state scoped to the session cookie
+│  │  │  └─ ClientSession/                  <-- Client-session isolation and state scoped to the session cookie
 │  │  └─ Dockerfile                          <-- Backend container image
 │  │
 │  ├─ ServiceBusViewer.Web/                  <-- Frontend SPA project, focused on UI, client state, and `/api` integration.
@@ -126,7 +126,7 @@ flowchart LR
     endpoints["Api\n(endpoint groups)"]
     contracts["Business.Contracts\n(commands + DTOs)"]
     services["Business.Services\n(application behavior)"]
-    session["Infrastructure.BrowserSession\n(session state)"]
+    session["Infrastructure.ClientSession\n(session state)"]
     web["ServiceBusViewer.Web\n(React + Vite SPA)"]
     workflows[".github/workflows\n(container CI)"]
 
