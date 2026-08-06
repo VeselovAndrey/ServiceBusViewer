@@ -327,16 +327,16 @@ internal sealed class ServiceBusSessionConnectionService : IServiceBusSessionCon
 
 	private static string GetServiceBusHost(string connectionString)
 	{
-		const string ConnectionStringPrefix = "Endpoint=sb://";
+		const string connectionStringPrefix = "Endpoint=sb://";
 
-		if (!connectionString.StartsWith(ConnectionStringPrefix, StringComparison.OrdinalIgnoreCase))
+		if (!connectionString.StartsWith(connectionStringPrefix, StringComparison.OrdinalIgnoreCase))
 			throw new ArgumentException("Invalid Service Bus connection string.", nameof(connectionString));
 
-		int endIndex = connectionString.IndexOf(';', ConnectionStringPrefix.Length);
+		int endIndex = connectionString.IndexOf(';', connectionStringPrefix.Length);
 		if (endIndex < 0)
 			endIndex = connectionString.Length;
 
-		ReadOnlySpan<char> host = connectionString.AsSpan(ConnectionStringPrefix.Length, endIndex - ConnectionStringPrefix.Length)
+		ReadOnlySpan<char> host = connectionString.AsSpan(connectionStringPrefix.Length, endIndex - connectionStringPrefix.Length)
 			.TrimEnd('/');
 
 		return host.ToString();

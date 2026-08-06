@@ -4,14 +4,14 @@ using System.Reflection;
 using ServiceBusViewer.Business.Contracts;
 using ServiceBusViewer.Business.Contracts.ServiceBus;
 using ServiceBusViewer.Business.Contracts.Viewer;
-using ServiceBusViewer.Infrastructure.BrowserSession;
+using ServiceBusViewer.Infrastructure.ClientSession;
 
 /// <summary>Coordinates business operations for a single browser session.</summary>
 internal sealed class ViewerBusinessService : IViewerBusinessService
 {
 	private static readonly string _applicationVersion = GetApplicationVersion();
 
-	public async Task<BootstrapResult> GetBootstrapAsync(BrowserSessionState state)
+	public async Task<BootstrapResult> GetBootstrapAsync(ClientSessionState state)
 	{
 		await state.Gate.WaitAsync();
 
@@ -23,7 +23,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		}
 	}
 
-	public async Task<ViewerState> ConnectAsync(BrowserSessionState state, ConnectCommand command)
+	public async Task<ViewerState> ConnectAsync(ClientSessionState state, ConnectCommand command)
 	{
 		await state.Gate.WaitAsync();
 
@@ -67,7 +67,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		}
 	}
 
-	public async Task<BootstrapResult> DisconnectAsync(BrowserSessionState state)
+	public async Task<BootstrapResult> DisconnectAsync(ClientSessionState state)
 	{
 		await state.Gate.WaitAsync();
 
@@ -80,7 +80,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		}
 	}
 
-	public async Task<ViewerState> GetViewerAsync(BrowserSessionState state)
+	public async Task<ViewerState> GetViewerAsync(ClientSessionState state)
 	{
 		await state.Gate.WaitAsync();
 
@@ -93,7 +93,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		}
 	}
 
-	public async Task<ViewerState> RefreshAsync(BrowserSessionState state)
+	public async Task<ViewerState> RefreshAsync(ClientSessionState state)
 	{
 		await state.Gate.WaitAsync();
 
@@ -112,7 +112,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		}
 	}
 
-	public async Task<ViewerState> SelectEntityAsync(BrowserSessionState state, SelectEntityCommand command)
+	public async Task<ViewerState> SelectEntityAsync(ClientSessionState state, SelectEntityCommand command)
 	{
 		await state.Gate.WaitAsync();
 
@@ -133,7 +133,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		}
 	}
 
-	public async Task<ViewerState> ReceiveAsync(BrowserSessionState state, ReceiveCommand command)
+	public async Task<ViewerState> ReceiveAsync(ClientSessionState state, ReceiveCommand command)
 	{
 		await state.Gate.WaitAsync();
 
@@ -155,7 +155,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		}
 	}
 
-	public async Task<ViewerState> SendAsync(BrowserSessionState state, SendCommand command)
+	public async Task<ViewerState> SendAsync(ClientSessionState state, SendCommand command)
 	{
 		await state.Gate.WaitAsync();
 
@@ -177,7 +177,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		}
 	}
 
-	public async Task<EntityDetailsResult> GetEntityDetailsAsync(BrowserSessionState state, EntityDetailsQuery query)
+	public async Task<EntityDetailsResult> GetEntityDetailsAsync(ClientSessionState state, EntityDetailsQuery query)
 	{
 		await state.Gate.WaitAsync();
 
@@ -200,7 +200,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		}
 	}
 
-	private static BootstrapResult ToBootstrapResult(BrowserSessionState state)
+	private static BootstrapResult ToBootstrapResult(ClientSessionState state)
 	{
 		ConnectionSettings connection = new(
 			state.Connection.ConnectionString,
@@ -215,7 +215,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 			state.IsConnected);
 	}
 
-	private static ViewerState ToViewerState(BrowserSessionState state)
+	private static ViewerState ToViewerState(ClientSessionState state)
 	{
 		IServiceBusSessionConnectionService connection = state.ServiceBusConnection
 			?? throw new InvalidOperationException("Service Bus is not connected.");
@@ -270,7 +270,7 @@ internal sealed class ViewerBusinessService : IViewerBusinessService
 		_ => false
 	};
 
-	private static IServiceBusSessionConnectionService EnsureConnected(BrowserSessionState state)
+	private static IServiceBusSessionConnectionService EnsureConnected(ClientSessionState state)
 	{
 		return state.ServiceBusConnection
 			?? throw new ApiProblemException(StatusCodes.Status409Conflict, "Not connected", "Not connected to any Service Bus instance.");

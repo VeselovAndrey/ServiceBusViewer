@@ -1,10 +1,14 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer.Send;
 
+using System;
+using System.Collections.Generic;
+using System.Globalization;
 using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Contracts;
 using ServiceBusViewer.Business.Contracts.ServiceBus;
 using ServiceBusViewer.Business.Contracts.Viewer;
-using ServiceBusViewer.Infrastructure.BrowserSession;
+using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class SendRequestHandler
 {
@@ -12,14 +16,26 @@ internal static class SendRequestHandler
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
-			SendRequestValidator.Validate(request, errors);
+
+			if (!SendRequestValidator.Validate(request, out var sendRequestErrors) && sendRequestErrors is not null) {
+				foreach (var kv in sendRequestErrors)
+					errors[kv.Key] = kv.Value;
+			}
+
+			if (!SendMessagePropertiesRequestValidator.Validate(request.SendMessageProperties, out var propsErrors) && propsErrors is not null) {
+				foreach (var kv in propsErrors)
+					errors[kv.Key] = kv.Value;
+			}
+
 			string? body = RequestValidation.NormalizeOptional(request.SendMessageBody);
 			MessageProperties messageProperties = CreateMessageProperties(request.SendMessageProperties, errors);
 			List<ApplicationProperty> applicationProperties = CreateApplicationProperties(request.SendMessageApplicationProperties, errors);
-			RequestValidation.ThrowIfAny(errors);
 
-			ViewerState result = await service.SendAsync(
-				context.GetBrowserSessionState(),
+			if (errors.Count > 0)
+				throw ApiProblemException.Validation(errors);
+
+			Business.Contracts.Viewer.ViewerState result = await service.SendAsync(
+				context.GetClientSessionState(),
 				new SendCommand(body!, messageProperties, applicationProperties));
 
 			return ToSendResponse(result);
@@ -28,7 +44,7 @@ internal static class SendRequestHandler
 
 	private static SendResponse ToSendResponse(Business.Contracts.Viewer.ViewerState state)
 	{
-		Models.ViewerState response = ResponseMapping.ToViewerStateResponse(state);
+		Models.ViewerState response = state.ToApiModel();
 
 		return new SendResponse(
 			response.ServiceBusHostName,
@@ -53,17 +69,21 @@ internal static class SendRequestHandler
 		string? scheduledEnqueueTime = RequestValidation.NormalizeOptional(request?.ScheduledEnqueueTime);
 		string? timeToLive = RequestValidation.NormalizeOptional(request?.TimeToLive);
 
-		RequestValidation.ValidateSystemPropertyLength(messageId, nameof(SendMessagePropertiesRequest.MessageId), "Message ID", errors);
-		RequestValidation.ValidateSystemPropertyLength(sessionId, nameof(SendMessagePropertiesRequest.SessionId), "Session ID", errors);
-		RequestValidation.ValidateSystemPropertyLength(correlationId, nameof(SendMessagePropertiesRequest.CorrelationId), "Correlation ID", errors);
+		DateTimeOffset? scheduled = null;
+		if (scheduledEnqueueTime is not null && DateTimeOffset.TryParse(scheduledEnqueueTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+			scheduled = dto;
+
+		TimeSpan? ttl = null;
+		if (timeToLive is not null && TimeSpan.TryParse(timeToLive, CultureInfo.InvariantCulture, out var ts))
+			ttl = ts;
 
 		return new MessageProperties {
 			MessageId = messageId,
 			SessionId = sessionId,
 			CorrelationId = correlationId,
 			ContentType = contentType,
-			ScheduledEnqueueTime = RequestValidation.ParseDateTimeOffset(scheduledEnqueueTime, nameof(SendMessagePropertiesRequest.ScheduledEnqueueTime), errors),
-			TimeToLive = RequestValidation.ParseTimeSpan(timeToLive, nameof(SendMessagePropertiesRequest.TimeToLive), errors)
+			ScheduledEnqueueTime = scheduled,
+			TimeToLive = ttl
 		};
 	}
 
@@ -77,10 +97,10 @@ internal static class SendRequestHandler
 		for (int index = 0; index < request.Count; index++) {
 			SendMessageApplicationPropertyRequest property = request[index];
 			string fieldName = $"{nameof(SendRequest.SendMessageApplicationProperties)}[{index}].{nameof(SendMessageApplicationPropertyRequest.Type)}";
-			string? typeText = RequestValidation.Require(property.Type, fieldName, "Application property type is required.", errors);
+			string? typeText = RequestValidation.NormalizeOptional(property.Type);
 
 			if (typeText is null)
-				continue;
+				continue; // validator already recorded missing-type error
 
 			if (!Enum.TryParse(typeText, true, out ApplicationPropertyType propertyType)) {
 				errors[fieldName] = [$"Unsupported application property type '{typeText}'."];

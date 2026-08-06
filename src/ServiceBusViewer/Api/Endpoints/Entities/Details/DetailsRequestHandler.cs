@@ -6,7 +6,7 @@ using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Contracts;
 using ServiceBusViewer.Business.Contracts.ServiceBus;
 using ServiceBusViewer.Business.Contracts.Viewer;
-using ServiceBusViewer.Infrastructure.BrowserSession;
+using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class DetailsRequestHandler
 {
@@ -14,14 +14,21 @@ internal static class DetailsRequestHandler
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
-			DetailsRequestValidator.Validate(request, errors);
-			string? type = RequestValidation.NormalizeOptional(request.Type);
+
+			if (!DetailsRequestValidator.Validate(request, out var detailsErrors) && detailsErrors is not null) {
+				foreach (var kv in detailsErrors)
+					errors[kv.Key] = kv.Value;
+			}
+
+			string? type = RequestValidation.NormalizeOptional(request.Type);
 			string? name = RequestValidation.NormalizeOptional(request.Name);
 			string? topicName = RequestValidation.NormalizeOptional(request.TopicName);
-			RequestValidation.ThrowIfAny(errors);
+
+			if (errors.Count > 0)
+				throw ApiProblemException.Validation(errors);
 
 			EntityDetailsResult result = await service.GetEntityDetailsAsync(
-				context.GetBrowserSessionState(),
+				context.GetClientSessionState(),
 				new EntityDetailsQuery(type!, name!, topicName));
 
 			return ToDetailsResponse(result);
@@ -33,7 +40,7 @@ internal static class DetailsRequestHandler
 		return new DetailsResponse(
 			result.ServiceBusHostName,
 			result.IsManagementApiAvailable,
-			result.AvailableEntities.Select(ResponseMapping.ToEntityIdResponse).ToList(),
+			[.. result.AvailableEntities.Select(e => e.ToApiModel())],
 			result.Type,
 			result.Name,
 			result.TopicName,
@@ -85,7 +92,7 @@ internal static class DetailsRequestHandler
 			subscription.RequiresSession,
 			null,
 			subscription.AutoDeleteOnIdle.ToString("c", CultureInfo.InvariantCulture),
-			subscription.Rules.Select(ToSubscriptionRuleResponse).ToList()),
+			[.. subscription.Rules.Select(ToSubscriptionRuleResponse)]),
 		_ => throw new ArgumentException($"Unknown entity type: {properties.GetType().FullName}", nameof(properties))
 	};
 

@@ -3,20 +3,19 @@ namespace ServiceBusViewer.Api.Endpoints.Viewer.Refresh;
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Contracts;
-using ServiceBusViewer.Business.Contracts.Viewer;
-using ServiceBusViewer.Infrastructure.BrowserSession;
+using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class RefreshRequestHandler
 {
 	public static Task<IResult> HandleAsync(HttpContext context, IViewerBusinessService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () =>
-			ToRefreshResponse(await service.RefreshAsync(context.GetBrowserSessionState())));
+			ToRefreshResponse(await service.RefreshAsync(context.GetClientSessionState())));
 	}
 
 	private static RefreshResponse ToRefreshResponse(Business.Contracts.Viewer.ViewerState state)
 	{
-		Models.ViewerState response = ResponseMapping.ToViewerStateResponse(state);
+		ViewerState response = state.ToApiModel();
 
 		return new RefreshResponse(
 			response.ServiceBusHostName,

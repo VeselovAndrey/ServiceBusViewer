@@ -1,7 +1,7 @@
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Business.Contracts;
 using ServiceBusViewer.Business.Services;
-using ServiceBusViewer.Infrastructure.BrowserSession;
+using ServiceBusViewer.Infrastructure.ClientSession;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -11,15 +11,15 @@ builder.Services.AddCors(options => options.AddPolicy("LocalDevelopment", policy
 	.AllowAnyHeader()
 	.AllowAnyMethod()
 	.AllowCredentials()));
-builder.Services.AddSingleton<BrowserSessionStateRegistry>();
-builder.Services.AddHostedService<BrowserSessionStateCleanupService>();
+builder.Services.AddSingleton<ClientSessionStateRegistry>();
+builder.Services.AddHostedService<ClientSessionStateCleanupService>();
 builder.Services.AddSingleton<IViewerBusinessService, ViewerBusinessService>();
 
 WebApplication app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseCors("LocalDevelopment");
-app.UseBrowserSessionState();
+app.UseClientSessionState();
 
 app.MapApiEndpoints();
 

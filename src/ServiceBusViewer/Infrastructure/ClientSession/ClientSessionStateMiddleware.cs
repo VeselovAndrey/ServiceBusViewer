@@ -1,16 +1,16 @@
-namespace ServiceBusViewer.Infrastructure.BrowserSession;
+namespace ServiceBusViewer.Infrastructure.ClientSession;
 
 /// <summary>Ensures each request is associated with a server-managed browser session state bucket.</summary>
-internal sealed class BrowserSessionStateMiddleware(RequestDelegate next)
+internal sealed class ClientSessionStateMiddleware(RequestDelegate next)
 {
 	private const string _sessionCookieName = "sbv-session";
 	private const string _httpContextItemKey = "__ServiceBusViewerApi_BrowserSessionState";
 	private readonly RequestDelegate _next = next;
 
-	public async Task InvokeAsync(HttpContext context, BrowserSessionStateRegistry registry)
+	public async Task InvokeAsync(HttpContext context, ClientSessionStateRegistry registry)
 	{
 		string sessionId = GetOrCreateSessionId(context.Request.Cookies[_sessionCookieName]);
-		BrowserSessionState state = registry.GetOrCreate(sessionId);
+		ClientSessionState state = registry.GetOrCreate(sessionId);
 		context.Items[_httpContextItemKey] = state;
 
 		context.Response.Cookies.Append(_sessionCookieName, sessionId, new CookieOptions {
@@ -24,8 +24,8 @@ internal sealed class BrowserSessionStateMiddleware(RequestDelegate next)
 		await _next(context);
 	}
 
-	public static BrowserSessionState GetBrowserSessionState(HttpContext context)
-		=> context.Items.TryGetValue(_httpContextItemKey, out object? value) && value is BrowserSessionState state
+	public static ClientSessionState GetClientSessionState(HttpContext context)
+		=> context.Items.TryGetValue(_httpContextItemKey, out object? value) && value is ClientSessionState state
 			? state
 			: throw new InvalidOperationException("Browser session state was not initialized for this request.");
 
@@ -35,11 +35,11 @@ internal sealed class BrowserSessionStateMiddleware(RequestDelegate next)
 			: Guid.NewGuid().ToString("N");
 }
 
-internal static class BrowserSessionStateMiddlewareExtensions
+internal static class ClientSessionStateMiddlewareExtensions
 {
-	public static IApplicationBuilder UseBrowserSessionState(this IApplicationBuilder app)
-		=> app.UseMiddleware<BrowserSessionStateMiddleware>();
+	public static IApplicationBuilder UseClientSessionState(this IApplicationBuilder app)
+		=> app.UseMiddleware<ClientSessionStateMiddleware>();
 
-	public static BrowserSessionState GetBrowserSessionState(this HttpContext context)
-		=> BrowserSessionStateMiddleware.GetBrowserSessionState(context);
+	public static ClientSessionState GetClientSessionState(this HttpContext context)
+		=> ClientSessionStateMiddleware.GetClientSessionState(context);
 }

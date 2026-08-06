@@ -1,7 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Entities.Details;
 
 using System.Collections.Generic;
-using ServiceBusViewer.Api.Endpoints;
 
 /// <summary>
 /// Request parameters for retrieving entity details.
@@ -13,9 +12,18 @@ internal sealed record DetailsRequest(
 
 internal static class DetailsRequestValidator
 {
-	public static void Validate(DetailsRequest request, IDictionary<string, string[]> errors)
+	public static bool Validate(DetailsRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
-		RequestValidation.Require(request.Type, "type", "Entity type is required.", errors);
-		RequestValidation.Require(request.Name, "name", "Entity name is required.", errors);
+		Dictionary<string, string[]> local = new();
+		if (string.IsNullOrWhiteSpace(request.Type))
+			local["type"] = ["Entity type is required."];
+
+		if (string.IsNullOrWhiteSpace(request.Name))
+			local["name"] = ["Entity name is required."];
+
+		if (local.Count > 0) { errors = local; return false; }
+
+		errors = null;
+		return true;
 	}
 }

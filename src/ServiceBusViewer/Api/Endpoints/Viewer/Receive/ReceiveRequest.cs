@@ -11,8 +11,10 @@ internal sealed record ReceiveRequest(string? ReceiveSessionId);
 
 internal static class ReceiveRequestValidator
 {
-	public static void Validate(ReceiveRequest request, IDictionary<string, string[]> errors)
+	public static bool Validate(ReceiveRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
 		// No specific validations for ReceiveRequest at this time.
+		errors = null;
+		return true;
 	}
 }

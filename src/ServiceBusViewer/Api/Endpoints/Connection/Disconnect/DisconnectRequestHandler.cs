@@ -1,24 +1,23 @@
 namespace ServiceBusViewer.Api.Endpoints.Connection.Disconnect;
 
+using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Contracts;
 using ServiceBusViewer.Business.Contracts.Viewer;
-using ServiceBusViewer.Infrastructure.BrowserSession;
-using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class DisconnectRequestHandler
 {
 	public static Task<IResult> HandleAsync(HttpContext context, IViewerBusinessService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () =>
-			ToDisconnectResponse(await service.DisconnectAsync(context.GetBrowserSessionState())));
+			ToDisconnectResponse(await service.DisconnectAsync(context.GetClientSessionState())));
 	}
 
 	private static DisconnectResponse ToDisconnectResponse(BootstrapResult result)
-	{
-		return new DisconnectResponse(
+		=> new DisconnectResponse(
 			result.ApplicationVersion,
-			ResponseMapping.ToConnectionSettingsResponse(result.Connection),
-			result.Viewer is null ? null : ResponseMapping.ToViewerStateResponse(result.Viewer),
+			result.Connection.ToApiModel(),
+			result.Viewer?.ToApiModel(),
 			result.IsConnected);
-	}
 }

@@ -12,3 +12,14 @@ internal sealed record ConnectionSettings(
 	string? RootConnectionString,
 	string? QueueOrTopicName,
 	string? SubscriptionName);
+
+
+internal static class ConnectionSettingsExtensions
+{
+	internal static ConnectionSettings ToApiModel(this Business.Contracts.Viewer.ConnectionSettings settings)
+		=> new ConnectionSettings(
+			settings.ConnectionString,
+			settings.RootConnectionString,
+			settings.QueueOrTopicName,
+			settings.SubscriptionName);
+}

@@ -1,14 +1,14 @@
-namespace ServiceBusViewer.Infrastructure.BrowserSession;
+namespace ServiceBusViewer.Infrastructure.ClientSession;
 
 using ServiceBusViewer.Business.Contracts;
 using ServiceBusViewer.Business.Contracts.ServiceBus;
 
 /// <summary>Holds per-browser-session backend state for the viewer API.</summary>
-internal sealed class BrowserSessionState : IAsyncDisposable
+internal sealed class ClientSessionState : IAsyncDisposable
 {
 	private long _lastAccessUnixTimeSeconds;
 
-	public BrowserSessionState()
+	public ClientSessionState()
 	{
 		Connection = StoredConnectionSettings.CreateDefault();
 		Touch();

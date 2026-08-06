@@ -1,7 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Connection.Connect;
 
 using System.Collections.Generic;
-using ServiceBusViewer.Api.Endpoints;
 
 /// <summary>
 /// Request to establish a connection to a Service Bus namespace or entity.
@@ -18,14 +17,17 @@ internal sealed record ConnectRequest(
 
 internal static class ConnectRequestValidator
 {
-	public static void Validate(ConnectRequest request, IDictionary<string, string[]> errors)
+	public static bool Validate(ConnectRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
-		RequestValidation.Require(request.ConnectionString, nameof(request.ConnectionString), "Connection string is required.", errors);
+		Dictionary<string, string[]> local = new();
+		if (string.IsNullOrWhiteSpace(request.ConnectionString))
+			local[nameof(request.ConnectionString)] = ["Connection string is required."];
 
-		string? rootConnectionString = RequestValidation.NormalizeOptional(request.RootConnectionString);
-		string? queueOrTopicName = RequestValidation.NormalizeOptional(request.QueueOrTopicName);
+		if (string.IsNullOrWhiteSpace(request.RootConnectionString) && string.IsNullOrWhiteSpace(request.QueueOrTopicName))
+			local[nameof(request.QueueOrTopicName)] = ["Queue/Topic name is required when not using root connection."];
 
-		if (rootConnectionString is null && queueOrTopicName is null)
-			errors[nameof(request.QueueOrTopicName)] = ["Queue/Topic name is required when not using root connection."];
+		if (local.Count > 0) { errors = local; return false; }
+		errors = null;
+		return true;
 	}
 }

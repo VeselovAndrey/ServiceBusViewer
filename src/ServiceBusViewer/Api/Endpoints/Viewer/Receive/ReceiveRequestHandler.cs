@@ -4,7 +4,7 @@ using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Contracts;
 using ServiceBusViewer.Business.Contracts.Viewer;
-using ServiceBusViewer.Infrastructure.BrowserSession;
+using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class ReceiveRequestHandler
 {
@@ -12,18 +12,24 @@ internal static class ReceiveRequestHandler
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
-			ReceiveRequestValidator.Validate(request, errors);
-			RequestValidation.ThrowIfAny(errors);
-			Business.Contracts.Viewer.ViewerState result = await service.ReceiveAsync(
-				context.GetBrowserSessionState(),
+			if (!ReceiveRequestValidator.Validate(request, out var receiveErrors) && receiveErrors is not null) {
+				foreach (var kv in receiveErrors)
+					errors[kv.Key] = kv.Value;
+			}
+			if (errors.Count > 0)
+				throw ApiProblemException.Validation(errors);
+
+			Business.Contracts.Viewer.ViewerState result = await service.ReceiveAsync(
+				context.GetClientSessionState(),
 				new ReceiveCommand(RequestValidation.NormalizeOptional(request.ReceiveSessionId)));
-			return ToReceiveResponse(result);
+
+			return ToReceiveResponse(result);
 		});
 	}
 
 	private static ReceiveResponse ToReceiveResponse(Business.Contracts.Viewer.ViewerState state)
 	{
-		Models.ViewerState response = ResponseMapping.ToViewerStateResponse(state);
+		Models.ViewerState response = state.ToApiModel();
 
 		return new ReceiveResponse(
 			response.ServiceBusHostName,

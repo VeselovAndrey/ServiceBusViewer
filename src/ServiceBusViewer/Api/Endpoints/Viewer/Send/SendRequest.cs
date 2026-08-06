@@ -1,7 +1,8 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer.Send;
 
+using System;
 using System.Collections.Generic;
-using ServiceBusViewer.Api.Endpoints;
+using System.Globalization;
 
 /// <summary>
 /// Request to send a message; includes body, system properties and application properties.
@@ -16,9 +17,18 @@ internal sealed record SendRequest(
 
 internal static class SendRequestValidator
 {
-	public static void Validate(SendRequest request, IDictionary<string, string[]> errors)
+	public static bool Validate(SendRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
-		RequestValidation.Require(request.SendMessageBody, nameof(request.SendMessageBody), "Message body cannot be empty.", errors);
+		Dictionary<string, string[]> local = new();
+		if (string.IsNullOrWhiteSpace(request.SendMessageBody))
+			local[nameof(request.SendMessageBody)] = ["Message body cannot be empty."];
+
+		if (local.Count > 0) {
+			errors = local;
+			return false;
+		}
+		errors = null;
+		return true;
 	}
 }
 
@@ -41,18 +51,40 @@ internal sealed record SendMessagePropertiesRequest(
 
 internal static class SendMessagePropertiesRequestValidator
 {
-	public static void Validate(SendMessagePropertiesRequest? request, IDictionary<string, string[]> errors)
+	private const int _maxSystemPropertyLength = 128;
+
+	public static bool Validate(SendMessagePropertiesRequest? request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
-		if (request is null)
-			return;
-		string? messageId = RequestValidation.NormalizeOptional(request.MessageId);		string? sessionId = RequestValidation.NormalizeOptional(request.SessionId);
-		string? correlationId = RequestValidation.NormalizeOptional(request.CorrelationId);
-		RequestValidation.ValidateSystemPropertyLength(messageId, nameof(SendMessagePropertiesRequest.MessageId), "Message ID", errors);
-		RequestValidation.ValidateSystemPropertyLength(sessionId, nameof(SendMessagePropertiesRequest.SessionId), "Session ID", errors);
-		RequestValidation.ValidateSystemPropertyLength(correlationId, nameof(SendMessagePropertiesRequest.CorrelationId), "Correlation ID", errors);
+		Dictionary<string, string[]> local = new();
+		if (request is null) {
+			errors = null;
+			return true;
+		}
+
+		if (!string.IsNullOrWhiteSpace(request.MessageId) && request.MessageId.Length > _maxSystemPropertyLength)
+			local[nameof(SendMessagePropertiesRequest.MessageId)] = [$"The Message ID must be {_maxSystemPropertyLength} characters or fewer."];
+
+		if (!string.IsNullOrWhiteSpace(request.SessionId) && request.SessionId!.Length > _maxSystemPropertyLength)
+			local[nameof(SendMessagePropertiesRequest.SessionId)] = [$"The Session ID must be {_maxSystemPropertyLength} characters or fewer."];
+
+		if (!string.IsNullOrWhiteSpace(request.CorrelationId) && request.CorrelationId!.Length > _maxSystemPropertyLength)
+			local[nameof(SendMessagePropertiesRequest.CorrelationId)] = [$"The Correlation ID must be {_maxSystemPropertyLength} characters or fewer."];
+
+		if (!string.IsNullOrWhiteSpace(request.ScheduledEnqueueTime) && !DateTimeOffset.TryParse(request.ScheduledEnqueueTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out _))
+			local[nameof(SendMessagePropertiesRequest.ScheduledEnqueueTime)] = ["Scheduled enqueue time must be a valid date/time value."];
+
+		if (!string.IsNullOrWhiteSpace(request.TimeToLive) && !TimeSpan.TryParse(request.TimeToLive, CultureInfo.InvariantCulture, out _))
+			local[nameof(SendMessagePropertiesRequest.TimeToLive)] = ["Time to live must be a valid time span value."];
+
+		if (local.Count > 0) {
+			errors = local;
+			return false;
+		}
+
+		errors = null;
+		return true;
 	}
 }
-
 /// <summary>
 /// Single application property entry for a message to send.
 /// </summary>
@@ -66,9 +98,14 @@ internal sealed record SendMessageApplicationPropertyRequest(
 
 internal static class SendMessageApplicationPropertyRequestValidator
 {
-	public static void Validate(SendMessageApplicationPropertyRequest request, string fieldName, IDictionary<string, string[]> errors)
+	public static bool Validate(SendMessageApplicationPropertyRequest request, string fieldName, out IReadOnlyDictionary<string, string[]>? errors)
 	{
-		RequestValidation.Require(request.Type, fieldName, "Application property type is required.", errors);
+		var local = new Dictionary<string, string[]>();
+		if (string.IsNullOrWhiteSpace(request.Type))
+			local[fieldName] = ["Application property type is required."];
 		// enum parsing and type-specific validation remains in the handler helper where the ApplicationProperty instance is constructed.
+		if (local.Count > 0) { errors = local; return false; }
+		errors = null;
+		return true;
 	}
 }

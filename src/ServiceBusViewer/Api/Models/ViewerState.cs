@@ -25,3 +25,23 @@ internal record ViewerState(
 	ReceivedMessage? DisplayedMessage,
 	string? SendResultMessage,
 	string? ReceiveSessionId);
+
+
+internal static class ViewerStateExtensions
+{
+	internal static ViewerState ToApiModel(this Business.Contracts.Viewer.ViewerState state)
+	{
+		return new Models.ViewerState(
+			state.ServiceBusHostName,
+			state.EntityName,
+			state.TopicName,
+			state.RequiresSession,
+			state.IsManagementApiAvailable,
+			[.. state.AvailableEntities.Select(e => e.ToApiModel())],
+			[.. state.Messages.Select(m => m.ToApiModel())],
+			state.HasMoreMessages,
+			state.DisplayedMessage?.ToApiModel(),
+			state.SendResultMessage,
+			state.ReceiveSessionId);
+	}
+}

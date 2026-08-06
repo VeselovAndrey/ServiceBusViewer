@@ -1,9 +1,10 @@
 namespace ServiceBusViewer.Api.Endpoints.Connection.Connect;
 
 using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Contracts;
 using ServiceBusViewer.Business.Contracts.Viewer;
-using ServiceBusViewer.Infrastructure.BrowserSession;
+using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class ConnectRequestHandler
 {
@@ -11,24 +12,31 @@ internal static class ConnectRequestHandler
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
-			ConnectRequestValidator.Validate(request, errors);
-			string? connectionString = RequestValidation.NormalizeOptional(request.ConnectionString);
+
+			if (!ConnectRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? connectErrors) && connectErrors is not null) {
+				foreach (KeyValuePair<string, string[]> kv in connectErrors)
+					errors[kv.Key] = kv.Value;
+			}
+
+			string? connectionString = RequestValidation.NormalizeOptional(request.ConnectionString);
 			string? rootConnectionString = RequestValidation.NormalizeOptional(request.RootConnectionString);
 			string? queueOrTopicName = RequestValidation.NormalizeOptional(request.QueueOrTopicName);
 			string? subscriptionName = RequestValidation.NormalizeOptional(request.SubscriptionName);
-			RequestValidation.ThrowIfAny(errors);
 
-			ViewerState result = await service.ConnectAsync(
-				context.GetBrowserSessionState(),
+			if (errors.Count > 0)
+				throw ApiProblemException.Validation(errors);
+
+			Business.Contracts.Viewer.ViewerState result = await service.ConnectAsync(
+				context.GetClientSessionState(),
 				new ConnectCommand(connectionString!, rootConnectionString, queueOrTopicName, subscriptionName));
 
 			return ToConnectResponse(result);
 		});
 	}
 
-	private static ConnectResponse ToConnectResponse(ViewerState state)
+	private static ConnectResponse ToConnectResponse(Business.Contracts.Viewer.ViewerState state)
 	{
-		Models.ViewerState response = ResponseMapping.ToViewerStateResponse(state);
+		Models.ViewerState response = state.ToApiModel();
 
 		return new ConnectResponse(
 			response.ServiceBusHostName,

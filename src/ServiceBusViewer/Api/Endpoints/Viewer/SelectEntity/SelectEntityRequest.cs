@@ -16,9 +16,14 @@ internal sealed record SelectEntityRequest(
 
 internal static class SelectEntityRequestValidator
 {
-	public static void Validate(SelectEntityRequest request, IDictionary<string, string[]> errors)
+	public static bool Validate(SelectEntityRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
-		RequestValidation.Require(request.SelectedEntityType, nameof(request.SelectedEntityType), "Selected entity type is required.", errors);
-		RequestValidation.Require(request.SelectedEntityName, nameof(request.SelectedEntityName), "Entity name is required.", errors);
+		Dictionary<string, string[]> local = new();
+		if (string.IsNullOrWhiteSpace(request.SelectedEntityType))
+			local[nameof(request.SelectedEntityType)] = ["Selected entity type is required."];
+		if (string.IsNullOrWhiteSpace(request.SelectedEntityName))
+			local[nameof(request.SelectedEntityName)] = ["Entity name is required."];
+		if (local.Count > 0) { errors = local; return false; }
+		errors = null; return true;
 	}
 }
