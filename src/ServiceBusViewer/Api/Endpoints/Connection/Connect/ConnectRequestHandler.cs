@@ -2,13 +2,13 @@ namespace ServiceBusViewer.Api.Endpoints.Connection.Connect;
 
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
-using ServiceBusViewer.Business.Contracts;
-using ServiceBusViewer.Business.Contracts.Viewer;
+using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
+using ViewerConnectionSettings = ServiceBusViewer.Business.Viewer.Contracts.ConnectionSettings;
 
 internal static class ConnectRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, ConnectRequest request, IViewerBusinessService service)
+	public static Task<IResult> HandleAsync(HttpContext context, ConnectRequest request, IViewerConnectionService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
@@ -26,15 +26,15 @@ internal static class ConnectRequestHandler
 			if (errors.Count > 0)
 				throw ApiProblemException.Validation(errors);
 
-			Business.Contracts.Viewer.ViewerState result = await service.ConnectAsync(
+			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ConnectAsync(
 				context.GetClientSessionState(),
-				new ConnectCommand(connectionString!, rootConnectionString, queueOrTopicName, subscriptionName));
+				new ViewerConnectionSettings(connectionString!, rootConnectionString, queueOrTopicName, subscriptionName));
 
 			return ToConnectResponse(result);
 		});
 	}
 
-	private static ConnectResponse ToConnectResponse(Business.Contracts.Viewer.ViewerState state)
+	private static ConnectResponse ToConnectResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)
 	{
 		Models.ViewerState response = state.ToApiModel();
 

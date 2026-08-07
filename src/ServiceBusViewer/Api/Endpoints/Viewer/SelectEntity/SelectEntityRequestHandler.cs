@@ -2,13 +2,12 @@ namespace ServiceBusViewer.Api.Endpoints.Viewer.SelectEntity;
 
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
-using ServiceBusViewer.Business.Contracts;
-using ServiceBusViewer.Business.Contracts.Viewer;
+using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class SelectEntityRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, SelectEntityRequest request, IViewerBusinessService service)
+	public static Task<IResult> HandleAsync(HttpContext context, SelectEntityRequest request, IViewerEntityService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
@@ -25,15 +24,21 @@ internal static class SelectEntityRequestHandler
 			if (errors.Count > 0)
 				throw ApiProblemException.Validation(errors);
 
-			Business.Contracts.Viewer.ViewerState result = await service.SelectEntityAsync(
+			Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(
+				selectedEntityType!,
+				selectedEntityName!,
+				selectedTopicName,
+				nameof(request.SelectedTopicName));
+
+			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SelectEntityAsync(
 				context.GetClientSessionState(),
-				new SelectEntityCommand(selectedEntityType!, selectedEntityName!, selectedTopicName));
+				entityId);
 
 			return ToSelectEntityResponse(result);
 		});
 	}
 
-	private static SelectEntityResponse ToSelectEntityResponse(Business.Contracts.Viewer.ViewerState state)
+	private static SelectEntityResponse ToSelectEntityResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)
 	{
 		Models.ViewerState response = state.ToApiModel();
 

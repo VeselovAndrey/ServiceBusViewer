@@ -3,14 +3,13 @@ namespace ServiceBusViewer.Api.Endpoints.Entities.Details;
 using System.Globalization;
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
-using ServiceBusViewer.Business.Contracts;
-using ServiceBusViewer.Business.Contracts.ServiceBus;
-using ServiceBusViewer.Business.Contracts.Viewer;
+using ServiceBusViewer.Business.Viewer.Contracts;
+using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class DetailsRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, [AsParameters] DetailsRequest request, IViewerBusinessService service)
+	public static Task<IResult> HandleAsync(HttpContext context, [AsParameters] DetailsRequest request, IViewerEntityService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
@@ -27,9 +26,11 @@ internal static class DetailsRequestHandler
 			if (errors.Count > 0)
 				throw ApiProblemException.Validation(errors);
 
-			EntityDetailsResult result = await service.GetEntityDetailsAsync(
+			Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(type!, name!, topicName, nameof(request.TopicName));
+
+			EntityDetailsResult result = await service.GetDetailsAsync(
 				context.GetClientSessionState(),
-				new EntityDetailsQuery(type!, name!, topicName));
+				entityId);
 
 			return ToDetailsResponse(result);
 		});
@@ -47,7 +48,7 @@ internal static class DetailsRequestHandler
 			result.Properties is null ? null : ToEntityPropertiesResponse(result.Properties));
 	}
 
-	private static Models.EntityProperties ToEntityPropertiesResponse(Business.Contracts.ServiceBus.EntityProperties properties) => properties switch {
+	private static Models.EntityProperties ToEntityPropertiesResponse(Business.Viewer.Contracts.ServiceBus.EntityProperties properties) => properties switch {
 		QueueEntityProperties queue => new Models.EntityProperties(
 			"Queue",
 			queue.Name,

@@ -17,7 +17,7 @@ internal sealed record ReceivedMessage(
 
 internal static class ReceivedMessageExtensions
 {
-	internal static ReceivedMessage ToApiModel(this Business.Contracts.ServiceBus.ReceivedMessage message)
+	internal static ReceivedMessage ToApiModel(this Business.Viewer.Contracts.ServiceBus.ReceivedMessage message)
 		=> new Models.ReceivedMessage(
 				message.Body,
 				new Models.ReceivedMessageProperties(

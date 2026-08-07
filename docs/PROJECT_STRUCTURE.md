@@ -17,20 +17,25 @@ ServiceBusViewer.sln
 │
 ├─ src/                                      <-- Application source
 │  ├─ ServiceBusViewer/                      <-- Backend API project, owns HTTP API, business logic, and browser-session state.
-│  │  ├─ Api/                                <-- HTTP boundary; keep minimal API handlers thin and delegate to `Business\Services`
+│  │  ├─ Api/                                <-- HTTP boundary; keep minimal API handlers thin and delegate to business slice services
 │  │  │  ├─ Endpoints/                       <-- Minimal API endpoint groups organized by feature area
 │  │  │  │  ├─ Bootstrap/                    <-- Initial application bootstrap payload
 │  │  │  │  ├─ Connection/                   <-- Connect/disconnect endpoints
 │  │  │  │  ├─ Entities/                     <-- Queue/topic/subscription details endpoints
 │  │  │  │  └─ Viewer/                       <-- Viewer state, receive, refresh, select, and send endpoints
 │  │  │  └─ Models/                          <-- API-facing models used at the HTTP boundary
-│  │  ├─ Business/                           <-- Backend business layer split into contracts and implementations
-│  │  │  ├─ Contracts/                       <-- Application contracts, commands, queries, and DTOs
-│  │  │  │  ├─ ServiceBus/                   <-- Service Bus domain DTOs and message/property contracts
-│  │  │  │  └─ Viewer/                       <-- Viewer commands, queries, and state contracts
-│  │  │  └─ Services/                        <-- Backend business-service implementations and connection management
+│  │  ├─ Business/                           <-- Backend business layer organized by business capability rather than global type buckets
+│  │  │  ├─ Application/                     <-- Application-wide metadata such as version/build information
+│  │  │  │  ├─ Contracts/                    <-- Application-facing interfaces for app metadata
+│  │  │  │  └─ Services/                     <-- Implementations of application metadata providers
+│  │  │  └─ Viewer/                          <-- Core Service Bus viewer capability: use cases, state, and Service Bus subdomain contracts
+│  │  │     ├─ Contracts/                    <-- Viewer DTOs and use-case interfaces consumed by the API layer
+│  │  │     │  └─ ServiceBus/                <-- Service Bus entity, message, property, and rule models owned by the Service Bus Viewer domain
+│  │  │     ├─ Dependencies/                 <-- Viewer-owned ports such as session state and Service Bus connection abstractions
+│  │  │     └─ Services/                     <-- Viewer business implementations and internal mapping helpers
 │  │  ├─ Infrastructure/                     <-- Backend infrastructure concerns outside the HTTP/business layers
-│  │  │  └─ ClientSession/                  <-- Client-session isolation and state scoped to the session cookie
+│  │  │  ├─ ClientSession/                   <-- Client-session isolation and state scoped to the session cookie
+│  │  │  └─ ServiceBus/                      <-- Azure Service Bus and other technical implementations that satisfy business-defined dependencies
 │  │  └─ Dockerfile                          <-- Backend container image
 │  │
 │  ├─ ServiceBusViewer.Web/                  <-- Frontend SPA project, focused on UI, client state, and `/api` integration.
@@ -73,10 +78,10 @@ ServiceBusViewer.sln
 | --- | --- | --- | --- |
 | `.agents/specs` | Markdown documentation only | Production source code | Stores agent-facing rules and code-style guidance. |
 | `docs` | Markdown and design assets | Production source code | Holds repository/project documentation only. |
-| `src\ServiceBusViewer\Api` | `Business\Contracts`, `Business\Services`, API/infrastructure helpers | Frontend code | Keep handlers thin: validate, delegate, map HTTP responses. |
-| `src\ServiceBusViewer\Business\Contracts` | BCL, Azure SDK models when needed | API endpoint handlers, frontend code | Defines backend-facing commands, queries, DTOs, and state shapes. |
-| `src\ServiceBusViewer\Business\Services` | `Business\Contracts`, infrastructure needed for Service Bus access | API endpoint handlers, frontend code | Owns application behavior and Service Bus workflows. |
-| `src\ServiceBusViewer\Infrastructure` | Backend project internals and framework primitives | Frontend code | Contains browser-session state plumbing and related helpers. |
+| `src\ServiceBusViewer\Api` | `Business\Application\Contracts`, `Business\Viewer\Contracts`, API/infrastructure helpers | Frontend code | Keep handlers thin: validate, delegate, map HTTP responses. |
+| `src\ServiceBusViewer\Business\Application` | BCL | API endpoint handlers, frontend code, concrete infrastructure implementations | Holds application-level metadata contracts and implementations. |
+| `src\ServiceBusViewer\Business\Viewer` | `Business\Application\Contracts`, BCL, Azure SDK models when needed, viewer-owned dependencies | API endpoint handlers, frontend code, concrete infrastructure implementations | Owns the core Service Bus Viewer domain: viewer use cases, UI-facing state, Service Bus-shaped contracts, and viewer-owned ports that infrastructure implements. |
+| `src\ServiceBusViewer\Infrastructure` | Backend project internals, Azure SDK clients, framework primitives, business-defined abstractions when implementing them | Frontend code, business policy | Contains technical implementations and adapters for the dependencies required by the business layer. |
 | `src\ServiceBusViewer.Web` | Browser libraries, React, local frontend utilities | Backend internals | Talks to the backend only through `/api`. |
 | `src\ServiceBusViewer.AppHost` | Aspire hosting model, project references, emulator/container config | Frontend/backend internal implementation details | Orchestrates local development resources; it should not absorb product logic. |
 | `.github/workflows` | Docker build/publish assets and repository files | Application runtime logic | CI/CD automation only. |
@@ -91,11 +96,19 @@ The solution is intentionally divided into backend, frontend, and local-orchestr
 
 ### Minimal API handlers stay thin
 
-`Api` is the HTTP boundary only. Handlers should validate input, call `Business\Services`, and map results to HTTP responses instead of owning business logic directly.
+`Api` is the HTTP boundary only. Handlers should validate input, call the appropriate business slice service, and map results to HTTP responses instead of owning business logic directly.
 
-### `Business\Contracts` is the backend contract boundary
+### Business is organized by capability first
 
-Commands, queries, DTOs, and viewer state shapes belong in `src\ServiceBusViewer\Business\Contracts`. Avoid creating parallel request/result models in unrelated backend layers when an existing contract boundary already exists.
+The business layer is intentionally sliced by capability under `Application` and `Viewer`. `Viewer` is the core product capability, and its `Contracts\ServiceBus` folder is treated as a Viewer subdomain rather than a separate peer business slice. Prefer putting related contracts, dependencies, and implementations beside each other within that capability rather than creating global folders that mix unrelated concerns.
+
+### Viewer owns the Service Bus subdomain
+
+This application is a **Service Bus Viewer**, not a generic viewer plus a separate Service Bus business module. Service Bus entities, messages, rules, and message properties are therefore part of the Viewer domain model. Viewer-owned dependencies such as `IServiceBusConnection` may depend on those contracts without crossing into another peer business boundary.
+
+### Business defines dependency needs; Infrastructure implements them
+
+The business layer should describe the collaborators it needs through abstractions in the owning capability slice and depend on those abstractions rather than concrete technical code. Infrastructure exists to implement those dependencies using Azure SDK clients, framework services, and other runtime details without pulling business policy into the infrastructure layer.
 
 ### Browser-session isolation is a core runtime behavior
 
@@ -124,16 +137,16 @@ flowchart LR
     apphost["ServiceBusViewer.AppHost\n(local orchestration)"]
     api["ServiceBusViewer.Api\n(minimal API host)"]
     endpoints["Api\n(endpoint groups)"]
-    contracts["Business.Contracts\n(commands + DTOs)"]
-    services["Business.Services\n(application behavior)"]
-    session["Infrastructure.ClientSession\n(session state)"]
+    application["Business.Application\n(app metadata)"]
+    viewer["Business.Viewer\n(core capability + Service Bus subdomain)"]
+    session["Infrastructure.ClientSession
+\n(session state)"]
     web["ServiceBusViewer.Web\n(React + Vite SPA)"]
     workflows[".github/workflows\n(container CI)"]
 
     api --> endpoints
-    endpoints --> contracts
-    endpoints --> services
-    services --> contracts
+    endpoints --> viewer
+    viewer --> application
     api --> session
     web --> api
     apphost --> api

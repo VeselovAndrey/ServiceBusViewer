@@ -5,14 +5,13 @@ using System.Collections.Generic;
 using System.Globalization;
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
-using ServiceBusViewer.Business.Contracts;
-using ServiceBusViewer.Business.Contracts.ServiceBus;
-using ServiceBusViewer.Business.Contracts.Viewer;
+using ServiceBusViewer.Business.Viewer.Contracts;
+using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class SendRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, SendRequest request, IViewerBusinessService service)
+	public static Task<IResult> HandleAsync(HttpContext context, SendRequest request, IViewerMessageService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
@@ -34,7 +33,7 @@ internal static class SendRequestHandler
 			if (errors.Count > 0)
 				throw ApiProblemException.Validation(errors);
 
-			Business.Contracts.Viewer.ViewerState result = await service.SendAsync(
+			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SendAsync(
 				context.GetClientSessionState(),
 				new SendCommand(body!, messageProperties, applicationProperties));
 
@@ -42,7 +41,7 @@ internal static class SendRequestHandler
 		});
 	}
 
-	private static SendResponse ToSendResponse(Business.Contracts.Viewer.ViewerState state)
+	private static SendResponse ToSendResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)
 	{
 		Models.ViewerState response = state.ToApiModel();
 

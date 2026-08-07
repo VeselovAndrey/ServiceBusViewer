@@ -2,13 +2,12 @@ namespace ServiceBusViewer.Api.Endpoints.Bootstrap.GetBootstrap;
 
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
-using ServiceBusViewer.Business.Contracts;
-using ServiceBusViewer.Business.Contracts.Viewer;
+using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class GetBootstrapRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, IViewerBusinessService service)
+	public static Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () =>
 			ToBootstrapResponse(await service.GetBootstrapAsync(context.GetClientSessionState())));

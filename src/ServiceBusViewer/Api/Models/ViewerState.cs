@@ -29,7 +29,7 @@ internal record ViewerState(
 
 internal static class ViewerStateExtensions
 {
-	internal static ViewerState ToApiModel(this Business.Contracts.Viewer.ViewerState state)
+	internal static ViewerState ToApiModel(this Business.Viewer.Contracts.ViewerState state)
 	{
 		return new Models.ViewerState(
 			state.ServiceBusHostName,

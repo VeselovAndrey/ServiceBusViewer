@@ -16,7 +16,7 @@ internal sealed record ConnectionSettings(
 
 internal static class ConnectionSettingsExtensions
 {
-	internal static ConnectionSettings ToApiModel(this Business.Contracts.Viewer.ConnectionSettings settings)
+	internal static ConnectionSettings ToApiModel(this Business.Viewer.Contracts.ConnectionSettings settings)
 		=> new ConnectionSettings(
 			settings.ConnectionString,
 			settings.RootConnectionString,

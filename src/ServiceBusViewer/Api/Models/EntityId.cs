@@ -1,6 +1,6 @@
 namespace ServiceBusViewer.Api.Models;
 
-using ServiceBusViewer.Business.Contracts.ServiceBus;
+using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 
 /// <summary>
 /// Lightweight identifier for a Service Bus entity (queue, topic, subscription).
@@ -15,7 +15,7 @@ internal sealed record EntityId(
 
 internal static class EntityIdExtensions
 {
-	internal static EntityId ToApiModel(this ServiceBusViewer.Business.Contracts.ServiceBus.EntityId entity)
+	internal static EntityId ToApiModel(this Business.Viewer.Contracts.ServiceBus.EntityId entity)
 		=> entity switch {
 			QueueEntityId queue => new Models.EntityId("Queue", queue.Name, null),
 			TopicEntityId topic => new Models.EntityId("Topic", topic.Name, null),

@@ -1,7 +1,11 @@
 using ServiceBusViewer.Api.Endpoints;
-using ServiceBusViewer.Business.Contracts;
-using ServiceBusViewer.Business.Services;
+using ServiceBusViewer.Business.Application.Contracts;
+using ServiceBusViewer.Business.Application.Services;
+using ServiceBusViewer.Business.Viewer.Contracts;
+using ServiceBusViewer.Business.Viewer.Dependencies;
+using ServiceBusViewer.Business.Viewer.Services;
 using ServiceBusViewer.Infrastructure.ClientSession;
+using ServiceBusViewer.Infrastructure.ServiceBus;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -13,7 +17,11 @@ builder.Services.AddCors(options => options.AddPolicy("LocalDevelopment", policy
 	.AllowCredentials()));
 builder.Services.AddSingleton<ClientSessionStateRegistry>();
 builder.Services.AddHostedService<ClientSessionStateCleanupService>();
-builder.Services.AddSingleton<IViewerBusinessService, ViewerBusinessService>();
+builder.Services.AddSingleton<IServiceBusConnectionFactory, ServiceBusConnectionFactory>();
+builder.Services.AddSingleton<IApplicationInfoProvider, ApplicationInfoProvider>();
+builder.Services.AddSingleton<IViewerConnectionService, ViewerConnectionService>();
+builder.Services.AddSingleton<IViewerEntityService, ViewerEntityService>();
+builder.Services.AddSingleton<IViewerMessageService, ViewerMessageService>();
 
 WebApplication app = builder.Build();
 

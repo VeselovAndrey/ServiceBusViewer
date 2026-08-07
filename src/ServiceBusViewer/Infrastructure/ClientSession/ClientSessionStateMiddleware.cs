@@ -1,5 +1,7 @@
 namespace ServiceBusViewer.Infrastructure.ClientSession;
 
+using ServiceBusViewer.Business.Viewer.Dependencies;
+
 /// <summary>Ensures each request is associated with a server-managed browser session state bucket.</summary>
 internal sealed class ClientSessionStateMiddleware(RequestDelegate next)
 {
@@ -24,8 +26,8 @@ internal sealed class ClientSessionStateMiddleware(RequestDelegate next)
 		await _next(context);
 	}
 
-	public static ClientSessionState GetClientSessionState(HttpContext context)
-		=> context.Items.TryGetValue(_httpContextItemKey, out object? value) && value is ClientSessionState state
+	public static IViewerSessionState GetClientSessionState(HttpContext context)
+		=> context.Items.TryGetValue(_httpContextItemKey, out object? value) && value is IViewerSessionState state
 			? state
 			: throw new InvalidOperationException("Browser session state was not initialized for this request.");
 
@@ -40,6 +42,6 @@ internal static class ClientSessionStateMiddlewareExtensions
 	public static IApplicationBuilder UseClientSessionState(this IApplicationBuilder app)
 		=> app.UseMiddleware<ClientSessionStateMiddleware>();
 
-	public static ClientSessionState GetClientSessionState(this HttpContext context)
+	public static IViewerSessionState GetClientSessionState(this HttpContext context)
 		=> ClientSessionStateMiddleware.GetClientSessionState(context);
 }

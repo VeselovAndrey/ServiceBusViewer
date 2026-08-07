@@ -2,13 +2,12 @@ namespace ServiceBusViewer.Api.Endpoints.Viewer.Receive;
 
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
-using ServiceBusViewer.Business.Contracts;
-using ServiceBusViewer.Business.Contracts.Viewer;
+using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class ReceiveRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, ReceiveRequest request, IViewerBusinessService service)
+	public static Task<IResult> HandleAsync(HttpContext context, ReceiveRequest request, IViewerMessageService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
@@ -20,15 +19,15 @@ internal static class ReceiveRequestHandler
 			if (errors.Count > 0)
 				throw ApiProblemException.Validation(errors);
 
-			Business.Contracts.Viewer.ViewerState result = await service.ReceiveAsync(
+			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ReceiveAsync(
 				context.GetClientSessionState(),
-				new ReceiveCommand(RequestValidation.NormalizeOptional(request.ReceiveSessionId)));
+				RequestValidation.NormalizeOptional(request.ReceiveSessionId));
 
 			return ToReceiveResponse(result);
 		});
 	}
 
-	private static ReceiveResponse ToReceiveResponse(Business.Contracts.Viewer.ViewerState state)
+	private static ReceiveResponse ToReceiveResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)
 	{
 		Models.ViewerState response = state.ToApiModel();
 

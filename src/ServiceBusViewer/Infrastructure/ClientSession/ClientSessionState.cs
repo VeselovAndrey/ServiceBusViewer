@@ -1,24 +1,27 @@
 namespace ServiceBusViewer.Infrastructure.ClientSession;
 
-using ServiceBusViewer.Business.Contracts;
-using ServiceBusViewer.Business.Contracts.ServiceBus;
+using ServiceBusViewer.Business.Viewer.Contracts;
+using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
+using ServiceBusViewer.Business.Viewer.Dependencies;
 
 /// <summary>Holds per-browser-session backend state for the viewer API.</summary>
-internal sealed class ClientSessionState : IAsyncDisposable
+internal sealed class ClientSessionState : IViewerSessionState
 {
 	private long _lastAccessUnixTimeSeconds;
 
 	public ClientSessionState()
 	{
-		Connection = StoredConnectionSettings.CreateDefault();
+		ConnectionSettings = CreateDefaultConnectionSettings();
 		Touch();
 	}
 
 	public SemaphoreSlim Gate { get; } = new(1, 1);
 
-	public StoredConnectionSettings Connection { get; set; }
+	public ConnectionSettings ConnectionSettings { get; set; }
 
-	public IServiceBusSessionConnectionService? ServiceBusConnection { get; set; }
+	public IServiceBusConnection? Connection { get; set; }
+
+	public EntityId? SelectedEntityId { get; set; }
 
 	public ReceivedMessageList CurrentMessages { get; set; } = ReceivedMessageList.Empty;
 
@@ -28,7 +31,7 @@ internal sealed class ClientSessionState : IAsyncDisposable
 
 	public string? SendResultMessage { get; set; }
 
-	public bool IsConnected => ServiceBusConnection?.Connected == true;
+	public bool IsConnected => Connection is not null;
 
 	public DateTimeOffset LastAccessUtc => DateTimeOffset.FromUnixTimeSeconds(Interlocked.Read(ref _lastAccessUnixTimeSeconds));
 
@@ -37,11 +40,12 @@ internal sealed class ClientSessionState : IAsyncDisposable
 
 	public async Task ResetConnectionAsync()
 	{
-		if (ServiceBusConnection is not null) {
-			await ServiceBusConnection.DisposeAsync();
-			ServiceBusConnection = null;
+		if (Connection is not null) {
+			await Connection.DisposeAsync();
+			Connection = null;
 		}
 
+		SelectedEntityId = null;
 		CurrentMessages = ReceivedMessageList.Empty;
 		DisplayedMessage = null;
 		ReceiveSessionId = null;
@@ -53,17 +57,10 @@ internal sealed class ClientSessionState : IAsyncDisposable
 		await ResetConnectionAsync();
 		Gate.Dispose();
 	}
-}
 
-internal sealed record StoredConnectionSettings(
-	string ConnectionString,
-	string? RootConnectionString,
-	string? QueueOrTopicName,
-	string? SubscriptionName)
-{
-	public static StoredConnectionSettings CreateDefault()
+	private static ConnectionSettings CreateDefaultConnectionSettings()
 	{
-		return new StoredConnectionSettings(
+		return new ConnectionSettings(
 			Environment.GetEnvironmentVariable("CONNECTION_STRING")
 				?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
 			Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING"),
