@@ -2,7 +2,6 @@ namespace ServiceBusViewer.Infrastructure.ServiceBus;
 
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
-using ServiceBusViewer.Business.ServiceBus.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 using ServiceBusViewer.Business.Viewer.Dependencies;

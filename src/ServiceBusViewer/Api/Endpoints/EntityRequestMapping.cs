@@ -1,6 +1,5 @@
 namespace ServiceBusViewer.Api.Endpoints;
 
-using ServiceBusViewer.Business.ServiceBus.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 
 internal static class EntityRequestMapping

@@ -1,8 +1,8 @@
 namespace ServiceBusViewer.Api.Endpoints;
 
-using ServiceBusViewer.Api.Endpoints.Bootstrap;
 using ServiceBusViewer.Api.Endpoints.Connection;
 using ServiceBusViewer.Api.Endpoints.Entities;
+using ServiceBusViewer.Api.Endpoints.SessionState;
 using ServiceBusViewer.Api.Endpoints.Viewer;
 
 internal static class ApiGroupBuilder
@@ -11,7 +11,7 @@ internal static class ApiGroupBuilder
 	{
 		RouteGroupBuilder api = endpoints.MapGroup("/api");
 
-		api.MapBootstrapEndpoints();
+		api.MapSessionStateEndpoints();
 		api.MapConnectionEndpoints();
 		api.MapViewerEndpoints();
 		api.MapEntitiesEndpoints();

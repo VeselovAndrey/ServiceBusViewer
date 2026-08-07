@@ -11,7 +11,7 @@ import type { EntityDetailsDto, EntityIdDto } from '../types/serviceBus';
 
 export function EntityDetailsPage() {
   const navigate = useNavigate();
-  const { bootstrap, setViewerState } = useAppState();
+  const { sessionState, setViewerState } = useAppState();
   const [searchParams] = useSearchParams();
   const [details, setDetails] = useState<EntityDetailsDto | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export function EntityDetailsPage() {
   const topicName = searchParams.get('topicName');
 
   useEffect(() => {
-    if (!bootstrap?.isConnected || !type || !name) {
+    if (!sessionState?.isConnected || !type || !name) {
       return;
     }
 
@@ -44,7 +44,7 @@ export function EntityDetailsPage() {
     return () => {
       isDisposed = true;
     };
-  }, [bootstrap?.isConnected, name, topicName, type]);
+  }, [sessionState?.isConnected, name, topicName, type]);
 
   const icon = useMemo(() => {
     if (type === 'Subscription') {
@@ -56,11 +56,11 @@ export function EntityDetailsPage() {
     return 'view_headline';
   }, [type]);
 
-  if (!bootstrap) {
+  if (!sessionState) {
     return null;
   }
 
-  if (!bootstrap.isConnected) {
+  if (!sessionState.isConnected) {
     return <Navigate replace to="/connect" />;
   }
 
@@ -82,15 +82,15 @@ export function EntityDetailsPage() {
 
   const currentDetails = details;
   const availableEntities =
-    currentDetails?.availableEntities ?? bootstrap.viewer?.availableEntities ?? [];
+    currentDetails?.availableEntities ?? sessionState.viewer?.availableEntities ?? [];
   const managementAvailable =
-    currentDetails?.isManagementApiAvailable ?? bootstrap.viewer?.isManagementApiAvailable ?? false;
+    currentDetails?.isManagementApiAvailable ?? sessionState.viewer?.isManagementApiAvailable ?? false;
   const headerHostName =
-    currentDetails?.serviceBusHostName ?? bootstrap.viewer?.serviceBusHostName ?? '';
+    currentDetails?.serviceBusHostName ?? sessionState.viewer?.serviceBusHostName ?? '';
 
   return (
     <AppLayout
-      applicationVersion={bootstrap.applicationVersion}
+      applicationVersion={sessionState.applicationVersion}
       footerStatus="Entity properties view"
       headerAction={{ icon: 'chevron_left', kind: 'link', label: 'Viewer', to: '/viewer' }}
       headerStatus={{ text: 'Connected to', tone: 'connected', value: headerHostName }}

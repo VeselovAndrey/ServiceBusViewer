@@ -22,31 +22,31 @@ const emptyConnectRequest: ConnectRequestDto = {
 
 export function ConnectPage() {
   const navigate = useNavigate();
-  const { bootstrap, refreshBootstrap } = useAppState();
+  const { sessionState, refreshSessionState } = useAppState();
   const [formState, setFormState] = useState<ConnectRequestDto>(emptyConnectRequest);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const isInitializedRef = useRef(false);
 
   useEffect(() => {
-    if (!bootstrap || isInitializedRef.current) {
+    if (!sessionState || isInitializedRef.current) {
       return;
     }
 
     isInitializedRef.current = true;
     setFormState({
-      connectionString: bootstrap.connection.connectionString,
-      queueOrTopicName: bootstrap.connection.queueOrTopicName,
-      rootConnectionString: bootstrap.connection.rootConnectionString,
-      subscriptionName: bootstrap.connection.subscriptionName,
+      connectionString: sessionState.connection.connectionString,
+      queueOrTopicName: sessionState.connection.queueOrTopicName,
+      rootConnectionString: sessionState.connection.rootConnectionString,
+      subscriptionName: sessionState.connection.subscriptionName,
     });
-  }, [bootstrap]);
+  }, [sessionState]);
 
-  if (!bootstrap) {
+  if (!sessionState) {
     return null;
   }
 
-  if (bootstrap.isConnected) {
+  if (sessionState.isConnected) {
     return <Navigate replace to="/viewer" />;
   }
 
@@ -80,7 +80,7 @@ export function ConnectPage() {
 
     try {
       await serviceBusApi.connect(formState);
-      await refreshBootstrap();
+      await refreshSessionState();
       navigate('/viewer', { replace: true });
     } catch (error: unknown) {
       setErrorMessages(getErrorMessages(error));
@@ -91,7 +91,7 @@ export function ConnectPage() {
 
   return (
     <AppLayout
-      applicationVersion={bootstrap.applicationVersion}
+      applicationVersion={sessionState.applicationVersion}
       footerStatus="Ready to connect"
       headerStatus={{ text: 'Ready for a connection', tone: 'ready' }}
       title="Connect"

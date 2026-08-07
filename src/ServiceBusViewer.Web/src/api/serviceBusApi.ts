@@ -1,9 +1,9 @@
 import type {
-  BootstrapDto,
   ConnectRequestDto,
   EntityDetailsDto,
   EntityIdDto,
   ReceiveRequestDto,
+  SessionStateDto,
   SendMessageRequestDto,
   ViewerState,
 } from '../types/serviceBus';
@@ -53,8 +53,8 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const serviceBusApi = {
-  getBootstrap() {
-    return requestJson<BootstrapDto>('/bootstrap');
+  getSessionState() {
+    return requestJson<SessionStateDto>('/session-state');
   },
   connect(request: ConnectRequestDto) {
     return requestJson<ViewerState>('/connection/connect', {
@@ -63,7 +63,7 @@ export const serviceBusApi = {
     });
   },
   disconnect() {
-    return requestJson<BootstrapDto>('/connection/disconnect', {
+    return requestJson<SessionStateDto>('/connection/disconnect', {
       method: 'POST',
     });
   },

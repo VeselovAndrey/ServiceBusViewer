@@ -1,21 +1,18 @@
 namespace ServiceBusViewer.Business.Viewer.Services;
 
-using ServiceBusViewer.Business.Application.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 using ServiceBusViewer.Business.Viewer.Dependencies;
 
 /// <summary>Coordinates connection lifecycle operations for a single browser session.</summary>
-internal sealed class ViewerConnectionService(
-	IApplicationInfoProvider applicationInfoProvider,
-	IServiceBusConnectionFactory connectionFactory) : IViewerConnectionService
+internal sealed class ViewerConnectionService(IServiceBusConnectionFactory connectionFactory) : IViewerConnectionService
 {
-	public async Task<BootstrapResult> GetBootstrapAsync(IViewerSessionState session)
+	public async Task<ViewerConnectionSnapshot> GetSnapshotAsync(IViewerSessionState session)
 	{
 		await session.Gate.WaitAsync();
 
 		try {
-			return ViewerSessionStateMapper.ToBootstrapResult(session, applicationInfoProvider.ApplicationVersion);
+			return ViewerSessionStateMapper.ToConnectionSnapshot(session);
 		}
 		finally {
 			session.Gate.Release();
@@ -35,10 +32,9 @@ internal sealed class ViewerConnectionService(
 			IServiceBusConnection connection = await connectionFactory.OpenAsync(settings);
 
 			try {
-				ConnectionSettings normalizedSettings = ViewerSessionStateMapper.NormalizeConnectionSettings(settings);
-				session.ConnectionSettings = normalizedSettings;
+				session.ConnectionSettings = settings;
 				session.Connection = connection;
-				session.SelectedEntityId = ViewerSessionStateMapper.GetInitialSelectedEntityId(normalizedSettings);
+				session.SelectedEntityId = ViewerSessionStateMapper.GetInitialSelectedEntityId(settings);
 				session.CurrentMessages = session.SelectedEntityId is null
 					? ReceivedMessageList.Empty
 					: await connection.PeekMessagesAsync(session.SelectedEntityId);
@@ -58,13 +54,13 @@ internal sealed class ViewerConnectionService(
 		}
 	}
 
-	public async Task<BootstrapResult> DisconnectAsync(IViewerSessionState session)
+	public async Task<ViewerConnectionSnapshot> DisconnectAsync(IViewerSessionState session)
 	{
 		await session.Gate.WaitAsync();
 
 		try {
 			await session.ResetConnectionAsync();
-			return ViewerSessionStateMapper.ToBootstrapResult(session, applicationInfoProvider.ApplicationVersion);
+			return ViewerSessionStateMapper.ToConnectionSnapshot(session);
 		}
 		finally {
 			session.Gate.Release();

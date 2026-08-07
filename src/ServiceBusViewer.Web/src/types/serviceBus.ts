@@ -44,7 +44,7 @@ export interface ViewerState {
   receiveSessionId: string | null;
 }
 
-export interface BootstrapDto {
+export interface SessionStateDto {
   applicationVersion: string;
   connection: ConnectionSettingsDto;
   viewer: ViewerState | null;

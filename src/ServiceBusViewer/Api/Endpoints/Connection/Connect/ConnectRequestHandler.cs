@@ -2,13 +2,15 @@ namespace ServiceBusViewer.Api.Endpoints.Connection.Connect;
 
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
-using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
 using ViewerConnectionSettings = ServiceBusViewer.Business.Viewer.Contracts.ConnectionSettings;
 
 internal static class ConnectRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, ConnectRequest request, IViewerConnectionService service)
+	public static Task<IResult> HandleAsync(
+		HttpContext context,
+		ConnectRequest request,
+		ServiceBusViewer.Business.Viewer.Contracts.IViewerConnectionService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () => {
 			Dictionary<string, string[]> errors = [];
@@ -26,9 +28,13 @@ internal static class ConnectRequestHandler
 			if (errors.Count > 0)
 				throw ApiProblemException.Validation(errors);
 
+			ViewerConnectionSettings settings = rootConnectionString is null
+				? new ViewerConnectionSettings(connectionString!, queueOrTopicName!, subscriptionName)
+				: new ViewerConnectionSettings(connectionString!, rootConnectionString, queueOrTopicName, subscriptionName);
+
 			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ConnectAsync(
 				context.GetClientSessionState(),
-				new ViewerConnectionSettings(connectionString!, rootConnectionString, queueOrTopicName, subscriptionName));
+				settings);
 
 			return ToConnectResponse(result);
 		});
@@ -36,19 +42,19 @@ internal static class ConnectRequestHandler
 
 	private static ConnectResponse ToConnectResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)
 	{
-		Models.ViewerState response = state.ToApiModel();
+		ViewerState viewerState = state.ToApiModel();
 
 		return new ConnectResponse(
-			response.ServiceBusHostName,
-			response.EntityName,
-			response.TopicName,
-			response.RequiresSession,
-			response.IsManagementApiAvailable,
-			response.AvailableEntities,
-			response.Messages,
-			response.HasMoreMessages,
-			response.DisplayedMessage,
-			response.SendResultMessage,
-			response.ReceiveSessionId);
+			viewerState.ServiceBusHostName,
+			viewerState.EntityName,
+			viewerState.TopicName,
+			viewerState.RequiresSession,
+			viewerState.IsManagementApiAvailable,
+			viewerState.AvailableEntities,
+			viewerState.Messages,
+			viewerState.HasMoreMessages,
+			viewerState.DisplayedMessage,
+			viewerState.SendResultMessage,
+			viewerState.ReceiveSessionId);
 	}
 }

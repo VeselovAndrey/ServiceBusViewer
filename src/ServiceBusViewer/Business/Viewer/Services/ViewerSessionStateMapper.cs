@@ -6,10 +6,9 @@ using ServiceBusViewer.Business.Viewer.Dependencies;
 
 internal static class ViewerSessionStateMapper
 {
-	public static BootstrapResult ToBootstrapResult(IViewerSessionState session, string applicationVersion)
+	public static ViewerConnectionSnapshot ToConnectionSnapshot(IViewerSessionState session)
 	{
-		return new BootstrapResult(
-			applicationVersion,
+		return new ViewerConnectionSnapshot(
 			session.ConnectionSettings,
 			session.IsConnected ? ToViewerState(session, session.Connection!) : null,
 			session.IsConnected);
@@ -64,15 +63,6 @@ internal static class ViewerSessionStateMapper
 		return string.IsNullOrWhiteSpace(sentMessageId)
 			? $"Message sent successfully {contentTypeDescription}."
 			: $"Message '{sentMessageId}' sent successfully {contentTypeDescription}.";
-	}
-
-	public static ConnectionSettings NormalizeConnectionSettings(ConnectionSettings settings)
-	{
-		return new ConnectionSettings(
-			settings.ConnectionString,
-			settings.RootConnectionString,
-			settings.RootConnectionString is null ? settings.QueueOrTopicName : null,
-			settings.RootConnectionString is null ? settings.SubscriptionName : null);
 	}
 
 	public static EntityId? GetInitialSelectedEntityId(ConnectionSettings settings)

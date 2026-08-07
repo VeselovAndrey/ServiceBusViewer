@@ -2,9 +2,7 @@ namespace ServiceBusViewer.Business.Viewer.Contracts;
 
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 
-/// <summary>
-/// Details about a Service Bus entity including available related entities and properties.
-/// </summary>
+/// <summary>Represents detailed information about a Service Bus entity.</summary>
 /// <param name="ServiceBusHostName">The host name of the Service Bus namespace or emulator.</param>
 /// <param name="IsManagementApiAvailable">Whether the management API is reachable for this namespace.</param>
 /// <param name="AvailableEntities">List of entities available in the namespace (queues/topics).</param>

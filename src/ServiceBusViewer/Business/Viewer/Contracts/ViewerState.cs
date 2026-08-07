@@ -2,9 +2,7 @@ namespace ServiceBusViewer.Business.Viewer.Contracts;
 
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 
-/// <summary>
-/// Snapshot of the viewer UI state including available entities, received messages, and selection info.
-/// </summary>
+/// <summary>Represents the current state of the Service Bus viewer.</summary>
 /// <param name="ServiceBusHostName">The host name of the connected Service Bus namespace or emulator.</param>
 /// <param name="EntityName">Currently selected entity name (queue or subscription) or null if none selected.</param>
 /// <param name="TopicName">When viewing a subscription, the parent topic name; otherwise null.</param>
@@ -15,9 +13,7 @@ using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 /// <param name="HasMoreMessages">Indicates if additional messages are available beyond the returned list.</param>
 /// <param name="DisplayedMessage">Message currently opened for detailed viewing, if any.</param>
 /// <param name="SendResultMessage">Optional result message after a send operation (success/error).</param>
-/// <param name="ReceiveSessionId">
-/// Optional active receive session id when receiving from session-enabled entities.
-/// </param>
+/// <param name="ReceiveSessionId">Optional active receive session identifier for session-enabled entities.</param>
 public sealed record ViewerState(
 	string ServiceBusHostName,
 	string? EntityName,

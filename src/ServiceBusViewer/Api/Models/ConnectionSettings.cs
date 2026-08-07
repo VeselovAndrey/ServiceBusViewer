@@ -1,7 +1,7 @@
 namespace ServiceBusViewer.Api.Models;
 
 /// <summary>
-/// Connection settings returned by bootstrap and disconnect endpoints.
+/// Connection settings returned by session-state and disconnect endpoints.
 /// </summary>
 /// <param name="ConnectionString">Primary connection string used to connect to Service Bus.</param>
 /// <param name="RootConnectionString">Optional root connection string used for namespace-level operations.</param>

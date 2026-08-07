@@ -10,35 +10,35 @@ import {
 } from 'react';
 import { serviceBusApi } from '../api/serviceBusApi';
 import { getErrorMessages } from '../lib/problemDetails';
-import type { BootstrapDto, ViewerState } from '../types/serviceBus';
+import type { SessionStateDto, ViewerState } from '../types/serviceBus';
 
 interface AppStateContextValue {
-  bootstrap: BootstrapDto | null;
+  sessionState: SessionStateDto | null;
   errorMessages: string[];
   isLoading: boolean;
-  refreshBootstrap: () => Promise<BootstrapDto>;
+  refreshSessionState: () => Promise<SessionStateDto>;
   setViewerState: (viewer: ViewerState | null) => void;
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const [bootstrap, setBootstrap] = useState<BootstrapDto | null>(null);
+  const [sessionState, setSessionState] = useState<SessionStateDto | null>(null);
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const hasLoadedRef = useRef(false);
 
-  const refreshBootstrap = useCallback(async () => {
+  const refreshSessionState = useCallback(async () => {
     setIsLoading(true);
 
     try {
-      const nextBootstrap = await serviceBusApi.getBootstrap();
-      setBootstrap(nextBootstrap);
+      const nextSessionState = await serviceBusApi.getSessionState();
+      setSessionState(nextSessionState);
       setErrorMessages([]);
-      return nextBootstrap;
+      return nextSessionState;
     } catch (error: unknown) {
       setErrorMessages(getErrorMessages(error));
-      setBootstrap((current) => current);
+      setSessionState((current) => current);
       throw error;
     } finally {
       setIsLoading(false);
@@ -51,13 +51,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
 
     hasLoadedRef.current = true;
-    void refreshBootstrap().catch(() => {
+    void refreshSessionState().catch(() => {
       // The error state is rendered by the app shell.
     });
-  }, [refreshBootstrap]);
+  }, [refreshSessionState]);
 
   const setViewerState = useCallback((viewer: ViewerState | null) => {
-    setBootstrap((current) => {
+    setSessionState((current) => {
       if (!current) {
         return current;
       }
@@ -72,13 +72,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AppStateContextValue>(
     () => ({
-      bootstrap,
+      sessionState,
       errorMessages,
       isLoading,
-      refreshBootstrap,
+      refreshSessionState,
       setViewerState,
     }),
-    [bootstrap, errorMessages, isLoading, refreshBootstrap, setViewerState],
+    [sessionState, errorMessages, isLoading, refreshSessionState, setViewerState],
   );
 
   return (

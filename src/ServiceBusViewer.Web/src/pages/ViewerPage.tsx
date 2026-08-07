@@ -28,8 +28,8 @@ type ViewerAction = 'disconnect' | 'receive' | 'refresh' | 'send';
 
 export function ViewerPage() {
   const navigate = useNavigate();
-  const { bootstrap, refreshBootstrap, setViewerState } = useAppState();
-  const viewer = bootstrap?.viewer;
+  const { sessionState, refreshSessionState, setViewerState } = useAppState();
+  const viewer = sessionState?.viewer;
   const currentViewer = viewer;
   const [pendingAction, setPendingAction] = useState<ViewerAction | null>(null);
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
@@ -38,7 +38,7 @@ export function ViewerPage() {
   const [receiveSessionId, setReceiveSessionId] = useState(viewer?.receiveSessionId ?? '');
 
   useEffect(() => {
-    if (!bootstrap?.isConnected || viewer) {
+    if (!sessionState?.isConnected || viewer) {
       return;
     }
 
@@ -59,7 +59,7 @@ export function ViewerPage() {
     return () => {
       isDisposed = true;
     };
-  }, [bootstrap?.isConnected, setViewerState, viewer]);
+  }, [sessionState?.isConnected, setViewerState, viewer]);
 
   useEffect(() => {
     setReceiveSessionId(viewer?.receiveSessionId ?? '');
@@ -104,11 +104,11 @@ export function ViewerPage() {
     ];
   }, [currentViewer?.displayedMessage]);
 
-  if (!bootstrap) {
+  if (!sessionState) {
     return null;
   }
 
-  if (!bootstrap.isConnected) {
+  if (!sessionState.isConnected) {
     return <Navigate replace to="/connect" />;
   }
   const entityMeta = currentViewer
@@ -125,7 +125,7 @@ export function ViewerPage() {
   const handleDisconnect = async () => {
     await runAction('disconnect', async () => {
       await serviceBusApi.disconnect();
-      await refreshBootstrap();
+      await refreshSessionState();
       navigate('/connect', { replace: true });
     });
   };
@@ -223,7 +223,7 @@ export function ViewerPage() {
 
   return (
     <AppLayout
-      applicationVersion={bootstrap.applicationVersion}
+      applicationVersion={sessionState.applicationVersion}
       footerStatus={
         currentViewer?.requiresSession
           ? 'Session-aware receive enabled'

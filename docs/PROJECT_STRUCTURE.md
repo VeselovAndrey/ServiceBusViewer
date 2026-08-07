@@ -19,7 +19,7 @@ ServiceBusViewer.sln
 │  ├─ ServiceBusViewer/                      <-- Backend API project, owns HTTP API, business logic, and browser-session state.
 │  │  ├─ Api/                                <-- HTTP boundary; keep minimal API handlers thin and delegate to business slice services
 │  │  │  ├─ Endpoints/                       <-- Minimal API endpoint groups organized by feature area
-│  │  │  │  ├─ Bootstrap/                    <-- Initial application bootstrap payload
+│  │  │  │  ├─ SessionState/                 <-- Initial session-state payload for the current browser session
 │  │  │  │  ├─ Connection/                   <-- Connect/disconnect endpoints
 │  │  │  │  ├─ Entities/                     <-- Queue/topic/subscription details endpoints
 │  │  │  │  └─ Viewer/                       <-- Viewer state, receive, refresh, select, and send endpoints

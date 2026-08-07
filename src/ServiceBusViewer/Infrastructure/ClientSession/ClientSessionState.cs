@@ -60,11 +60,17 @@ internal sealed class ClientSessionState : IViewerSessionState
 
 	private static ConnectionSettings CreateDefaultConnectionSettings()
 	{
-		return new ConnectionSettings(
-			Environment.GetEnvironmentVariable("CONNECTION_STRING")
-				?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
-			Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING"),
-			null,
-			null);
+		string connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+			?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
+
+		string? rootConnectionString = Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING");
+
+		string queueOrTopicName = Environment.GetEnvironmentVariable("QUEUE_OR_TOPIC_NAME") ?? "default";
+
+		string? subscriptionName = Environment.GetEnvironmentVariable("SUBSCRIPTION_NAME");
+
+		return !string.IsNullOrWhiteSpace(rootConnectionString)
+			? new ConnectionSettings(connectionString, rootConnectionString, queueOrTopicName, subscriptionName)
+			: new ConnectionSettings(connectionString, queueOrTopicName, subscriptionName);
 	}
 }

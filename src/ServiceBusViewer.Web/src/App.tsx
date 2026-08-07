@@ -7,7 +7,7 @@ import { ViewerPage } from './pages/ViewerPage';
 import { useAppState } from './state/AppStateContext';
 
 function BootErrorState() {
-  const { errorMessages, refreshBootstrap } = useAppState();
+  const { errorMessages, refreshSessionState } = useAppState();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8 dark:bg-slate-950">
@@ -27,7 +27,7 @@ function BootErrorState() {
           type="button"
           className="mt-6 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-950/20 transition hover:bg-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           onClick={() => {
-            void refreshBootstrap();
+            void refreshSessionState();
           }}
         >
           <span className="material-icons-round text-sm">refresh</span>
@@ -39,18 +39,18 @@ function BootErrorState() {
 }
 
 function HomeRedirect() {
-  const { bootstrap } = useAppState();
-  return <Navigate replace to={bootstrap?.isConnected ? '/viewer' : '/connect'} />;
+  const { sessionState } = useAppState();
+  return <Navigate replace to={sessionState?.isConnected ? '/viewer' : '/connect'} />;
 }
 
 export default function App() {
-  const { bootstrap, isLoading } = useAppState();
+  const { sessionState, isLoading } = useAppState();
 
-  if (isLoading && !bootstrap) {
+  if (isLoading && !sessionState) {
     return <LoadingScreen message="Loading Service Bus Viewer..." />;
   }
 
-  if (!bootstrap) {
+  if (!sessionState) {
     return <BootErrorState />;
   }
 

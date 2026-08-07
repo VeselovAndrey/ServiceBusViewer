@@ -1,12 +1,8 @@
 namespace ServiceBusViewer.Business.Application.Contracts;
 
-/// <summary>
-/// Provides application-level metadata needed by business services.
-/// </summary>
+/// <summary>Provides application-level metadata.</summary>
 internal interface IApplicationInfoProvider
 {
-	/// <summary>
-	/// Gets the running application version string exposed to viewers.
-	/// </summary>
+	/// <summary>Gets the application version string exposed to clients.</summary>
 	string ApplicationVersion { get; }
 }
