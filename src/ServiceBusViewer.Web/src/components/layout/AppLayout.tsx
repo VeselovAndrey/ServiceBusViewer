@@ -28,7 +28,7 @@ type HeaderAction =
 interface AppLayoutProps {
   applicationVersion: string;
   children: ReactNode;
-  footerStatus: string;
+  footerStatus?: string;
   headerAction?: HeaderAction;
   headerStatus: HeaderStatus;
   title: string;
@@ -138,7 +138,7 @@ export function AppLayout({
             </svg>
           </a>
         </div>
-        <div className="font-mono">{footerStatus}</div>
+        {footerStatus ? <div className="font-mono">{footerStatus}</div> : null}
       </footer>
     </div>
   );

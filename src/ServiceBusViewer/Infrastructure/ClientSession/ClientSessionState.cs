@@ -65,7 +65,7 @@ internal sealed class ClientSessionState : IViewerSessionState
 
 		string? rootConnectionString = Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING");
 
-		string queueOrTopicName = Environment.GetEnvironmentVariable("QUEUE_OR_TOPIC_NAME") ?? "default";
+		string queueOrTopicName = Environment.GetEnvironmentVariable("QUEUE_OR_TOPIC_NAME") ?? string.Empty;
 
 		string? subscriptionName = Environment.GetEnvironmentVariable("SUBSCRIPTION_NAME");
 

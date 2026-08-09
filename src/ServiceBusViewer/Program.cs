@@ -30,8 +30,15 @@ WebApplication app = builder.Build();
 app.UseExceptionHandler();
 app.UseCors("LocalDevelopment");
 app.UseClientSessionState();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.MapApiEndpoints();
+app.MapFallback("/api/{**path}", static context => {
+	context.Response.StatusCode = StatusCodes.Status404NotFound;
+	return Task.CompletedTask;
+});
+app.MapFallbackToFile("index.html");
 
 await app.RunAsync();
 

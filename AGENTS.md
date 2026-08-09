@@ -54,7 +54,7 @@ Enforced rules for agents:
 
 - There are currently no automated tests in the repository.
 - Prefer targeted manual validation aligned with the changed behavior.
-- Keep Dockerfiles, nginx config, and AppHost emulator/configuration assets aligned with runtime changes.
+- Keep the combined-image Dockerfile and AppHost emulator/configuration assets aligned with runtime changes.
 
 ## Agent Operational Guidelines
 

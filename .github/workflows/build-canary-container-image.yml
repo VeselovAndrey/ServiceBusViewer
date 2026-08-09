@@ -1,4 +1,4 @@
-name: Build and publish the canary container images
+name: Build and publish the canary container image
 
 on:
   workflow_dispatch:
@@ -15,14 +15,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    strategy:
-      matrix:
-        include:
-        - image_name: ServiceBusViewer
-          dockerfile: ./src/ServiceBusViewer/Dockerfile
-        - image_name: servicebusviewer-web
-          dockerfile: ./src/ServiceBusViewer.Web/Dockerfile
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
@@ -38,6 +30,6 @@ jobs:
       uses: docker/build-push-action@v7
       with:
         context: .
-        file: ${{ matrix.dockerfile }}
+        file: ./src/ServiceBusViewer/Dockerfile
         push: true
-        tags: ghcr.io/veselovandrey/${{ matrix.image_name }}:canary
+        tags: ghcr.io/veselovandrey/ServiceBusViewer:canary

@@ -7,7 +7,7 @@ Service Bus Viewer is now split into:
 - `src\ServiceBusViewer.Web` - React + Vite SPA (frontend)
 - `src\ServiceBusViewer.AppHost` - AppHost orchestration for local development
 
-The main goal remains local development and testing against the Service Bus emulator.
+The main goal remains local development and testing against the Service Bus emulator. Local development runs the API and Vite separately, while the published container serves the compiled SPA and API from one ASP.NET Core process.
 
 ## Features
 
@@ -64,7 +64,7 @@ npm run web:dev
 
 Note: The API listens on the ASP.NET Core default URLs; set ASPNETCORE_URLS to override the port and make sure VITE_PROXY_TARGET points at the correct API URL when running the SPA dev server.
 
-### Build the split app locally
+### Build the app locally
 
 Build the .NET solution:
 
@@ -82,43 +82,27 @@ npm run web:build
 
 ### Published images
 
-Release workflows now publish two images:
+Release workflows publish one image containing both the compiled SPA and API:
 - `ghcr.io/veselovandrey/ServiceBusViewer`
-- `ghcr.io/veselovandrey/servicebusviewer-web`
 
-### Build the images locally
+The container listens on port `8080`. ASP.NET Core serves the SPA routes and static assets, while `/api/*` is handled by the backend.
+
+### Build the image locally
 
 ```powershell
 docker build -f src\\ServiceBusViewer\Dockerfile -t ServiceBusViewer .
-docker build -f src\ServiceBusViewer.Web\Dockerfile -t servicebusviewer-web .
 ```
 
-### Run the images locally
-
-Create a shared network first:
+### Run the image locally
 
 ```powershell
-docker network create servicebusviewer
-```
-
-Run the API container:
-
-```powershell
-docker run --name ServiceBusViewer --network servicebusviewer -p 8080:8080 `
+docker run --name ServiceBusViewer -p 8080:8080 `
   -e CONNECTION_STRING="Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" `
   -e ROOT_CONNECTION_STRING="Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" `
   -d ServiceBusViewer
 ```
 
-Run the SPA container:
-
-```powershell
-docker run --name servicebusviewer-web --network servicebusviewer -p 5000:8080 `
-  -e ServiceBusViewer_UPSTREAM="http://ServiceBusViewer:8080" `
-  -d servicebusviewer-web
-```
-
-The nginx-based SPA container serves the static site and reverse-proxies `/api/*` to the API container.
+Open `http://localhost:8080`. The SPA and `/api` endpoints use the same origin; no frontend upstream environment variable or separate web container is required.
 
 ## Browser-session isolation
 

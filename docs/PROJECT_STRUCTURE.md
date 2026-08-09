@@ -37,7 +37,7 @@ ServiceBusViewer.sln
 │  │  ├─ Infrastructure/                     <-- Backend infrastructure concerns outside the HTTP/business layers
 │  │  │  ├─ ClientSession/                   <-- Client-session isolation and state scoped to the session cookie
 │  │  │  └─ ServiceBus/                      <-- Azure Service Bus and other technical implementations that satisfy business-defined dependencies
-│  │  └─ Dockerfile                          <-- Backend container image
+│  │  └─ Dockerfile                          <-- Multi-stage build for the combined SPA and API container image
 │  │
 │  ├─ ServiceBusViewer.Web/                  <-- Frontend SPA project, focused on UI, client state, and `/api` integration.
 │  │  ├─ src/                                <-- Frontend code organized by API access, UI components, hooks/utilities, pages, state, and types
@@ -57,10 +57,7 @@ ServiceBusViewer.sln
 │  │  │  └─ types/                           <-- Frontend TypeScript types for Service Bus viewer data
 │  │  │     └─ serviceBus.ts                 <-- Frontend TypeScript domain types
 │  │  ├─ public/                             <-- Static assets served by Vite
-│  │  ├─ nginx/                              <-- Frontend container reverse-proxy assets that must stay aligned with `/api` routing
-│  │  │  └─ default.conf.template            <-- SPA container reverse-proxy config for `/api`
-│  │  ├─ vite.config.ts                      <-- Vite dev server and `/api` proxy configuration
-│  │  └─ Dockerfile                          <-- Frontend container image; keep runtime ports and env contracts aligned with the SPA
+│  │  └─ vite.config.ts                      <-- Vite dev server and `/api` proxy configuration for local development
 │  │
 │  └─ ServiceBusViewer.AppHost/              <-- Local orchestration project for emulator, SQL storage, API, and SPA dev server; not for business logic
 │     ├─ AppHost.cs                          <-- Aspire/AppHost orchestration for emulator, SQL, API, and SPA
@@ -91,9 +88,9 @@ ServiceBusViewer.sln
 
 ## Key Principles Reflected
 
-### Split application boundaries stay explicit
+### Application boundaries stay explicit
 
-The solution is intentionally divided into backend, frontend, and local-orchestration projects. Keep ownership clear: backend behavior belongs in `src\ServiceBusViewer`, UI/client behavior belongs in `src\ServiceBusViewer.Web`, and local environment wiring belongs in `src\ServiceBusViewer.AppHost`.
+The solution is intentionally divided into backend, frontend, and local-orchestration projects. Keep ownership clear: backend behavior belongs in `src\ServiceBusViewer`, UI/client behavior belongs in `src\ServiceBusViewer.Web`, and local environment wiring belongs in `src\ServiceBusViewer.AppHost`. This source-level split is preserved even though production deployment uses one container.
 
 ### Minimal API handlers stay thin
 
@@ -119,11 +116,11 @@ Viewer state and Service Bus connection state are intentionally isolated per bro
 
 ### Frontend and backend communicate through `/api`
 
-`src\ServiceBusViewer.Web` should depend on backend HTTP contracts exposed via `/api`, not backend implementation details or shared internal abstractions. Keep frontend API access centralized in the frontend API layer.
+`src\ServiceBusViewer.Web` should depend on backend HTTP contracts exposed via `/api`, not backend implementation details or shared internal abstractions. Keep frontend API access centralized in the frontend API layer. Vite proxies `/api` to the separately running API during local development; the combined container serves both from the ASP.NET Core host on port `8080`.
 
 ### AppHost and container assets are configuration boundaries
 
-`src\ServiceBusViewer.AppHost`, Dockerfiles, nginx config, and emulator configuration are part of the runtime/development wiring. Changes to ports, environment variables, `/api` routing, or startup assumptions should keep all of these assets aligned.
+`src\ServiceBusViewer.AppHost`, the combined-image Dockerfile, and emulator configuration are part of the runtime/development wiring. The AppHost continues to run Vite and the API as separate resources for local development. The Dockerfile builds the SPA, publishes the API, and places the SPA bundle in the published application's `wwwroot`; the final image contains only the ASP.NET Core runtime. Changes to ports, environment variables, `/api` routing, or startup assumptions should keep these assets aligned.
 
 ### Validation is currently manual
 

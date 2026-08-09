@@ -92,7 +92,6 @@ export function ConnectPage() {
   return (
     <AppLayout
       applicationVersion={sessionState.applicationVersion}
-      footerStatus="Ready to connect"
       headerStatus={{ text: 'Ready for a connection', tone: 'ready' }}
       title="Connect"
     >
