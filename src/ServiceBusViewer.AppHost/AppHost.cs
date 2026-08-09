@@ -1,3 +1,4 @@
+#pragma warning disable ASPIREJAVASCRIPT001
 using Projects;
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
@@ -10,13 +11,13 @@ const string serviceBusEmulatorConnectionString = "Endpoint=sb://localhost;Share
 const string serviceBusEmulatorSqlServerContainerName = "servicebusviewer-servicebusemulator-storage";
 string sqlPassword = Guid.NewGuid().ToString("D");
 
-IResourceBuilder<ContainerResource> serviceBusEmulatorStorage = builder.AddContainer("servicebusviewer-servicebusemulator-storage", "mcr.microsoft.com/mssql/server:2025-latest")
+IResourceBuilder<ContainerResource> serviceBusEmulatorStorage = builder.AddContainer("ServiceBusViewer-ServiceBusEmulator-Storage", "mcr.microsoft.com/mssql/server:2025-latest")
 	.WithContainerName(serviceBusEmulatorSqlServerContainerName)
 	.WithEnvironment("ACCEPT_EULA", "Y")
 	.WithEnvironment("MSSQL_SA_PASSWORD", sqlPassword);
 
 // Add Azure Service Bus emulator
-IResourceBuilder<ContainerResource> serviceBusEmulator = builder.AddContainer("servicebusviewer-servicebusemulator", "mcr.microsoft.com/azure-messaging/servicebus-emulator", "2.0.0")
+IResourceBuilder<ContainerResource> serviceBusEmulator = builder.AddContainer("ServiceBusViewer-ServiceBusEmulator", "mcr.microsoft.com/azure-messaging/servicebus-emulator", "2.0.1")
 	.WithContainerName("servicebusviewer-servicebusemulator")
 	.WaitFor(serviceBusEmulatorStorage, WaitBehavior.WaitOnResourceUnavailable)
 	.WithEndpoint(port: 5672, targetPort: 5672)
@@ -30,11 +31,21 @@ IResourceBuilder<ContainerResource> serviceBusEmulator = builder.AddContainer("s
 	.WithEnvironment("MSSQL_SA_PASSWORD", sqlPassword)
 	.WithEnvironment("ACCEPT_EULA", "Y");
 
-// Add Service Bus Viewer
-IResourceBuilder<ProjectResource> serviceBusViewer = builder.AddProject<ServiceBusViewer>("ServiceBusViewer")
+// Add Service Bus Viewer API
+IResourceBuilder<ProjectResource> serviceBusViewerApi = builder.AddProject<ServiceBusViewer>("ServiceBusViewer-API")
 	.WithEnvironment("CONNECTION_STRING", serviceBusEmulatorConnectionString)
 	.WithEnvironment("ROOT_CONNECTION_STRING", serviceBusEmulatorManagementConnectionString)
+	.WithExternalHttpEndpoints()
 	.WaitFor(serviceBusEmulator, WaitBehavior.WaitOnResourceUnavailable);
+
+// Add Service Bus Viewer SPA
+builder.AddViteApp("ServiceBusViewer-Frontend", @"..\ServiceBusViewer.Web")
+	.WithHttpEndpoint(port: 5173, env: "PORT")
+	.WithExternalHttpEndpoints()
+	.WithReference(serviceBusViewerApi)
+	.WithEnvironment("VITE_PROXY_TARGET", serviceBusViewerApi.GetEndpoint("http"))
+	.WaitFor(serviceBusViewerApi, WaitBehavior.WaitOnResourceUnavailable)
+	.PublishAsStaticWebsite("/api", serviceBusViewerApi);
 
 DistributedApplication app = builder.Build();
 

@@ -1,69 +1,74 @@
 # AI Coding Agent Instructions
 
-> 📌 **This document is the primary memory store for all AI agents working on this project.** All conventions, patterns, decisions, and coding standards documented here should be followed consistently across all code changes. When making updates to the codebase, ensure that all relevant team conventions from this file are applied.
+> 📌 This document is the primary agent-facing guide for repository-specific implementation rules. Keep it concise, accurate, and update it when repository conventions change.
 
 ## Project Context
-A **temporary, AI-generated** ASP.NET Razor Pages web app for viewing/interacting with Azure Service Bus queues/topics. Primary use case: local development with the [Azure Service Bus Emulator](https://github.com/Azure/azure-service-bus-emulator-installer). No long-term maintenance planned.
 
-## Architecture
+ServiceBusViewer is split into three cooperating projects:
 
-### Core Components
-- **[ServiceBusService.cs](src/ServiceBusViewer/Infrastructure/ServiceBus/ServiceBusService.cs)**: Singleton service managing a single persistent `ServiceBusClient` connection. Provides peek/receive/send operations.
-- **[Index.cshtml.cs](src/ServiceBusViewer/Pages/Index.cshtml.cs)**: The only page. Handles all UI interactions via `OnPost*` handlers (Connect, Disconnect, Refresh, Peek, Receive, Send).
-- **Models**: Simple record types ([MessageDetails](src/ServiceBusViewer/Infrastructure/ServiceBus/Models/MessageDetails.cs), [PeekedMessageInfo](src/ServiceBusViewer/Infrastructure/ServiceBus/Models/PeekedMessageInfo.cs)) with no business logic.
+- `src\ServiceBusViewer` — ASP.NET Core minimal API backend
+- `src\ServiceBusViewer.Web` — React + Vite SPA frontend
+- `src\ServiceBusViewer.AppHost` — local Aspire/AppHost orchestration
 
-### Key Design Patterns
-- **Singleton Service**: `ServiceBusService` is registered as singleton in [Program.cs](src/ServiceBusViewer/Program.cs). Only one connection active at a time.
-- **State Management**: Connection state tracked via `Connected` property + string fields (`Host`, `EntityName`, `SubscriptionName`). No distributed state.
-- **Error Handling**: Exceptions caught in `OnPost*` handlers, added to `ModelState.AddModelError()`, displayed in UI via Razor validation summary.
+Primary use case: local development and testing with the Azure Service Bus Emulator.
 
-## Development Workflows
+## Source-of-Truth Documents
 
-### Running Locally
-```powershell
-cd src\ServiceBusViewer
-dotnet run
-```
-Defaults to `localhost` emulator connection string (see [Index.cshtml.cs#L25-26](src/ServiceBusViewer/Pages/Index.cshtml.cs)).
-Debug builds run `npm run build:assets` automatically from the repository root, and restore front-end dependencies with `npm ci` when `node_modules` is missing.
+- `docs\PROJECT_STRUCTURE.md` — repository layout, folder responsibilities, and dependency boundaries
+- `README.md` — developer workflows, container usage, and product overview
+- `.agents\specs\CSHARP_CODESTYLE.md` — C# coding conventions and style rules
 
-### Docker Build (from repository root)
-```powershell
-docker build -f src/ServiceBusViewer/Dockerfile -t servicebusviewer .
-docker run -p 5000:8080 -e CONNECTION_STRING="..." servicebusviewer
-```
-**Critical**: Dockerfile expects to run from the repository root so it can build the npm-based UI assets before publishing the app.
+Do not duplicate detailed structure or workflow guidance here when those files already cover it.
 
-### Connection String Patterns
-- **Emulator from host**: `Endpoint=sb://localhost;SharedAccessKeyName=...;UseDevelopmentEmulator=true;`
-- **Emulator from container**: Use `host.docker.internal` instead of `localhost`
-- See [README.md](README.md#accessing-the-service-bus-emulator) for full examples
+Follow `.agents\specs\CSHARP_CODESTYLE.md` for all C# style rules.
 
-## Project-Specific Conventions
+## Architecture Rules
 
-### C# Patterns
-- **Records for DTOs**: All model classes use `record` types with positional parameters (e.g., `MessageDetails`, `PeekedMessageInfo`).
-- **XML docs**: Public methods/properties in `ServiceBusService` have `<summary>` tags. Apply same pattern to new public members.
-  - **Single-line summaries**: If `<summary>` text fits on a single line, format as `<summary>text</summary>` on one line instead of splitting across multiple lines.
-- **Nullable reference types**: Enabled via `<Nullable>enable</Nullable>`. Use `?` for optional parameters/properties.
-- **Primary constructors**: Page models use C# 12 primary constructors (e.g., `IndexModel(ServiceBusService serviceBusService)`).
+See docs\PROJECT_STRUCTURE.md for the canonical architecture and folder responsibilities.
 
-### Razor Pages
-- **Single-page app**: All functionality in `Index.cshtml` + code-behind. No navigation/routing beyond root.
-- **Form handlers**: Each action has dedicated `OnPost{Action}` method. Always call `FillHeaderValue()` before returning `Page()`.
-- **Model binding**: Use `[BindProperty]` for form inputs. Use `[BindProperty(SupportsGet = true)]` for query string params.
+Enforced rules for agents:
+- Minimal API handlers must remain thin: validate input, call the appropriate business capability service, and map results to HTTP responses.
+- Preserve browser-session isolation: keep viewer and Service Bus connection state scoped to the `sbv-session` browser cookie.
 
-### Service Bus Client Usage
-- **Receiver disposal**: Always use `await using var receiver = GetReceiver()` for automatic cleanup.
-- **PeekLock mode**: All receivers created with `ServiceBusReceiveMode.PeekLock` (see [ServiceBusService.cs#L148](src/ServiceBusViewer/Infrastructure/ServiceBus/ServiceBusService.cs)).
-- **Queue vs Topic**: `GetReceiver()` auto-detects based on `SubscriptionName` presence. Senders ignore subscriptions (topics only).
+## Service Bus Implementation Notes
 
-## External Dependencies
-- **Azure.Messaging.ServiceBus 7.20.1**: Primary SDK. No custom wrappers/abstractions beyond `ServiceBusService`.
-- **Bootstrap 5.3.6**: Vendored in [wwwroot/lib/bootstrap](src/ServiceBusViewer/wwwroot/lib/bootstrap). No CDN usage.
-- **.NET 10.0**: Targeting `net10.0` framework. Uses implicit usings and file-scoped namespaces.
+- The code uses `Azure.Messaging.ServiceBus`.
+- Prefer `await using` for receivers and senders to ensure deterministic disposal.
+- Receivers should use `ServiceBusReceiveMode.PeekLock` unless a specific handler requires a different mode.
+- Follow existing session-aware connection management patterns instead of introducing shared viewer state.
 
-## Testing & Debugging
-- **No automated tests**: Project has no test projects or test code. Manual testing only.
-- **Launch profiles**: See [launchSettings.json](src/ServiceBusViewer/Properties/launchSettings.json). Use "ServiceBusViewer" for local dev, "Container (Dockerfile)" for Docker testing.
-- **Environment variable**: Set `CONNECTION_STRING` env var to override default connection string.
+## Frontend Conventions
+
+- Keep frontend code organized by responsibility under `src\ServiceBusViewer.Web\src` (`api`, `assets`, `components`, `hooks`, `lib`, `pages`, `state`, `types`).
+- Keep API-calling code in the frontend API layer instead of scattering fetch logic across components.
+- Preserve the existing `/api` proxy/runtime contract when changing frontend or container configuration.
+
+## Environment Notes
+
+- `CONNECTION_STRING` overrides the default Service Bus connection string for the API.
+- `ROOT_CONNECTION_STRING` is used for namespace/root operations when available.
+- `QUEUE_OR_TOPIC_NAME` selects the queue or topic used for direct entity access.
+- `SUBSCRIPTION_NAME` selects the subscription when direct entity access targets a topic.
+- `ASPNETCORE_URLS` can be used to pin the backend port for local development and container scenarios.
+- `VITE_PROXY_TARGET` should match the backend URL when running the SPA separately.
+- `VITE_API_BASE_PATH` sets the API base path embedded in the SPA during Vite development or build and defaults to `/api`.
+
+## Testing and Validation
+
+- There are currently no automated tests in the repository.
+- Prefer targeted manual validation aligned with the changed behavior.
+- Keep the combined-image Dockerfile and AppHost emulator/configuration assets aligned with runtime changes.
+
+## Agent Operational Guidelines
+
+- Record repository-specific decisions or exceptions in `.agents/specs/PROJECT_DECISIONS.md`
+- Do not commit changes if it was not explicitly requested by developer. If you are unsure, ask for clarification.
+- Make surgical, minimal changes that fully address the user's request. Avoid broad refactors unless requested.
+- When changing runtime or API contracts, do it only with explicit confirmation and update `docs\PROJECT_STRUCTURE.md` and `README.md` accordingly.
+- Validate changes with the smallest-targeted tests or manual checks appropriate to the change; do not add global test suites.
+- If any ambiguity exists, ask a clarifying questions using tool before making edits. Prefer multiple-choice options when possible.
+- Prefer repo-provided tools and scripts (e.g., `npm run web:install`, `dotnet run --project ...`) for validation rather than installing new global tools.
+- Never rewrite existing working tests without explicit confirmation.
+- Never install any new tools without explicit confirmation.
+- Never commit or push any changes without explicit confirmation.
+- Use language servers (LSP) for code navigation and refactoring when available for higher confidence edits.

@@ -9,11 +9,15 @@
 
 		<Product>ServiceBusViewer</Product>
 		<Authors>Andrey Veselov</Authors>
-		<Copyright>Copyright © 2026 Andrey Veselov</Copyright>
+		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
+
+		<AnalysisLevel>latest</AnalysisLevel>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\ServiceBusViewer\ServiceBusViewer.csproj" />
+		<PackageReference Include="Aspire.Hosting.JavaScript" Version="13.4.6" />
+		<ProjectReference Include="..\\ServiceBusViewer\\ServiceBusViewer.csproj" />
 	</ItemGroup>
 
 </Project>

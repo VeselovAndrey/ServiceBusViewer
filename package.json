@@ -1,18 +1,11 @@
 {
-  "name": "servicebusviewer-ui",
+  "name": "servicebusviewer",
   "private": true,
+  "version": "0.20.0",
   "scripts": {
-    "sync:fonts": "node ./scripts/copy-fonts.mjs",
-    "build:css": "npx @tailwindcss/cli -i ./src/ServiceBusViewer/Styles/app.css -o ./src/ServiceBusViewer/wwwroot/css/app.css --minify",
-    "build:assets": "npm run sync:fonts && npm run build:css"
-  },
-  "devDependencies": {
-    "@fontsource/inter": "^5.3.0",
-    "@fontsource/jetbrains-mono": "^5.3.0",
-    "@tailwindcss/cli": "^4.1.13",
-    "@tailwindcss/forms": "^0.5.11",
-    "@tailwindcss/typography": "^0.5.20",
-    "material-design-icons-iconfont": "^6.7.0",
-    "tailwindcss": "^4.3.3"
+    "web:install": "npm ci --prefix src/ServiceBusViewer.Web",
+    "web:dev": "npm run dev --prefix src/ServiceBusViewer.Web",
+    "web:build": "npm run build --prefix src/ServiceBusViewer.Web",
+    "web:lint": "npm run lint --prefix src/ServiceBusViewer.Web"
   }
 }
