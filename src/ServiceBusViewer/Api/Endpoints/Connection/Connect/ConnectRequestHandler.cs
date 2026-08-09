@@ -7,27 +7,27 @@ using ViewerConnectionSettings = ServiceBusViewer.Business.Viewer.Contracts.Conn
 
 internal static class ConnectRequestHandler
 {
-	public static Task<IResult> HandleAsync(
+	public static async Task<IResult> HandleAsync(
 		HttpContext context,
 		ConnectRequest request,
 		ServiceBusViewer.Business.Viewer.Contracts.IViewerConnectionService service)
 	{
-		return EndpointExecution.ExecuteAsync(async () => {
-			Dictionary<string, string[]> errors = [];
+		Dictionary<string, string[]> errors = [];
 
-			if (!ConnectRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? connectErrors) && connectErrors is not null) {
-				foreach (KeyValuePair<string, string[]> kv in connectErrors)
-					errors[kv.Key] = kv.Value;
-			}
+		if (!ConnectRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? connectErrors) && connectErrors is not null) {
+			foreach (KeyValuePair<string, string[]> kv in connectErrors)
+				errors[kv.Key] = kv.Value;
+		}
 
-			string? connectionString = RequestValidation.NormalizeOptional(request.ConnectionString);
-			string? rootConnectionString = RequestValidation.NormalizeOptional(request.RootConnectionString);
-			string? queueOrTopicName = RequestValidation.NormalizeOptional(request.QueueOrTopicName);
-			string? subscriptionName = RequestValidation.NormalizeOptional(request.SubscriptionName);
+		string? connectionString = RequestValidation.NormalizeOptional(request.ConnectionString);
+		string? rootConnectionString = RequestValidation.NormalizeOptional(request.RootConnectionString);
+		string? queueOrTopicName = RequestValidation.NormalizeOptional(request.QueueOrTopicName);
+		string? subscriptionName = RequestValidation.NormalizeOptional(request.SubscriptionName);
 
-			if (errors.Count > 0)
-				throw ApiProblemException.Validation(errors);
+		if (errors.Count > 0)
+			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
+		return await EndpointExecution.ExecuteAsync(async () => {
 			ViewerConnectionSettings settings = rootConnectionString is null
 				? new ViewerConnectionSettings(connectionString!, queueOrTopicName!, subscriptionName)
 				: new ViewerConnectionSettings(connectionString!, rootConnectionString, queueOrTopicName, subscriptionName);

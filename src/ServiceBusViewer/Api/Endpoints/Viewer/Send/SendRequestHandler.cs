@@ -11,28 +11,28 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class SendRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, SendRequest request, IViewerMessageService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, SendRequest request, IViewerMessageService service)
 	{
-		return EndpointExecution.ExecuteAsync(async () => {
-			Dictionary<string, string[]> errors = [];
+		Dictionary<string, string[]> errors = [];
 
-			if (!SendRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? sendRequestErrors) && sendRequestErrors is not null) {
-				foreach (KeyValuePair<string, string[]> kv in sendRequestErrors)
-					errors[kv.Key] = kv.Value;
-			}
+		if (!SendRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? sendRequestErrors) && sendRequestErrors is not null) {
+			foreach (KeyValuePair<string, string[]> kv in sendRequestErrors)
+				errors[kv.Key] = kv.Value;
+		}
 
-			if (!SendMessagePropertiesRequestValidator.Validate(request.SendMessageProperties, out IReadOnlyDictionary<string, string[]>? propsErrors) && propsErrors is not null) {
-				foreach (KeyValuePair<string, string[]> kv in propsErrors)
-					errors[kv.Key] = kv.Value;
-			}
+		if (!SendMessagePropertiesRequestValidator.Validate(request.SendMessageProperties, out IReadOnlyDictionary<string, string[]>? propsErrors) && propsErrors is not null) {
+			foreach (KeyValuePair<string, string[]> kv in propsErrors)
+				errors[kv.Key] = kv.Value;
+		}
 
-			string? body = RequestValidation.NormalizeOptional(request.SendMessageBody);
-			MessageProperties messageProperties = CreateMessageProperties(request.SendMessageProperties, errors);
-			List<ApplicationProperty> applicationProperties = CreateApplicationProperties(request.SendMessageApplicationProperties, errors);
+		string? body = RequestValidation.NormalizeOptional(request.SendMessageBody);
+		MessageProperties messageProperties = CreateMessageProperties(request.SendMessageProperties, errors);
+		List<ApplicationProperty> applicationProperties = CreateApplicationProperties(request.SendMessageApplicationProperties, errors);
 
-			if (errors.Count > 0)
-				throw ApiProblemException.Validation(errors);
+		if (errors.Count > 0)
+			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
+		return await EndpointExecution.ExecuteAsync(async () => {
 			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SendAsync(
 				context.GetClientSessionState(),
 				new SendCommand(body!, messageProperties, applicationProperties));

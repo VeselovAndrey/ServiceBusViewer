@@ -7,23 +7,34 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class SelectEntityRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, SelectEntityRequest request, IViewerEntityService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, SelectEntityRequest request, IViewerEntityService service)
 	{
-		return EndpointExecution.ExecuteAsync(async () => {
-			Dictionary<string, string[]> errors = [];
+		Dictionary<string, string[]> errors = [];
 
-			if (!SelectEntityRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? selectErrors) && selectErrors is not null) {
-				foreach (KeyValuePair<string, string[]> kv in selectErrors)
-					errors[kv.Key] = kv.Value;
-			}
+		if (!SelectEntityRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? selectErrors) && selectErrors is not null) {
+			foreach (KeyValuePair<string, string[]> kv in selectErrors)
+				errors[kv.Key] = kv.Value;
+		}
 
-			string? selectedEntityType = RequestValidation.NormalizeOptional(request.SelectedEntityType);
-			string? selectedEntityName = RequestValidation.NormalizeOptional(request.SelectedEntityName);
-			string? selectedTopicName = RequestValidation.NormalizeOptional(request.SelectedTopicName);
+		string? selectedEntityType = RequestValidation.NormalizeOptional(request.SelectedEntityType);
+		string? selectedEntityName = RequestValidation.NormalizeOptional(request.SelectedEntityName);
+		string? selectedTopicName = RequestValidation.NormalizeOptional(request.SelectedTopicName);
+		bool isSupportedEntityType = selectedEntityType is null
+			|| selectedEntityType.Equals("Queue", StringComparison.OrdinalIgnoreCase)
+			|| selectedEntityType.Equals("Topic", StringComparison.OrdinalIgnoreCase)
+			|| selectedEntityType.Equals("Subscription", StringComparison.OrdinalIgnoreCase);
 
-			if (errors.Count > 0)
-				throw ApiProblemException.Validation(errors);
+		if (!isSupportedEntityType)
+			errors[nameof(request.SelectedEntityType)] = [$"Unsupported entity type '{selectedEntityType}'."];
 
+		if (selectedEntityType?.Equals("Subscription", StringComparison.OrdinalIgnoreCase) is true
+			&& selectedTopicName is null)
+			errors[nameof(request.SelectedTopicName)] = ["Topic name is required when selecting a subscription."];
+
+		if (errors.Count > 0)
+			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
+
+		return await EndpointExecution.ExecuteAsync(async () => {
 			Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(
 				selectedEntityType!,
 				selectedEntityName!,

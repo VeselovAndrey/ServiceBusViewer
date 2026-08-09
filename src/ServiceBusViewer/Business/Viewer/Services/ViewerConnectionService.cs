@@ -12,7 +12,7 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 		await session.Gate.WaitAsync();
 
 		try {
-			return ViewerSessionStateMapper.ToConnectionSnapshot(session);
+			return session.ToViewerConnectionSnapshot();
 		}
 		finally {
 			session.Gate.Release();
@@ -27,14 +27,14 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 
 		try {
 			if (session.IsConnected)
-				throw new ApiProblemException(StatusCodes.Status409Conflict, "Already connected", "Already connected to a Service Bus instance.");
+				throw new ViewerAlreadyConnectedException();
 
 			IServiceBusConnection connection = await connectionFactory.OpenAsync(settings);
 
 			try {
 				session.ConnectionSettings = settings;
 				session.Connection = connection;
-				session.SelectedEntityId = ViewerSessionStateMapper.GetInitialSelectedEntityId(settings);
+				session.SelectedEntityId = GetInitialSelectedEntityId(settings);
 				session.CurrentMessages = session.SelectedEntityId is null
 					? ReceivedMessageList.Empty
 					: await connection.PeekMessagesAsync(session.SelectedEntityId);
@@ -42,7 +42,7 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 				session.SendResultMessage = null;
 				session.ReceiveSessionId = null;
 
-				return ViewerSessionStateMapper.ToViewerState(session, connection);
+				return session.ToViewerState(connection);
 			}
 			catch {
 				await connection.DisposeAsync();
@@ -60,22 +60,31 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 
 		try {
 			await session.ResetConnectionAsync();
-			return ViewerSessionStateMapper.ToConnectionSnapshot(session);
+			return session.ToViewerConnectionSnapshot();
 		}
 		finally {
 			session.Gate.Release();
 		}
 	}
 
-	public async Task<ViewerState> GetCurrentAsync(IViewerSessionState session)
+	public async Task<ViewerState> GetCurrentStateAsync(IViewerSessionState session)
 	{
 		await session.Gate.WaitAsync();
 
 		try {
-			return ViewerSessionStateMapper.ToViewerState(session, ViewerSessionStateMapper.EnsureConnected(session));
+			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
+
+			return session.ToViewerState(connection);
 		}
 		finally {
 			session.Gate.Release();
 		}
 	}
+
+	private static EntityId? GetInitialSelectedEntityId(ConnectionSettings settings)
+		=> string.IsNullOrWhiteSpace(settings.RootConnectionString) && !string.IsNullOrWhiteSpace(settings.QueueOrTopicName)
+			? string.IsNullOrWhiteSpace(settings.SubscriptionName)
+				? new QueueEntityId(settings.QueueOrTopicName)
+				: new SubscriptionEntityId(settings.SubscriptionName, settings.QueueOrTopicName)
+			: null;
 }

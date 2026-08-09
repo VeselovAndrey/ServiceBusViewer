@@ -10,7 +10,7 @@ internal static class GetViewerRequestHandler
 	public static Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service)
 	{
 		return EndpointExecution.ExecuteAsync(async () =>
-			ToGetViewerResponse(await service.GetCurrentAsync(context.GetClientSessionState())));
+			ToGetViewerResponse(await service.GetCurrentStateAsync(context.GetClientSessionState())));
 	}
 
 	private static GetViewerResponse ToGetViewerResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)

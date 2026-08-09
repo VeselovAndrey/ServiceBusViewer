@@ -1,6 +1,7 @@
 namespace ServiceBusViewer.Business.Viewer.Contracts;
 
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
+using ServiceBusViewer.Business.Viewer.Dependencies;
 
 /// <summary>Represents the current state of the Service Bus viewer.</summary>
 /// <param name="ServiceBusHostName">The host name of the connected Service Bus namespace or emulator.</param>
@@ -26,3 +27,36 @@ public sealed record ViewerState(
 	ReceivedMessage? DisplayedMessage,
 	string? SendResultMessage,
 	string? ReceiveSessionId);
+
+
+public static class ViewerStateExtensions
+{
+	public static ViewerState ToViewerState(this IViewerSessionState session, IServiceBusConnection connection)
+	{
+		EntityProperties? selectedEntity = session.SelectedEntityId is null
+			? null
+			: connection.GetEntityProperties(session.SelectedEntityId);
+
+		bool requiresSession = RequiresSession(selectedEntity);
+
+		return new ViewerState(
+			connection.NamespaceHost,
+			selectedEntity?.Name,
+			(selectedEntity as SubscriptionEntityProperties)?.TopicName,
+			requiresSession,
+			connection.IsManagementApiAvailable,
+			[.. connection.AvailableEntities.Select(x => x.ToEntityId())],
+			session.CurrentMessages.Messages,
+			session.CurrentMessages.HasMore,
+			session.DisplayedMessage,
+			session.SendResultMessage,
+			requiresSession ? session.ReceiveSessionId : null);
+	}
+
+	private static bool RequiresSession(EntityProperties? entity)
+		=> entity switch {
+			QueueEntityProperties queue => queue.RequiresSession,
+			SubscriptionEntityProperties subscription => subscription.RequiresSession,
+			_ => false
+		};
+}

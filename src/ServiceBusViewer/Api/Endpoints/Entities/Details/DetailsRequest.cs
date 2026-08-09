@@ -21,9 +21,22 @@ internal static class DetailsRequestValidator
 		if (string.IsNullOrWhiteSpace(request.Name))
 			local["name"] = ["Entity name is required."];
 
+		string? entityType = RequestValidation.NormalizeOptional(request.Type);
+		if (entityType is not null && !IsSupportedEntityType(entityType))
+			local["type"] = [$"Unsupported entity type '{entityType}'."];
+
+		if (entityType?.Equals("Subscription", StringComparison.OrdinalIgnoreCase) is true
+			&& string.IsNullOrWhiteSpace(request.TopicName))
+			local[nameof(request.TopicName)] = ["Topic name is required when selecting a subscription."];
+
 		if (local.Count > 0) { errors = local; return false; }
 
 		errors = null;
 		return true;
 	}
+
+	private static bool IsSupportedEntityType(string entityType)
+		=> entityType.Equals("Queue", StringComparison.OrdinalIgnoreCase)
+		   || entityType.Equals("Topic", StringComparison.OrdinalIgnoreCase)
+		   || entityType.Equals("Subscription", StringComparison.OrdinalIgnoreCase);
 }

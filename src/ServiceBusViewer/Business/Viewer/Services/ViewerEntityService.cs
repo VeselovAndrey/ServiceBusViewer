@@ -12,7 +12,7 @@ internal sealed class ViewerEntityService : IViewerEntityService
 		await session.Gate.WaitAsync();
 
 		try {
-			IServiceBusConnection connection = ViewerSessionStateMapper.EnsureConnected(session);
+			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			connection.GetEntityProperties(entityId);
 
 			session.SelectedEntityId = entityId;
@@ -21,7 +21,7 @@ internal sealed class ViewerEntityService : IViewerEntityService
 			session.ReceiveSessionId = null;
 			session.CurrentMessages = await connection.PeekMessagesAsync(entityId);
 
-			return ViewerSessionStateMapper.ToViewerState(session, connection);
+			return session.ToViewerState(connection);
 		}
 		finally {
 			session.Gate.Release();
@@ -33,14 +33,14 @@ internal sealed class ViewerEntityService : IViewerEntityService
 		await session.Gate.WaitAsync();
 
 		try {
-			IServiceBusConnection connection = ViewerSessionStateMapper.EnsureConnected(session);
+			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			EntityProperties properties = connection.GetEntityProperties(entityId);
 
 			return new EntityDetailsResult(
 				connection.NamespaceHost,
 				connection.IsManagementApiAvailable,
-				[.. connection.AvailableEntities.Select(ViewerSessionStateMapper.ToEntityId)],
-				ViewerSessionStateMapper.GetEntityType(entityId),
+				[.. connection.AvailableEntities.Select(x => x.ToEntityId())],
+				GetEntityType(entityId),
 				entityId.Name,
 				(entityId as SubscriptionEntityId)?.TopicName,
 				properties);
@@ -49,4 +49,12 @@ internal sealed class ViewerEntityService : IViewerEntityService
 			session.Gate.Release();
 		}
 	}
+
+	private static string GetEntityType(EntityId entityId)
+		=> entityId switch {
+			QueueEntityId => "Queue",
+			TopicEntityId => "Topic",
+			SubscriptionEntityId => "Subscription",
+			_ => throw new ArgumentException($"Unknown entity type: {entityId.GetType().FullName}", nameof(entityId))
+		};
 }

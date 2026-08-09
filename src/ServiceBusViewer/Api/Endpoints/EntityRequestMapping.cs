@@ -10,10 +10,8 @@ internal static class EntityRequestMapping
 			"Queue" => new QueueEntityId(entityName),
 			"Topic" => new TopicEntityId(entityName),
 			"Subscription" when topicName is not null => new SubscriptionEntityId(entityName, topicName),
-			"Subscription" => throw ApiProblemException.Validation(new Dictionary<string, string[]> {
-				[topicNameField] = ["Topic name is required when selecting a subscription."]
-			}),
-			_ => throw new ApiProblemException(StatusCodes.Status400BadRequest, "Invalid entity type", $"Unsupported entity type '{entityType}'.")
+			"Subscription" => throw new ArgumentException("Topic name is required for a subscription.", topicNameField),
+			_ => throw new ArgumentException($"Unsupported entity type '{entityType}'.", nameof(entityType))
 		};
 	}
 
@@ -23,7 +21,7 @@ internal static class EntityRequestMapping
 			"queue" => "Queue",
 			"topic" => "Topic",
 			"subscription" => "Subscription",
-			_ => throw new ApiProblemException(StatusCodes.Status400BadRequest, "Invalid entity type", $"Unsupported entity type '{entityType}'.")
+			_ => throw new ArgumentException($"Unsupported entity type '{entityType}'.", nameof(entityType))
 		};
 	}
 }

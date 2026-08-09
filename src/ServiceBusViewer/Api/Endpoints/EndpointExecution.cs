@@ -1,5 +1,7 @@
 namespace ServiceBusViewer.Api.Endpoints;
 
+using ServiceBusViewer.Business.Viewer.Contracts;
+
 internal static class EndpointExecution
 {
 	public static async Task<IResult> ExecuteAsync<T>(Func<Task<T>> action)
@@ -7,11 +9,11 @@ internal static class EndpointExecution
 		try {
 			return Results.Ok(await action());
 		}
-		catch (ApiProblemException ex) when (ex.Errors is not null) {
-			return Results.ValidationProblem(ex.Errors, statusCode: ex.StatusCode, title: ex.Title);
+		catch (ViewerAlreadyConnectedException ex) {
+			return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Already connected", detail: ex.Message);
 		}
-		catch (ApiProblemException ex) {
-			return Results.Problem(statusCode: ex.StatusCode, title: ex.Title, detail: ex.Message);
+		catch (ViewerNotConnectedException ex) {
+			return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Not connected", detail: ex.Message);
 		}
 		catch (Exception ex) {
 			return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Request failed", detail: ex.Message);

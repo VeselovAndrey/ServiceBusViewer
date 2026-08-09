@@ -9,23 +9,23 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class DetailsRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, [AsParameters] DetailsRequest request, IViewerEntityService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, [AsParameters] DetailsRequest request, IViewerEntityService service)
 	{
-		return EndpointExecution.ExecuteAsync(async () => {
-			Dictionary<string, string[]> errors = [];
+		Dictionary<string, string[]> errors = [];
 
-			if (!DetailsRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? detailsErrors) && detailsErrors is not null) {
-				foreach (KeyValuePair<string, string[]> kv in detailsErrors)
-					errors[kv.Key] = kv.Value;
-			}
+		if (!DetailsRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? detailsErrors) && detailsErrors is not null) {
+			foreach (KeyValuePair<string, string[]> kv in detailsErrors)
+				errors[kv.Key] = kv.Value;
+		}
 
-			string? type = RequestValidation.NormalizeOptional(request.Type);
-			string? name = RequestValidation.NormalizeOptional(request.Name);
-			string? topicName = RequestValidation.NormalizeOptional(request.TopicName);
+		string? type = RequestValidation.NormalizeOptional(request.Type);
+		string? name = RequestValidation.NormalizeOptional(request.Name);
+		string? topicName = RequestValidation.NormalizeOptional(request.TopicName);
 
-			if (errors.Count > 0)
-				throw ApiProblemException.Validation(errors);
+		if (errors.Count > 0)
+			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
+		return await EndpointExecution.ExecuteAsync(async () => {
 			Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(type!, name!, topicName, nameof(request.TopicName));
 
 			EntityDetailsResult result = await service.GetDetailsAsync(

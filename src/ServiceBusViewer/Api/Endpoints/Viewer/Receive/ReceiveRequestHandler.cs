@@ -7,18 +7,18 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class ReceiveRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, ReceiveRequest request, IViewerMessageService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, ReceiveRequest request, IViewerMessageService service)
 	{
-		return EndpointExecution.ExecuteAsync(async () => {
-			Dictionary<string, string[]> errors = [];
-			if (!ReceiveRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? receiveErrors) && receiveErrors is not null) {
-				foreach (KeyValuePair<string, string[]> kv in receiveErrors)
-					errors[kv.Key] = kv.Value;
-			}
+		Dictionary<string, string[]> errors = [];
+		if (!ReceiveRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? receiveErrors) && receiveErrors is not null) {
+			foreach (KeyValuePair<string, string[]> kv in receiveErrors)
+				errors[kv.Key] = kv.Value;
+		}
 
-			if (errors.Count > 0)
-				throw ApiProblemException.Validation(errors);
+		if (errors.Count > 0)
+			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
+		return await EndpointExecution.ExecuteAsync(async () => {
 			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ReceiveAsync(
 				context.GetClientSessionState(),
 				RequestValidation.NormalizeOptional(request.ReceiveSessionId));
