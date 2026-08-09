@@ -12,13 +12,13 @@ public interface IViewerMessageService
 
 	/// <summary>Receives the next message from the currently selected entity.</summary>
 	/// <param name="session">The viewer session state to update.</param>
-	/// <param name="sessionId">Optional Service Bus session identifier used when the selected entity requires sessions.</param>
-	/// <returns>The viewer state after the receive attempt.</returns>
+	/// <param name="sessionId">Optional Service Bus session identifier used when the selected entity is session-enabled.</param>
+	/// <returns>TThe viewer state after attempting to receive a message.</returns>
 	Task<ViewerState> ReceiveAsync(IViewerSessionState session, string? sessionId);
 
 	/// <summary>Sends a message to the currently selected entity.</summary>
 	/// <param name="session">The viewer session state to use.</param>
 	/// <param name="command">The message body and properties to send.</param>
-	/// <returns>The viewer state after the send completes.</returns>
+	/// <returns>The viewer state after sending the message.</returns>
 	Task<ViewerState> SendAsync(IViewerSessionState session, SendCommand command);
 }
