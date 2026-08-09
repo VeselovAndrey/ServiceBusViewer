@@ -29,8 +29,13 @@ public sealed record ViewerState(
 	string? ReceiveSessionId);
 
 
+/// <summary>Provides extension methods related to <see cref="ViewerState"/>.</summary>
 public static class ViewerStateExtensions
 {
+	/// <summary>Converts the current viewer session state and service bus connection into a <see cref="ViewerState"/> instance.</summary>
+	/// <param name="session">The current viewer session state.</param>
+	/// <param name="connection">The service bus connection.</param>
+	/// <returns>A <see cref="ViewerState"/> instance representing the current state.</returns>
 	public static ViewerState ToViewerState(this IViewerSessionState session, IServiceBusConnection connection)
 	{
 		EntityProperties? selectedEntity = session.SelectedEntityId is null
