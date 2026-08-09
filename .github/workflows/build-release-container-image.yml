@@ -56,5 +56,5 @@ jobs:
         file: ./src/ServiceBusViewer/Dockerfile
         push: true
         tags: |
-          ghcr.io/veselovandrey/ServiceBusViewer:latest
-          ghcr.io/veselovandrey/ServiceBusViewer:${{ steps.version.outputs.version }}
+          ghcr.io/veselovandrey/servicebusviewer:latest
+          ghcr.io/veselovandrey/servicebusviewer:${{ steps.version.outputs.version }}
