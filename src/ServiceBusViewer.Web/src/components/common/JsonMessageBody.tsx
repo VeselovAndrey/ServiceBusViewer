@@ -1,0 +1,53 @@
+import { useEffect, useMemo, useState } from 'react';
+import { cx } from '../../lib/cx';
+import { tryFormatJsonBody } from '../../lib/jsonFormatting';
+
+interface JsonMessageBodyProps {
+  body: string;
+  className?: string;
+}
+
+export function JsonMessageBody({ body, className }: JsonMessageBodyProps) {
+  const formattedJson = useMemo(() => tryFormatJsonBody(body), [body]);
+  const [isFormatted, setIsFormatted] = useState(Boolean(formattedJson));
+
+  useEffect(() => {
+    setIsFormatted(Boolean(formattedJson));
+  }, [formattedJson]);
+
+  return (
+    <div className={cx('js-message-container', className)}>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+          Message Body
+        </h3>
+        <button
+          type="button"
+          className={cx(
+            'js-json-toggle items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800',
+            formattedJson && 'js-json-toggle-visible',
+          )}
+          aria-pressed={isFormatted}
+          onClick={() => {
+            if (formattedJson) {
+              setIsFormatted((current) => !current);
+            }
+          }}
+        >
+          {isFormatted ? 'Raw' : 'Formatted'}
+        </button>
+      </div>
+
+      {formattedJson && isFormatted ? (
+        <pre
+          className="js-message-body custom-scrollbar overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-6 text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+          dangerouslySetInnerHTML={{ __html: formattedJson.html }}
+        />
+      ) : (
+        <pre className="js-message-body custom-scrollbar overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-6 text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
+          {body}
+        </pre>
+      )}
+    </div>
+  );
+}

@@ -1,35 +1,32 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
-		<RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..'))</RepositoryRoot>
 
-		<Version>0.11.1</Version>
 		<Product>ServiceBusViewer</Product>
+		<Version>0.30.0</Version>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
-		<Description>A web-based viewer for Azure Service Bus.</Description>
+		<Description>HTTP API for the Service Bus Viewer.</Description>
+
+		<AnalysisLevel>latest</AnalysisLevel>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-		<DockerfileContext>..\..</DockerfileContext>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.2" />
-		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
 	</ItemGroup>
 
-	<Target Name="BuildFrontendAssetsForLocalDebug"
-	        BeforeTargets="Build"
-	        Condition="'$(Configuration)' == 'Debug' and '$(DesignTimeBuild)' != 'true'">
-		<Message Importance="high" Text="Running npm-based UI asset build for local Debug build." />
-		<Exec Command="npm ci"
-		      WorkingDirectory="$(RepositoryRoot)"
-		      Condition="!Exists('$(RepositoryRoot)\node_modules')" />
-		<Exec Command="npm run build:assets"
-		      WorkingDirectory="$(RepositoryRoot)" />
+	<ItemGroup>
+		<Folder Include="wwwroot\" />
+	</ItemGroup>
+
+	<Target Name="EnsureWwwrootExists" BeforeTargets="PrepareForBuild" Condition="!Exists('$(ProjectDir)wwwroot')">
+		<MakeDir Directories="$(ProjectDir)wwwroot" />
 	</Target>
 
 </Project>

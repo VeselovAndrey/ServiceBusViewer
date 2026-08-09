@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Browse, inspect, receive, and send messages with Azure Service Bus and its local emulator."
+    />
+    <meta name="application-name" content="Service Bus Viewer" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg" />
+    <title>Service Bus Viewer</title>
+    <script>
+      (function () {
+        const storedTheme = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia(
+          '(prefers-color-scheme: dark)',
+        ).matches;
+
+        if (storedTheme === 'dark' || (!storedTheme && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>Service Bus Viewer requires JavaScript to run.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -6,20 +6,15 @@ on:
     branches: [ "release" ]
     paths:
     - '.dockerignore'
-    - 'package.json'
-    - 'package-lock.json'
-    - 'scripts/**'
     - 'src/ServiceBusViewer/**'
+    - 'src/ServiceBusViewer.Web/**'
 
 jobs:
-
   build-and-push:
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
