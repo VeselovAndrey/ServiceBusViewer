@@ -7,10 +7,12 @@
 
 		<Product>ServiceBusViewer</Product>
 		<Version>0.30.0</Version>
-		<Description>HTTP API for the Service Bus Viewer.</Description>
-
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
+		<Description>HTTP API for the Service Bus Viewer.</Description>
+
+		<AnalysisLevel>latest</AnalysisLevel>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 	</PropertyGroup>

@@ -4,7 +4,6 @@ using System.Globalization;
 using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
-using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class DetailsRequestHandler
@@ -21,7 +20,7 @@ internal static class DetailsRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityIdFactory.Create(request.Type, request.Name, request.TopicName, nameof(request.TopicName));
+		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityIdFactory.Create(request.Type, request.Name, request.TopicName);
 
 		EntityDetailsResult result = await service.GetDetailsAsync(
 			context.GetClientSessionState(),
@@ -43,7 +42,7 @@ internal static class DetailsRequestHandler
 	}
 
 	private static Models.EntityProperties ToEntityPropertiesResponse(Business.Viewer.Contracts.ServiceBus.EntityProperties properties) => properties switch {
-		QueueEntityProperties queue => new Models.EntityProperties(
+		Business.Viewer.Contracts.ServiceBus.QueueEntityProperties queue => new Models.EntityProperties(
 			"Queue",
 			queue.Name,
 			null,
@@ -58,7 +57,7 @@ internal static class DetailsRequestHandler
 			queue.EnablePartitioning,
 			queue.AutoDeleteOnIdle.ToString("c", CultureInfo.InvariantCulture),
 			null),
-		TopicEntityProperties topic => new Models.EntityProperties(
+		Business.Viewer.Contracts.ServiceBus.TopicEntityProperties topic => new Models.EntityProperties(
 			"Topic",
 			topic.Name,
 			null,
@@ -73,7 +72,7 @@ internal static class DetailsRequestHandler
 			topic.EnablePartitioning,
 			topic.AutoDeleteOnIdle.ToString("c", CultureInfo.InvariantCulture),
 			null),
-		SubscriptionEntityProperties subscription => new Models.EntityProperties(
+		Business.Viewer.Contracts.ServiceBus.SubscriptionEntityProperties subscription => new Models.EntityProperties(
 			"Subscription",
 			subscription.Name,
 			subscription.TopicName,
@@ -91,29 +90,14 @@ internal static class DetailsRequestHandler
 		_ => throw new ArgumentException($"Unknown entity type: {properties.GetType().FullName}", nameof(properties))
 	};
 
-	private static SubscriptionRule ToSubscriptionRuleResponse(SubscriptionFilterRule rule) => rule switch {
-		SqlSubscriptionFilterRule sqlRule => new SubscriptionRule(
-			"Sql",
+	private static SubscriptionRule ToSubscriptionRuleResponse(Business.Viewer.Contracts.ServiceBus.SubscriptionFilterRule rule) => rule switch {
+		Business.Viewer.Contracts.ServiceBus.SqlSubscriptionFilterRule sqlRule => new SqlSubscriptionRule(
 			sqlRule.Name,
 			sqlRule.SqlExpression,
-			sqlRule.ActionExpression,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null),
+			sqlRule.ActionExpression),
 
-		CorrelationSubscriptionFilterRule correlationRule => new SubscriptionRule(
-			"Correlation",
+		Business.Viewer.Contracts.ServiceBus.CorrelationSubscriptionFilterRule correlationRule => new CorrelationSubscriptionRule(
 			correlationRule.Name,
-			null,
-			correlationRule.ActionExpression,
 			correlationRule.CorrelationId,
 			correlationRule.MessageId,
 			correlationRule.To,
@@ -123,23 +107,10 @@ internal static class DetailsRequestHandler
 			correlationRule.ReplyToSessionId,
 			correlationRule.ContentType,
 			correlationRule.ApplicationProperties.ToDictionary(static pair => pair.Key, static pair => ResponseMapping.NormalizeObjectValue(pair.Value)),
-			null,
-			null),
+			correlationRule.ActionExpression),
 
-		UnknownSubscriptionFilterRule unknownRule => new SubscriptionRule(
-			"Unknown",
+		Business.Viewer.Contracts.ServiceBus.UnknownSubscriptionFilterRule unknownRule => new UnknownSubscriptionRule(
 			unknownRule.Name,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
-			null,
 			unknownRule.FilterTypeName,
 			unknownRule.FilterExpression),
 		_ => throw new ArgumentException($"Unknown subscription rule type: {rule.GetType().FullName}", nameof(rule))

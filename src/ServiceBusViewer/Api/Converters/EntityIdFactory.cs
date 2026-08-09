@@ -11,7 +11,7 @@ internal static class EntityIdFactory
 	/// <param name="topicName">The parent topic name for a subscription.</param>
 	/// <param name="topicNameField">The request field name used when reporting a missing topic name.</param>
 	/// <returns>The strongly typed entity identifier.</returns>
-	internal static EntityId Create(string entityType, string entityName, string? topicName, string topicNameField)
+	internal static EntityId Create(string entityType, string entityName, string? topicName)
 	{
 		ReadOnlySpan<char> normalizedEntityType = entityType.AsSpan().Trim();
 
@@ -26,6 +26,6 @@ internal static class EntityIdFactory
 
 		return topicName is not null
 			? new SubscriptionEntityId(entityName, topicName)
-			: throw new ArgumentException("Topic name is required for a subscription.", topicNameField);
+			: throw new ArgumentException("Topic name is required for a subscription.");
 	}
 }

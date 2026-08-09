@@ -1,5 +1,12 @@
 # Project Decisions
 
+## 2026-08-09: Kind-specific subscription rule responses
+
+- The entity-details API exposes subscription rules as a polymorphic response hierarchy discriminated by `kind`.
+- SQL, correlation, and unknown-filter rules contain only their applicable fields instead of sharing one nullable catch-all response type.
+- A registered API JSON converter owns the polymorphic wire format so response models remain serialization-agnostic.
+- The frontend models these payloads as a matching discriminated union.
+
 ## 2026-08-09: Combined application container
 
 - Production publishing produces one `ServiceBusViewer` image that serves the compiled React SPA and `/api` endpoints from ASP.NET Core on port `8080`.

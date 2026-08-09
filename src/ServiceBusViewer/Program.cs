@@ -1,3 +1,4 @@
+using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.ExceptionHandling;
 using ServiceBusViewer.Business.Application.Contracts;
@@ -12,6 +13,8 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.ConfigureHttpJsonOptions(options
+	=> options.SerializerOptions.Converters.Add(new SubscriptionRuleJsonConverter()));
 builder.Services.AddCors(options => options.AddPolicy("LocalDevelopment", policy => policy
 	.SetIsOriginAllowed(static origin => IsLocalDevelopmentOrigin(origin))
 	.AllowAnyHeader()
