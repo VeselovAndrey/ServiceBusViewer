@@ -94,6 +94,11 @@
 @layer base {
   html {
     @apply bg-slate-100 dark:bg-slate-950;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {
