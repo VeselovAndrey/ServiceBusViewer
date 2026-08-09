@@ -101,7 +101,7 @@ export function ConnectPage() {
             <section className="hidden w-[350px] shrink-0 flex-col justify-center rounded-3xl border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/40 backdrop-blur dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/20 min-[760px]:flex min-[1151px]:w-[700px] lg:p-8">
               <div className="mt-5 flex justify-center">
                 <img
-                  src="/images/app-logo-680x680.png"
+                  src="/images/app-logo-576x576.png"
                   alt="Service Bus Viewer logo"
                   className="h-auto w-auto max-w-[18rem] object-contain"
                 />
