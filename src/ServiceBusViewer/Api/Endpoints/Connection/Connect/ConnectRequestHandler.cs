@@ -1,6 +1,5 @@
 namespace ServiceBusViewer.Api.Endpoints.Connection.Connect;
 
-using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Infrastructure.ClientSession;
 using ViewerConnectionSettings = ServiceBusViewer.Business.Viewer.Contracts.ConnectionSettings;
@@ -19,17 +18,12 @@ internal static class ConnectRequestHandler
 				errors[kv.Key] = kv.Value;
 		}
 
-		string? connectionString = RequestMapping.NormalizeOptional(request.ConnectionString);
-		string? rootConnectionString = RequestMapping.NormalizeOptional(request.RootConnectionString);
-		string? queueOrTopicName = RequestMapping.NormalizeOptional(request.QueueOrTopicName);
-		string? subscriptionName = RequestMapping.NormalizeOptional(request.SubscriptionName);
-
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		ViewerConnectionSettings settings = rootConnectionString is null
-			? new ViewerConnectionSettings(connectionString!, queueOrTopicName!, subscriptionName)
-			: new ViewerConnectionSettings(connectionString!, rootConnectionString, queueOrTopicName, subscriptionName);
+		ViewerConnectionSettings settings = request.RootConnectionString is null
+			? new ViewerConnectionSettings(request.ConnectionString, request.QueueOrTopicName!, request.SubscriptionName)
+			: new ViewerConnectionSettings(request.ConnectionString, request.RootConnectionString, request.QueueOrTopicName, request.SubscriptionName);
 
 		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ConnectAsync(
 			context.GetClientSessionState(),

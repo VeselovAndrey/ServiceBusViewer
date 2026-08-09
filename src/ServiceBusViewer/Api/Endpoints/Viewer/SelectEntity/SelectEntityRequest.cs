@@ -1,7 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer.SelectEntity;
 
 using System.Collections.Generic;
-using ServiceBusViewer.Api.Endpoints;
 
 /// <summary>
 /// Request to select an entity (queue/topic/subscription) for the viewer.
@@ -10,8 +9,8 @@ using ServiceBusViewer.Api.Endpoints;
 /// <param name="SelectedEntityName">Name of the entity to select.</param>
 /// <param name="SelectedTopicName">Topic name when selecting a subscription.</param>
 internal sealed record SelectEntityRequest(
-	string? SelectedEntityType,
-	string? SelectedEntityName,
+	string SelectedEntityType,
+	string SelectedEntityName,
 	string? SelectedTopicName);
 
 internal static class SelectEntityRequestValidator
@@ -21,9 +20,13 @@ internal static class SelectEntityRequestValidator
 		Dictionary<string, string[]> local = new();
 		if (string.IsNullOrWhiteSpace(request.SelectedEntityType))
 			local[nameof(request.SelectedEntityType)] = ["Selected entity type is required."];
-		if (string.IsNullOrWhiteSpace(request.SelectedEntityName))
+
+		if (string.IsNullOrWhiteSpace(request.SelectedEntityName))
 			local[nameof(request.SelectedEntityName)] = ["Entity name is required."];
-		if (local.Count > 0) { errors = local; return false; }
-		errors = null; return true;
+
+		if (local.Count > 0) { errors = local; return false; }
+
+		errors = null;
+		return true;
 	}
 }

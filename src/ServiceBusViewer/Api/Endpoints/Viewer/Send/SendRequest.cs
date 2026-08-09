@@ -27,7 +27,8 @@ internal static class SendRequestValidator
 			errors = local;
 			return false;
 		}
-		errors = null;
+
+		errors = null;
 		return true;
 	}
 }

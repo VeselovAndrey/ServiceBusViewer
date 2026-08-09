@@ -16,28 +16,23 @@ internal static class SelectEntityRequestHandler
 				errors[kv.Key] = kv.Value;
 		}
 
-		string? selectedEntityType = RequestMapping.NormalizeOptional(request.SelectedEntityType);
-		string? selectedEntityName = RequestMapping.NormalizeOptional(request.SelectedEntityName);
-		string? selectedTopicName = RequestMapping.NormalizeOptional(request.SelectedTopicName);
-		bool isSupportedEntityType = selectedEntityType is null
-			|| selectedEntityType.Equals("Queue", StringComparison.OrdinalIgnoreCase)
-			|| selectedEntityType.Equals("Topic", StringComparison.OrdinalIgnoreCase)
-			|| selectedEntityType.Equals("Subscription", StringComparison.OrdinalIgnoreCase);
+		bool isSupportedEntityType = request.SelectedEntityType.Equals("Queue", StringComparison.OrdinalIgnoreCase)
+									 || request.SelectedEntityType.Equals("Topic", StringComparison.OrdinalIgnoreCase)
+									 || request.SelectedEntityType.Equals("Subscription", StringComparison.OrdinalIgnoreCase);
 
 		if (!isSupportedEntityType)
-			errors[nameof(request.SelectedEntityType)] = [$"Unsupported entity type '{selectedEntityType}'."];
+			errors[nameof(request.SelectedEntityType)] = [$"Unsupported entity type '{request.SelectedEntityType}'."];
 
-		if (selectedEntityType?.Equals("Subscription", StringComparison.OrdinalIgnoreCase) is true
-			&& selectedTopicName is null)
+		if (request.SelectedEntityType.Equals("Subscription", StringComparison.OrdinalIgnoreCase) && request.SelectedTopicName is null)
 			errors[nameof(request.SelectedTopicName)] = ["Topic name is required when selecting a subscription."];
 
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
 		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityIdFactory.Create(
-			selectedEntityType!,
-			selectedEntityName!,
-			selectedTopicName,
+			request.SelectedEntityType,
+			request.SelectedEntityName,
+			request.SelectedTopicName,
 			nameof(request.SelectedTopicName));
 
 		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SelectEntityAsync(

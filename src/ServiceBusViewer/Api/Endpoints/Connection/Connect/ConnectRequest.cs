@@ -10,7 +10,7 @@ using System.Collections.Generic;
 /// <param name="QueueOrTopicName">Optional queue or topic name to connect to.</param>
 /// <param name="SubscriptionName">Optional subscription name when connecting to a subscription.</param>
 internal sealed record ConnectRequest(
-	string? ConnectionString,
+	string ConnectionString,
 	string? RootConnectionString,
 	string? QueueOrTopicName,
 	string? SubscriptionName);
@@ -26,7 +26,11 @@ internal static class ConnectRequestValidator
 		if (string.IsNullOrWhiteSpace(request.RootConnectionString) && string.IsNullOrWhiteSpace(request.QueueOrTopicName))
 			local[nameof(request.QueueOrTopicName)] = ["Queue/Topic name is required when not using root connection."];
 
-		if (local.Count > 0) { errors = local; return false; }
+		if (local.Count > 0) {
+			errors = local;
+			return false;
+		}
+
 		errors = null;
 		return true;
 	}

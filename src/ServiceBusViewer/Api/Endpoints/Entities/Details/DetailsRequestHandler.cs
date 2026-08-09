@@ -18,14 +18,10 @@ internal static class DetailsRequestHandler
 				errors[kv.Key] = kv.Value;
 		}
 
-		string? type = RequestMapping.NormalizeOptional(request.Type);
-		string? name = RequestMapping.NormalizeOptional(request.Name);
-		string? topicName = RequestMapping.NormalizeOptional(request.TopicName);
-
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityIdFactory.Create(type!, name!, topicName, nameof(request.TopicName));
+		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityIdFactory.Create(request.Type, request.Name, request.TopicName, nameof(request.TopicName));
 
 		EntityDetailsResult result = await service.GetDetailsAsync(
 			context.GetClientSessionState(),

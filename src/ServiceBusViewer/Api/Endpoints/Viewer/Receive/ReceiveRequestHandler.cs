@@ -1,6 +1,5 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer.Receive;
 
-using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
@@ -18,9 +17,7 @@ internal static class ReceiveRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ReceiveAsync(
-			context.GetClientSessionState(),
-			RequestMapping.NormalizeOptional(request.ReceiveSessionId));
+		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ReceiveAsync(context.GetClientSessionState(), request.ReceiveSessionId);
 
 		return TypedResults.Ok(ToReceiveResponse(result));
 	}

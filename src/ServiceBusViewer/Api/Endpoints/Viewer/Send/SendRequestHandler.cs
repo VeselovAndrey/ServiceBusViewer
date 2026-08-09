@@ -3,7 +3,6 @@ namespace ServiceBusViewer.Api.Endpoints.Viewer.Send;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
@@ -25,16 +24,14 @@ internal static class SendRequestHandler
 				errors[kv.Key] = kv.Value;
 		}
 
-		string? body = RequestMapping.NormalizeOptional(request.SendMessageBody);
 		MessageProperties messageProperties = CreateMessageProperties(request.SendMessageProperties, errors);
 		List<ApplicationProperty> applicationProperties = CreateApplicationProperties(request.SendMessageApplicationProperties, errors);
-
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
 		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SendAsync(
 			context.GetClientSessionState(),
-			new SendCommand(body!, messageProperties, applicationProperties));
+			new SendCommand(request.SendMessageBody ?? string.Empty, messageProperties, applicationProperties));
 
 		return TypedResults.Ok(ToSendResponse(result));
 	}
@@ -59,26 +56,19 @@ internal static class SendRequestHandler
 
 	private static MessageProperties CreateMessageProperties(SendMessagePropertiesRequest? request, IDictionary<string, string[]> errors)
 	{
-		string? messageId = RequestMapping.NormalizeOptional(request?.MessageId);
-		string? sessionId = RequestMapping.NormalizeOptional(request?.SessionId);
-		string? correlationId = RequestMapping.NormalizeOptional(request?.CorrelationId);
-		string? contentType = RequestMapping.NormalizeOptional(request?.ContentType);
-		string? scheduledEnqueueTime = RequestMapping.NormalizeOptional(request?.ScheduledEnqueueTime);
-		string? timeToLive = RequestMapping.NormalizeOptional(request?.TimeToLive);
-
 		DateTimeOffset? scheduled = null;
-		if (scheduledEnqueueTime is not null && DateTimeOffset.TryParse(scheduledEnqueueTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTimeOffset dto))
+		if (request?.ScheduledEnqueueTime is not null && DateTimeOffset.TryParse(request?.ScheduledEnqueueTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTimeOffset dto))
 			scheduled = dto;
 
 		TimeSpan? ttl = null;
-		if (timeToLive is not null && TimeSpan.TryParse(timeToLive, CultureInfo.InvariantCulture, out TimeSpan ts))
+		if (request?.TimeToLive is not null && TimeSpan.TryParse(request?.TimeToLive, CultureInfo.InvariantCulture, out TimeSpan ts))
 			ttl = ts;
 
 		return new MessageProperties {
-			MessageId = messageId,
-			SessionId = sessionId,
-			CorrelationId = correlationId,
-			ContentType = contentType,
+			MessageId = request?.MessageId,
+			SessionId = request?.SessionId,
+			CorrelationId = request?.CorrelationId,
+			ContentType = request?.ContentType,
 			ScheduledEnqueueTime = scheduled,
 			TimeToLive = ttl
 		};
@@ -94,18 +84,17 @@ internal static class SendRequestHandler
 		for (int index = 0; index < request.Count; index++) {
 			SendMessageApplicationPropertyRequest property = request[index];
 			string fieldName = $"{nameof(SendRequest.SendMessageApplicationProperties)}[{index}].{nameof(SendMessageApplicationPropertyRequest.Type)}";
-			string? typeText = RequestMapping.NormalizeOptional(property.Type);
 
-			if (typeText is null)
+			if (property.Type is null)
 				continue; // validator already recorded missing-type error
 
-			if (!Enum.TryParse(typeText, true, out ApplicationPropertyType propertyType)) {
-				errors[fieldName] = [$"Unsupported application property type '{typeText}'."];
+			if (!Enum.TryParse(property.Type, true, out ApplicationPropertyType propertyType)) {
+				errors[fieldName] = [$"Unsupported application property type '{property.Type}'."];
 				continue;
 			}
 
 			properties.Add(new ApplicationProperty(
-				RequestMapping.NormalizeOptional(property.Key) ?? string.Empty,
+				property.Key ?? string.Empty,
 				property.Value ?? string.Empty,
 				propertyType));
 		}
