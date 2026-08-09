@@ -18,6 +18,7 @@ ServiceBusViewer.sln
 ├─ src/                                      <-- Application source
 │  ├─ ServiceBusViewer/                      <-- Backend API project, owns HTTP API, business logic, and browser-session state.
 │  │  ├─ Api/                                <-- HTTP boundary; keep minimal API handlers thin and delegate to business slice services
+│  │  │  ├─ ExceptionHandling/                <-- Central exception classification and RFC ProblemDetails responses
 │  │  │  ├─ Endpoints/                       <-- Minimal API endpoint groups organized by feature area
 │  │  │  │  ├─ SessionState/                 <-- Initial session-state payload for the current browser session
 │  │  │  │  ├─ Connection/                   <-- Connect/disconnect endpoints
@@ -97,6 +98,8 @@ The solution is intentionally divided into backend, frontend, and local-orchestr
 ### Minimal API handlers stay thin
 
 `Api` is the HTTP boundary only. Handlers should validate input, call the appropriate business slice service, and map results to HTTP responses instead of owning business logic directly.
+
+Unhandled endpoint exceptions are classified centrally by the API exception handler and written through `IProblemDetailsService` as `application/problem+json`. Known connection-state, request-format, and Service Bus errors may expose actionable details; unexpected failures use a sanitized `500` detail and are logged server-side without exposing exception messages or stack traces to the browser. Validation problems retain their field-level `errors` object.
 
 ### Business is organized by capability first
 

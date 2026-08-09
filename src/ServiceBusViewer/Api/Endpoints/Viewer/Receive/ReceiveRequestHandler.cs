@@ -18,13 +18,11 @@ internal static class ReceiveRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		return await EndpointExecution.ExecuteAsync(async () => {
-			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ReceiveAsync(
-				context.GetClientSessionState(),
-				RequestValidation.NormalizeOptional(request.ReceiveSessionId));
+		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ReceiveAsync(
+			context.GetClientSessionState(),
+			RequestValidation.NormalizeOptional(request.ReceiveSessionId));
 
-			return ToReceiveResponse(result);
-		});
+		return TypedResults.Ok(ToReceiveResponse(result));
 	}
 
 	private static ReceiveResponse ToReceiveResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)

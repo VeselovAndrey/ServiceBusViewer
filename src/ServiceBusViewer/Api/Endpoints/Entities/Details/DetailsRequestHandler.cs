@@ -25,15 +25,13 @@ internal static class DetailsRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		return await EndpointExecution.ExecuteAsync(async () => {
-			Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(type!, name!, topicName, nameof(request.TopicName));
+		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(type!, name!, topicName, nameof(request.TopicName));
 
-			EntityDetailsResult result = await service.GetDetailsAsync(
-				context.GetClientSessionState(),
-				entityId);
+		EntityDetailsResult result = await service.GetDetailsAsync(
+			context.GetClientSessionState(),
+			entityId);
 
-			return ToDetailsResponse(result);
-		});
+		return TypedResults.Ok(ToDetailsResponse(result));
 	}
 
 	private static DetailsResponse ToDetailsResponse(EntityDetailsResult result)

@@ -14,9 +14,12 @@ internal sealed record ReceivedMessage(
 	ReceivedMessageProperties Properties,
 	IReadOnlyDictionary<string, object> ApplicationProperties);
 
-
+/// <summary>Provides mappings from business received-message models to API models.</summary>
 internal static class ReceivedMessageExtensions
 {
+	/// <summary>Maps a business received message to its API representation.</summary>
+	/// <param name="message">The business received message to map.</param>
+	/// <returns>The API received-message model.</returns>
 	internal static ReceivedMessage ToApiModel(this Business.Viewer.Contracts.ServiceBus.ReceivedMessage message)
 		=> new Models.ReceivedMessage(
 				message.Body,

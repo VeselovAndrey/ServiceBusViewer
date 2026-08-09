@@ -19,7 +19,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 
   try {
     const headers = new Headers(init?.headers);
-    headers.set('Accept', 'application/json');
+    headers.set('Accept', 'application/problem+json, application/json');
     if (init?.body) {
       headers.set('Content-Type', 'application/json');
     }

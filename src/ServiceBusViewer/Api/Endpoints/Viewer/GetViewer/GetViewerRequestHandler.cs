@@ -1,16 +1,16 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer.GetViewer;
 
-using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class GetViewerRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service)
 	{
-		return EndpointExecution.ExecuteAsync(async () =>
-			ToGetViewerResponse(await service.GetCurrentStateAsync(context.GetClientSessionState())));
+		ServiceBusViewer.Business.Viewer.Contracts.ViewerState state = await service.GetCurrentStateAsync(context.GetClientSessionState());
+
+		return TypedResults.Ok(ToGetViewerResponse(state));
 	}
 
 	private static GetViewerResponse ToGetViewerResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)

@@ -1,4 +1,5 @@
 using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.ExceptionHandling;
 using ServiceBusViewer.Business.Application.Contracts;
 using ServiceBusViewer.Business.Application.Services;
 using ServiceBusViewer.Business.Viewer.Contracts;
@@ -10,6 +11,7 @@ using ServiceBusViewer.Infrastructure.ServiceBus;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddCors(options => options.AddPolicy("LocalDevelopment", policy => policy
 	.SetIsOriginAllowed(static origin => IsLocalDevelopmentOrigin(origin))
 	.AllowAnyHeader()

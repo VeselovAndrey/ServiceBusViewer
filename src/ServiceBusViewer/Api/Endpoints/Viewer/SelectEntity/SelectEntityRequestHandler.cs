@@ -34,19 +34,17 @@ internal static class SelectEntityRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		return await EndpointExecution.ExecuteAsync(async () => {
-			Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(
-				selectedEntityType!,
-				selectedEntityName!,
-				selectedTopicName,
-				nameof(request.SelectedTopicName));
+		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(
+			selectedEntityType!,
+			selectedEntityName!,
+			selectedTopicName,
+			nameof(request.SelectedTopicName));
 
-			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SelectEntityAsync(
-				context.GetClientSessionState(),
-				entityId);
+		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SelectEntityAsync(
+			context.GetClientSessionState(),
+			entityId);
 
-			return ToSelectEntityResponse(result);
-		});
+		return TypedResults.Ok(ToSelectEntityResponse(result));
 	}
 
 	private static SelectEntityResponse ToSelectEntityResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)

@@ -1,6 +1,5 @@
 namespace ServiceBusViewer.Api.Endpoints.Connection.Disconnect;
 
-using ServiceBusViewer.Api.Endpoints;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Application.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts;
@@ -8,16 +7,14 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class DisconnectRequestHandler
 {
-	public static Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service, IApplicationInfoProvider applicationInfoProvider)
+	public static async Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service, IApplicationInfoProvider applicationInfoProvider)
 	{
-		return EndpointExecution.ExecuteAsync(async () => {
-			ViewerConnectionSnapshot viewerConnectionSnapshot = await service.DisconnectAsync(context.GetClientSessionState());
+		ViewerConnectionSnapshot viewerConnectionSnapshot = await service.DisconnectAsync(context.GetClientSessionState());
 
-			return new DisconnectResponse(
+		return TypedResults.Ok(new DisconnectResponse(
 				applicationInfoProvider.ApplicationVersion,
 				viewerConnectionSnapshot.Connection.ToApiModel(),
 				viewerConnectionSnapshot.Viewer?.ToApiModel(),
-				viewerConnectionSnapshot.IsConnected);
-		});
+				viewerConnectionSnapshot.IsConnected));
 	}
 }

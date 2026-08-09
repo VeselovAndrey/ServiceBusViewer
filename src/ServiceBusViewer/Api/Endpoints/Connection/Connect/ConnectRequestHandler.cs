@@ -27,17 +27,15 @@ internal static class ConnectRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		return await EndpointExecution.ExecuteAsync(async () => {
-			ViewerConnectionSettings settings = rootConnectionString is null
-				? new ViewerConnectionSettings(connectionString!, queueOrTopicName!, subscriptionName)
-				: new ViewerConnectionSettings(connectionString!, rootConnectionString, queueOrTopicName, subscriptionName);
+		ViewerConnectionSettings settings = rootConnectionString is null
+			? new ViewerConnectionSettings(connectionString!, queueOrTopicName!, subscriptionName)
+			: new ViewerConnectionSettings(connectionString!, rootConnectionString, queueOrTopicName, subscriptionName);
 
-			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ConnectAsync(
-				context.GetClientSessionState(),
-				settings);
+		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ConnectAsync(
+			context.GetClientSessionState(),
+			settings);
 
-			return ToConnectResponse(result);
-		});
+		return TypedResults.Ok(ToConnectResponse(result));
 	}
 
 	private static ConnectResponse ToConnectResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)

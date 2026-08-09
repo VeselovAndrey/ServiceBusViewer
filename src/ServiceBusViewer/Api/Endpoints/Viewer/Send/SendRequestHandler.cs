@@ -32,13 +32,11 @@ internal static class SendRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		return await EndpointExecution.ExecuteAsync(async () => {
-			ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SendAsync(
-				context.GetClientSessionState(),
-				new SendCommand(body!, messageProperties, applicationProperties));
+		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SendAsync(
+			context.GetClientSessionState(),
+			new SendCommand(body!, messageProperties, applicationProperties));
 
-			return ToSendResponse(result);
-		});
+		return TypedResults.Ok(ToSendResponse(result));
 	}
 
 	private static SendResponse ToSendResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)

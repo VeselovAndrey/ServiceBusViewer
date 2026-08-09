@@ -50,12 +50,15 @@ export function extractProblemMessages(problem: unknown): string[] {
     return validationMessages;
   }
 
-  const messages = [problem.detail, problem.title].filter(
-    (value): value is string =>
-      typeof value === 'string' && value.trim().length > 0,
-  );
+  if (typeof problem.detail === 'string' && problem.detail.trim().length > 0) {
+    return [problem.detail];
+  }
 
-  return messages.length > 0 ? messages : ['Something went wrong.'];
+  if (typeof problem.title === 'string' && problem.title.trim().length > 0) {
+    return [problem.title];
+  }
+
+  return ['Something went wrong.'];
 }
 
 export function getErrorMessages(error: unknown): string[] {
