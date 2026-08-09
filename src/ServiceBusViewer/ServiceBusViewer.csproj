@@ -25,4 +25,8 @@
 		<Folder Include="wwwroot\" />
 	</ItemGroup>
 
+	<Target Name="EnsureWwwrootExists" BeforeTargets="PrepareForBuild" Condition="!Exists('$(ProjectDir)wwwroot')">
+		<MakeDir Directories="$(ProjectDir)wwwroot" />
+	</Target>
+
 </Project>
