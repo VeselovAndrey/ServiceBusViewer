@@ -27,7 +27,7 @@ Follow `.agents\specs\CSHARP_CODESTYLE.md` for all C# style rules.
 See docs\PROJECT_STRUCTURE.md for the canonical architecture and folder responsibilities.
 
 Enforced rules for agents:
-- Minimal API handlers must remain thin: validate input, call `Business\Services`, and map results to HTTP responses.
+- Minimal API handlers must remain thin: validate input, call the appropriate business capability service, and map results to HTTP responses.
 - Preserve browser-session isolation: keep viewer and Service Bus connection state scoped to the `sbv-session` browser cookie.
 
 ## Service Bus Implementation Notes
@@ -39,7 +39,7 @@ Enforced rules for agents:
 
 ## Frontend Conventions
 
-- Keep frontend code organized by responsibility under `src\ServiceBusViewer.Web\src` (`api`, `components`, `hooks`, `lib`, `pages`, `state`, `types`).
+- Keep frontend code organized by responsibility under `src\ServiceBusViewer.Web\src` (`api`, `assets`, `components`, `hooks`, `lib`, `pages`, `state`, `types`).
 - Keep API-calling code in the frontend API layer instead of scattering fetch logic across components.
 - Preserve the existing `/api` proxy/runtime contract when changing frontend or container configuration.
 
@@ -47,8 +47,11 @@ Enforced rules for agents:
 
 - `CONNECTION_STRING` overrides the default Service Bus connection string for the API.
 - `ROOT_CONNECTION_STRING` is used for namespace/root operations when available.
+- `QUEUE_OR_TOPIC_NAME` selects the queue or topic used for direct entity access.
+- `SUBSCRIPTION_NAME` selects the subscription when direct entity access targets a topic.
 - `ASPNETCORE_URLS` can be used to pin the backend port for local development and container scenarios.
 - `VITE_PROXY_TARGET` should match the backend URL when running the SPA separately.
+- `VITE_API_BASE_PATH` sets the API base path embedded in the SPA during Vite development or build and defaults to `/api`.
 
 ## Testing and Validation
 

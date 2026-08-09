@@ -176,6 +176,8 @@ The API's `http` launch profile listens on `http://localhost:5221`.
 If you override it with `ASPNETCORE_URLS`, set `VITE_PROXY_TARGET` to the same API origin. 
 `VITE_PROXY_TARGET` defaults to `http://localhost:5221`.
 
+See [the web project README](src/ServiceBusViewer.Web/README.md) for frontend-specific scripts and environment settings.
+
 ### Build locally
 
 Build the .NET solution:
@@ -197,3 +199,9 @@ docker build -f src\ServiceBusViewer\Dockerfile -t ServiceBusViewer .
 ```
 
 The development workflow publishes the combined image with the `canary` tag.
+
+## Copyright
+
+Copyright © 2025–2026 Andrey Veselov.
+
+This project is distributed under the [MIT License](LICENSE).
