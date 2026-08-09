@@ -32,4 +32,4 @@ jobs:
         context: .
         file: ./src/ServiceBusViewer/Dockerfile
         push: true
-        tags: ghcr.io/veselovandrey/ServiceBusViewer:canary
+        tags: ghcr.io/veselovandrey/servicebusviewer:canary
