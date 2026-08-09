@@ -1,7 +1,7 @@
 namespace ServiceBusViewer.Api.Endpoints.Entities.Details;
 
 using System.Globalization;
-using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
@@ -18,14 +18,14 @@ internal static class DetailsRequestHandler
 				errors[kv.Key] = kv.Value;
 		}
 
-		string? type = RequestValidation.NormalizeOptional(request.Type);
-		string? name = RequestValidation.NormalizeOptional(request.Name);
-		string? topicName = RequestValidation.NormalizeOptional(request.TopicName);
+		string? type = RequestMapping.NormalizeOptional(request.Type);
+		string? name = RequestMapping.NormalizeOptional(request.Name);
+		string? topicName = RequestMapping.NormalizeOptional(request.TopicName);
 
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(type!, name!, topicName, nameof(request.TopicName));
+		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityIdFactory.Create(type!, name!, topicName, nameof(request.TopicName));
 
 		EntityDetailsResult result = await service.GetDetailsAsync(
 			context.GetClientSessionState(),

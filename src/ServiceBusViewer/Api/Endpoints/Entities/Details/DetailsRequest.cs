@@ -1,6 +1,7 @@
 namespace ServiceBusViewer.Api.Endpoints.Entities.Details;
 
 using System.Collections.Generic;
+using ServiceBusViewer.Api.Converters;
 
 /// <summary>
 /// Request parameters for retrieving entity details.
@@ -21,7 +22,7 @@ internal static class DetailsRequestValidator
 		if (string.IsNullOrWhiteSpace(request.Name))
 			local["name"] = ["Entity name is required."];
 
-		string? entityType = RequestValidation.NormalizeOptional(request.Type);
+		string? entityType = RequestMapping.NormalizeOptional(request.Type);
 		if (entityType is not null && !IsSupportedEntityType(entityType))
 			local["type"] = [$"Unsupported entity type '{entityType}'."];
 

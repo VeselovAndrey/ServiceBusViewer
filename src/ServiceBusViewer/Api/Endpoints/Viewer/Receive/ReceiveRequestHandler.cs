@@ -1,6 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer.Receive;
 
-using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
@@ -20,7 +20,7 @@ internal static class ReceiveRequestHandler
 
 		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ReceiveAsync(
 			context.GetClientSessionState(),
-			RequestValidation.NormalizeOptional(request.ReceiveSessionId));
+			RequestMapping.NormalizeOptional(request.ReceiveSessionId));
 
 		return TypedResults.Ok(ToReceiveResponse(result));
 	}

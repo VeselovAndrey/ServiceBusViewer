@@ -1,6 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer.SelectEntity;
 
-using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
@@ -16,9 +16,9 @@ internal static class SelectEntityRequestHandler
 				errors[kv.Key] = kv.Value;
 		}
 
-		string? selectedEntityType = RequestValidation.NormalizeOptional(request.SelectedEntityType);
-		string? selectedEntityName = RequestValidation.NormalizeOptional(request.SelectedEntityName);
-		string? selectedTopicName = RequestValidation.NormalizeOptional(request.SelectedTopicName);
+		string? selectedEntityType = RequestMapping.NormalizeOptional(request.SelectedEntityType);
+		string? selectedEntityName = RequestMapping.NormalizeOptional(request.SelectedEntityName);
+		string? selectedTopicName = RequestMapping.NormalizeOptional(request.SelectedTopicName);
 		bool isSupportedEntityType = selectedEntityType is null
 			|| selectedEntityType.Equals("Queue", StringComparison.OrdinalIgnoreCase)
 			|| selectedEntityType.Equals("Topic", StringComparison.OrdinalIgnoreCase)
@@ -34,7 +34,7 @@ internal static class SelectEntityRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityRequestMapping.CreateEntityId(
+		Business.Viewer.Contracts.ServiceBus.EntityId entityId = EntityIdFactory.Create(
 			selectedEntityType!,
 			selectedEntityName!,
 			selectedTopicName,

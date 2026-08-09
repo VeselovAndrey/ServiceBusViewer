@@ -3,7 +3,7 @@ namespace ServiceBusViewer.Api.Endpoints.Viewer.Send;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
@@ -25,7 +25,7 @@ internal static class SendRequestHandler
 				errors[kv.Key] = kv.Value;
 		}
 
-		string? body = RequestValidation.NormalizeOptional(request.SendMessageBody);
+		string? body = RequestMapping.NormalizeOptional(request.SendMessageBody);
 		MessageProperties messageProperties = CreateMessageProperties(request.SendMessageProperties, errors);
 		List<ApplicationProperty> applicationProperties = CreateApplicationProperties(request.SendMessageApplicationProperties, errors);
 
@@ -59,12 +59,12 @@ internal static class SendRequestHandler
 
 	private static MessageProperties CreateMessageProperties(SendMessagePropertiesRequest? request, IDictionary<string, string[]> errors)
 	{
-		string? messageId = RequestValidation.NormalizeOptional(request?.MessageId);
-		string? sessionId = RequestValidation.NormalizeOptional(request?.SessionId);
-		string? correlationId = RequestValidation.NormalizeOptional(request?.CorrelationId);
-		string? contentType = RequestValidation.NormalizeOptional(request?.ContentType);
-		string? scheduledEnqueueTime = RequestValidation.NormalizeOptional(request?.ScheduledEnqueueTime);
-		string? timeToLive = RequestValidation.NormalizeOptional(request?.TimeToLive);
+		string? messageId = RequestMapping.NormalizeOptional(request?.MessageId);
+		string? sessionId = RequestMapping.NormalizeOptional(request?.SessionId);
+		string? correlationId = RequestMapping.NormalizeOptional(request?.CorrelationId);
+		string? contentType = RequestMapping.NormalizeOptional(request?.ContentType);
+		string? scheduledEnqueueTime = RequestMapping.NormalizeOptional(request?.ScheduledEnqueueTime);
+		string? timeToLive = RequestMapping.NormalizeOptional(request?.TimeToLive);
 
 		DateTimeOffset? scheduled = null;
 		if (scheduledEnqueueTime is not null && DateTimeOffset.TryParse(scheduledEnqueueTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTimeOffset dto))
@@ -94,7 +94,7 @@ internal static class SendRequestHandler
 		for (int index = 0; index < request.Count; index++) {
 			SendMessageApplicationPropertyRequest property = request[index];
 			string fieldName = $"{nameof(SendRequest.SendMessageApplicationProperties)}[{index}].{nameof(SendMessageApplicationPropertyRequest.Type)}";
-			string? typeText = RequestValidation.NormalizeOptional(property.Type);
+			string? typeText = RequestMapping.NormalizeOptional(property.Type);
 
 			if (typeText is null)
 				continue; // validator already recorded missing-type error
@@ -105,7 +105,7 @@ internal static class SendRequestHandler
 			}
 
 			properties.Add(new ApplicationProperty(
-				RequestValidation.NormalizeOptional(property.Key) ?? string.Empty,
+				RequestMapping.NormalizeOptional(property.Key) ?? string.Empty,
 				property.Value ?? string.Empty,
 				propertyType));
 		}

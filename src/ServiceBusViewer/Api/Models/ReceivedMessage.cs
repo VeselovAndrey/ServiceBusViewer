@@ -1,7 +1,7 @@
 namespace ServiceBusViewer.Api.Models;
 
 using System.Globalization;
-using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.Converters;
 
 /// <summary>
 /// Represents a received message body and its metadata.
