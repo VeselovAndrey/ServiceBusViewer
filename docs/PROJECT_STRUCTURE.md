@@ -114,6 +114,8 @@ The business layer should describe the collaborators it needs through abstractio
 
 Viewer state and Service Bus connection state are intentionally isolated per browser session through the `sbv-session` cookie and the browser-session registry/middleware. New features should preserve that isolation rather than introducing shared singleton state for user data.
 
+The session-state response also exposes whether the running application image explicitly identifies itself as containerized. The connection page uses this runtime metadata only for container-specific host-address guidance.
+
 ### Frontend and backend communicate through `/api`
 
 `src\ServiceBusViewer.Web` should depend on backend HTTP contracts exposed via `/api`, not backend implementation details or shared internal abstractions. Keep frontend API access centralized in the frontend API layer. Vite proxies `/api` to the separately running API during local development; the combined container serves both from the ASP.NET Core host on port `8080`.
@@ -121,6 +123,8 @@ Viewer state and Service Bus connection state are intentionally isolated per bro
 ### AppHost and container assets are configuration boundaries
 
 `src\ServiceBusViewer.AppHost`, the combined-image Dockerfile, and emulator configuration are part of the runtime/development wiring. The AppHost continues to run Vite and the API as separate resources for local development. The Dockerfile builds the SPA, publishes the API, and places the SPA bundle in the published application's `wwwroot`; the final image contains only the ASP.NET Core runtime. Changes to ports, environment variables, `/api` routing, or startup assumptions should keep these assets aligned.
+
+The final image sets the internal `SERVICEBUSVIEWER_RUNNING_IN_CONTAINER` marker. Processes started outside that image default to not containerized; the application does not infer containerization from browser-visible hostnames or filesystem heuristics.
 
 ### Validation is currently manual
 

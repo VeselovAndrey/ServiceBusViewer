@@ -269,17 +269,19 @@ export function ConnectPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
-                  For Docker or Podman, use{' '}
-                  <span className="font-mono text-slate-700 dark:text-slate-200">
-                    host.docker.internal
-                  </span>{' '}
-                  instead of{' '}
-                  <span className="font-mono text-slate-700 dark:text-slate-200">
-                    localhost
-                  </span>{' '}
-                  when targeting the emulator on the host machine.
-                </div>
+                {sessionState.isRunningInContainer && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
+                    For Docker or Podman, use{' '}
+                    <span className="font-mono text-slate-700 dark:text-slate-200">
+                      host.docker.internal
+                    </span>{' '}
+                    instead of{' '}
+                    <span className="font-mono text-slate-700 dark:text-slate-200">
+                      localhost
+                    </span>{' '}
+                    when targeting the emulator on the host machine.
+                  </div>
+                )}
 
                 <button
                   type="submit"

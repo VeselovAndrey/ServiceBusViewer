@@ -7,6 +7,7 @@
 - Unknown `/api/*` routes remain API 404 responses and are excluded from the SPA fallback.
 - Local development remains split: AppHost and manual workflows run Vite separately with `VITE_PROXY_TARGET` forwarding `/api` requests to the API.
 - The standalone `servicebusviewer-web` image and frontend-upstream environment contract are retired.
+- The final image sets an internal `SERVICEBUSVIEWER_RUNNING_IN_CONTAINER` marker. The session-state API exposes that positive signal so container-only UI guidance stays hidden for local and AppHost processes; hostname and filesystem heuristics are intentionally not used.
 
 ## 2026-08-09: Centralized API exception handling
 

@@ -21,6 +21,7 @@ EXPOSE 8080
 ENV ASPNETCORE_HTTP_PORTS=8080
 ENV CONNECTION_STRING=""
 ENV ROOT_CONNECTION_STRING=""
+ENV SERVICEBUSVIEWER_RUNNING_IN_CONTAINER=true
 LABEL org.opencontainers.image.description="Service Bus Viewer SPA and API."
 COPY --from=build /app/publish .
 COPY --from=frontend-build /workspace/dist ./wwwroot
