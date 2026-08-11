@@ -14,9 +14,13 @@ import type { SessionStateDto, ViewerState } from '../types/serviceBus';
 
 interface AppStateContextValue {
   sessionState: SessionStateDto | null;
+  appliedEntityFilterText: string;
+  entityFilterText: string;
   errorMessages: string[];
   isLoading: boolean;
   refreshSessionState: () => Promise<SessionStateDto>;
+  setAppliedEntityFilterText: (filterText: string) => void;
+  setEntityFilterText: (filterText: string) => void;
   setViewerState: (viewer: ViewerState | null) => void;
 }
 
@@ -24,6 +28,8 @@ const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [sessionState, setSessionState] = useState<SessionStateDto | null>(null);
+  const [appliedEntityFilterText, setAppliedEntityFilterText] = useState('');
+  const [entityFilterText, setEntityFilterText] = useState('');
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const hasLoadedRef = useRef(false);
@@ -34,6 +40,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     try {
       const nextSessionState = await serviceBusApi.getSessionState();
       setSessionState(nextSessionState);
+      if (!nextSessionState.isConnected) {
+        setAppliedEntityFilterText('');
+        setEntityFilterText('');
+      }
       setErrorMessages([]);
       return nextSessionState;
     } catch (error: unknown) {
@@ -73,12 +83,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppStateContextValue>(
     () => ({
       sessionState,
+      appliedEntityFilterText,
+      entityFilterText,
+      errorMessages,
+      isLoading,
+      refreshSessionState,
+      setAppliedEntityFilterText,
+      setEntityFilterText,
+      setViewerState,
+    }),
+    [
+      sessionState,
+      appliedEntityFilterText,
+      entityFilterText,
       errorMessages,
       isLoading,
       refreshSessionState,
       setViewerState,
-    }),
-    [sessionState, errorMessages, isLoading, refreshSessionState, setViewerState],
+    ],
   );
 
   return (
