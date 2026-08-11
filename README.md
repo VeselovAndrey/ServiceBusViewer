@@ -80,8 +80,9 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 
 ## Version history
 
-- 30.0.1 (2026-08-11):
-  - Prevented long expanded message bodies from increasing the width of the Peeked Messages table.
+- 0.31.0 (2026-08-11):
+  - **Added:** An entity sidebar filter with debounced input, immediate application on Enter, and state preserved between viewer and entity details pages.
+  - **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
 
 - 0.30.0 (2026-08-09):
   - Replaced the Razor UI with a React + Vite SPA and reorganized the backend as a minimal API.
@@ -108,17 +109,23 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
   - Added typed application properties.
   - Added entity list caching.
 
-- 0.8.0 (2026-02-05): Added queue/topic/subscription properties view.
+- 0.8.0 (2026-02-05): 
+  - Added queue/topic/subscription properties view.
 
-- 0.7.0 (2026-02-01): Implemented client-side message expansion/collapse for better UX.
+- 0.7.0 (2026-02-01): 
+  - Implemented client-side message expansion/collapse for better UX.
 
-- 0.6.0 (2026-01-31): Added entity selection feature with visual icons for queues, topics, and subscriptions.
+- 0.6.0 (2026-01-31):
+  - Added entity selection feature with visual icons for queues, topics, and subscriptions.
 
-- 0.5.2 (2026-01-24): Added support for setting the connection string through an environment variable.
+- 0.5.2 (2026-01-24): 
+  - Added support for setting the connection string through an environment variable.
 
-- 0.5.1 (2026-01-22): Updated to .NET 10.
+- 0.5.1 (2026-01-22):
+  - Updated to .NET 10.
 
-- 0.5.0 (2025-05-26): Initial version of Service Bus Viewer.
+- 0.5.0 (2025-05-26): 
+  - Initial version.
 
 ## Development
 
