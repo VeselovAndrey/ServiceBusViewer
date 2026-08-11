@@ -491,7 +491,7 @@ export function ViewerPage() {
                               </tr>
                               {isExpanded ? (
                                 <tr className="bg-slate-50/70 dark:bg-slate-950/50">
-                                  <td colSpan={5} className="px-4 py-4">
+                                  <td colSpan={5} className="max-w-0 px-4 py-4">
                                     <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
                                       <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
                                         <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">

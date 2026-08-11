@@ -80,6 +80,9 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 
 ## Version history
 
+- 30.0.1 (2026-08-11):
+  - Prevented long expanded message bodies from increasing the width of the Peeked Messages table.
+
 - 0.30.0 (2026-08-09):
   - Replaced the Razor UI with a React + Vite SPA and reorganized the backend as a minimal API.
   - Isolated viewer state and Service Bus connections by browser session.
