@@ -1,5 +1,13 @@
 # Project Decisions
 
+## 2026-08-11: Unified Service Bus connection handling
+
+- The primary connection string is always used for message operations and is also used for Azure entity discovery when its credential has Manage permission.
+- Azure management capability is detected by entity enumeration. Only explicit authorization failures fall back to direct-entity mode; connectivity, timeout, credential-format, and service failures remain visible.
+- The optional emulator management connection string is accepted only when both strings declare `UseDevelopmentEmulator=true`; emulator messaging endpoints are never probed for management.
+- Direct-entity mode requires a queue or topic only after management is known to be unavailable, allowing the connection page to submit Azure credentials without an entity name.
+- The API field is `emulatorManagementConnectionString`. Runtime defaults use the `SERVICEBUSVIEWER_*` environment-variable names with no legacy aliases.
+
 ## 2026-08-09: Kind-specific subscription rule responses
 
 - The entity-details API exposes subscription rules as a polymorphic response hierarchy discriminated by `kind`.

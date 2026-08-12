@@ -60,7 +60,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		IReadOnlyList<ServiceBusReceivedMessage> messages = await receiver.PeekMessagesAsync(maxMessages + 1);
 		bool hasMore = messages.Count > maxMessages;
 		IEnumerable<ServiceBusReceivedMessage> messagesToReturn = hasMore ? messages.Take(maxMessages) : messages;
-		return new ReceivedMessageList(messagesToReturn.Select(ConvertToReceivedMessage).ToList(), hasMore);
+		return new ReceivedMessageList([.. messagesToReturn.Select(ConvertToReceivedMessage)], hasMore);
 	}
 
 	public async Task<ReceivedMessage?> ReceiveMessageAsync(EntityId entityId, string? sessionId = null)
@@ -137,7 +137,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		ThrowIfDisposed();
 
 		if (_adminClient is null)
-			throw new InvalidOperationException("Entity list refresh is only available when connected with a root connection string.");
+			throw new InvalidOperationException("Entity list refresh is only available when management access is available.");
 
 		_availableEntities.Clear();
 

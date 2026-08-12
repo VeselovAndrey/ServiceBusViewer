@@ -4,7 +4,7 @@ Service Bus Viewer is a browser-based tool for inspecting and working with Azure
 
 ## Features
 
-- Connect directly to a queue or topic subscription, or use a root connection string to browse an entire namespace.
+- Automatically browse an Azure namespace when the primary connection has Manage permission, or connect directly to a queue or topic.
 - Browse queues, topics, subscriptions, entity properties, and subscription filters.
 - Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
 - View message bodies, system properties, and application properties, with client-side JSON formatting.
@@ -26,8 +26,12 @@ Open `http://localhost:8080`. The container listens on port `8080` and serves th
 
 ## Connection modes
 
-- **Namespace browsing:** enter both a **Connection String** for message operations and a **Root Connection String** for administration operations. The viewer discovers all queues, topics, and subscriptions in the namespace.
-- **Direct entity access:** leave **Root Connection String** empty. Enter a **Connection String** and a **Queue/Topic Name**. For a topic subscription, also enter the **Subscription Name**; otherwise, the specified entity is treated as a queue.
+- **Azure namespace browsing:** enter a Manage-capable **Connection String**. The viewer detects management access automatically, discovers all queues, topics, and subscriptions, and uses the same credential for message operations.
+- **Azure direct entity access:** enter a **Connection String** without Manage permission and a **Queue/Topic Name**. For a topic subscription, also enter the **Subscription Name**; otherwise, the specified entity is treated as a queue.
+- **Emulator namespace browsing:** enter the emulator messaging **Connection String** and its optional **Emulator Management Connection String**, normally using port `5300` for management.
+- **Emulator direct entity access:** leave **Emulator Management Connection String** empty and provide a **Queue/Topic Name** with the emulator messaging connection string.
+
+Direct entity access requires Listen permission for peeking and receiving messages and Send permission for sending messages. Azure Manage permission includes both Listen and Send.
 
 ## Runtime configuration
 
@@ -37,17 +41,17 @@ Settings entered on the connection page apply to the current browser session. Th
 
 | Environment variable | Purpose | Default |
 | --- | --- | --- |
-| `CONNECTION_STRING` | Connection used to peek, receive, and send messages. | Local emulator connection string |
-| `ROOT_CONNECTION_STRING` | Administration connection used to browse and refresh the namespace entity list. | Not set |
-| `QUEUE_OR_TOPIC_NAME` | Queue or topic to open in direct entity mode. | Empty |
-| `SUBSCRIPTION_NAME` | Subscription to open when `QUEUE_OR_TOPIC_NAME` identifies a topic. | Not set |
+| `SERVICEBUSVIEWER_CONNECTION_STRING` | Primary connection used for messages and, for Azure, automatic management discovery. | Local emulator connection string |
+| `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING` | Optional emulator-only administration connection used to browse and refresh entities. | Not set |
+| `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` | Queue or topic to open in direct entity mode. | Empty |
+| `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` | Subscription to open when `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` identifies a topic. | Not set |
 
 For example, the following command preconfigures namespace browsing for an emulator running on the Docker host:
 
 ```powershell
 docker run --name ServiceBusViewer -p 8080:8080 `
-  -e CONNECTION_STRING="Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" `
-  -e ROOT_CONNECTION_STRING="Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" `
+  -e SERVICEBUSVIEWER_CONNECTION_STRING="Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" `
+  -e SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING="Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;" `
   -d ghcr.io/veselovandrey/ServiceBusViewer:latest
 ```
 
@@ -80,6 +84,15 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 
 ## Version history
 
+- 0.40.0 (2026-08-12):
+  - **Breaking:** Renamed runtime configuration to `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` with no legacy aliases.
+  - **Added:** An entity sidebar filter with debounced input, immediate application on Enter, and state preserved between viewer and entity details pages.
+  - **Changed:** Unified Azure connection handling so one Manage-capable connection string is used for entity discovery and message operations, with automatic fallback to direct entity access when management is unauthorized.
+  - **Changed:** Reserved the optional second connection string for emulator management and renamed it to **Emulator Management Connection String** throughout the API and UI.
+  - **Fixed:** Failed connection attempts during initial message peeking no longer leave the browser session marked as connected, allowing immediate retry with corrected credentials.
+  - **Fixed:** A queue, topic, or subscription supplied with a management-capable connection is retained as the initial viewer selection.
+  - **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
+
 - 0.30.0 (2026-08-09):
   - Replaced the Razor UI with a React + Vite SPA and reorganized the backend as a minimal API.
   - Isolated viewer state and Service Bus connections by browser session.
@@ -89,33 +102,7 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 - 0.11.1 (2026-08-04):
   - Fixed failed connection attempts leaving the app stuck in a connected state. You can now retry immediately with a corrected connection string.
 
-- 0.11.0 (2026-08-01):
-  - Redesigned the application UI and user experience.
-  - Improved packaging and build configuration.
-
-- 0.10.0 (2026-02-15):
-  - Added client-side JSON formatting and a message-body formatting toggle.
-  - Added subscription filter details.
-  - Fixed sending messages to topics.
-  - Included other minor fixes.
-
-- 0.9.0 (2026-02-10):
-  - Added support for receiving messages from session-enabled entities with an optional Session ID.
-  - Added outgoing message properties: `MessageId`, `SessionId`, `CorrelationId`, `ScheduledEnqueueTime`, and `TimeToLive`.
-  - Added typed application properties.
-  - Added entity list caching.
-
-- 0.8.0 (2026-02-05): Added queue/topic/subscription properties view.
-
-- 0.7.0 (2026-02-01): Implemented client-side message expansion/collapse for better UX.
-
-- 0.6.0 (2026-01-31): Added entity selection feature with visual icons for queues, topics, and subscriptions.
-
-- 0.5.2 (2026-01-24): Added support for setting the connection string through an environment variable.
-
-- 0.5.1 (2026-01-22): Updated to .NET 10.
-
-- 0.5.0 (2025-05-26): Initial version of Service Bus Viewer.
+See the [full changelog](CHANGELOG.md) for the complete version history.
 
 ## Development
 
@@ -150,7 +137,7 @@ dotnet run --project src\ServiceBusViewer.AppHost
 AppHost starts:
 
 - SQL Server for emulator storage
-- Azure Service Bus Emulator 2.0.0
+- Azure Service Bus Emulator 2.0.1
 - `ServiceBusViewer`
 - `ServiceBusViewer.Web` via the Vite development server
 

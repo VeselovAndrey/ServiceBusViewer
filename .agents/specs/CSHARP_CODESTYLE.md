@@ -14,6 +14,7 @@ This document defines required C# code style rules.
 
 ## Formatting
 - Apply code-formatting style defined in `.editorconfig`.
+- Use CRLF (`\r\n`) line endings for all C# files.
 - Use file-scoped namespaces on the first non-empty line of each C# file.
 - Prefer explicit file-local `using` statements. Avoid `global using` unless it has strong project-wide justification.
 - Do not insert a newline before the opening curly brace of any code block (e.g., after `if`, `for`, `while`, `foreach`, `using`, `try`, etc.).

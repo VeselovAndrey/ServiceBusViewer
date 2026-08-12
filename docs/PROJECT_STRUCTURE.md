@@ -63,7 +63,8 @@ ServiceBusViewer.sln
 │     ├─ AppHost.cs                          <-- Aspire/AppHost orchestration for emulator, SQL, API, and SPA
 │     └─ ServiceBusConfig.json               <-- Azure Service Bus emulator configuration mounted into the container
 │
-├─ README.md                                 <-- Product overview, run instructions, and version history
+├─ CHANGELOG.md                              <-- Complete product version history
+├─ README.md                                 <-- Product overview, run instructions, and recent version history
 ├─ package.json                              <-- Repo-level scripts delegating to the SPA project
 └─ package-lock.json
 ```
@@ -116,6 +117,8 @@ Viewer state and Service Bus connection state are intentionally isolated per bro
 
 The session-state response also exposes whether the running application image explicitly identifies itself as containerized. The connection page uses this runtime metadata only for container-specific host-address guidance.
 
+The primary Service Bus connection string is used for all message operations. For Azure namespaces, the backend also probes entity enumeration with that same credential and falls back to direct-entity mode only on explicit authorization failures. Emulator connections never use the messaging endpoint for management discovery; they require the optional emulator management connection string for namespace browsing.
+
 ### Frontend and backend communicate through `/api`
 
 `src\ServiceBusViewer.Web` should depend on backend HTTP contracts exposed via `/api`, not backend implementation details or shared internal abstractions. Keep frontend API access centralized in the frontend API layer. Vite proxies `/api` to the separately running API during local development; the combined container serves both from the ASP.NET Core host on port `8080`.
@@ -125,6 +128,8 @@ The session-state response also exposes whether the running application image ex
 `src\ServiceBusViewer.AppHost`, the combined-image Dockerfile, and emulator configuration are part of the runtime/development wiring. The AppHost continues to run Vite and the API as separate resources for local development. The Dockerfile builds the SPA, publishes the API, and places the SPA bundle in the published application's `wwwroot`; the final image contains only the ASP.NET Core runtime. Changes to ports, environment variables, `/api` routing, or startup assumptions should keep these assets aligned.
 
 The final image sets the internal `SERVICEBUSVIEWER_RUNNING_IN_CONTAINER` marker. Processes started outside that image default to not containerized; the application does not infer containerization from browser-visible hostnames or filesystem heuristics.
+
+Service Bus runtime defaults use the `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` environment variables. These names are the only supported environment contract; legacy aliases are intentionally not retained.
 
 ### Validation is currently manual
 

@@ -14,13 +14,14 @@ Primary use case: local development and testing with the Azure Service Bus Emula
 
 ## Source-of-Truth Documents
 
+- `.agents\specs\CSHARP_CODESTYLE.md` — C# coding conventions and style rules.
+- `CHANGELOG.md` — complete product version history
 - `docs\PROJECT_STRUCTURE.md` — repository layout, folder responsibilities, and dependency boundaries
-- `README.md` — developer workflows, container usage, and product overview
-- `.agents\specs\CSHARP_CODESTYLE.md` — C# coding conventions and style rules
+- `README.md` — developer workflows, container usage, product overview, and recent release summary
 
 Do not duplicate detailed structure or workflow guidance here when those files already cover it.
 
-Follow `.agents\specs\CSHARP_CODESTYLE.md` for all C# style rules.
+Follow `.agents\specs\CSHARP_CODESTYLE.md` for C# code. If a rule conflicts with `.editorconfig`, `.editorconfig` takes precedence.
 
 ## Architecture Rules
 
@@ -45,10 +46,10 @@ Enforced rules for agents:
 
 ## Environment Notes
 
-- `CONNECTION_STRING` overrides the default Service Bus connection string for the API.
-- `ROOT_CONNECTION_STRING` is used for namespace/root operations when available.
-- `QUEUE_OR_TOPIC_NAME` selects the queue or topic used for direct entity access.
-- `SUBSCRIPTION_NAME` selects the subscription when direct entity access targets a topic.
+- `SERVICEBUSVIEWER_CONNECTION_STRING` overrides the default primary Service Bus connection string for the API.
+- `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING` optionally supplies the emulator-only administration endpoint.
+- `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` selects the queue or topic used for direct entity access.
+- `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` selects the subscription when direct entity access targets a topic.
 - `ASPNETCORE_URLS` can be used to pin the backend port for local development and container scenarios.
 - `VITE_PROXY_TARGET` should match the backend URL when running the SPA separately.
 - `VITE_API_BASE_PATH` sets the API base path embedded in the SPA during Vite development or build and defaults to `/api`.
@@ -72,3 +73,4 @@ Enforced rules for agents:
 - Never install any new tools without explicit confirmation.
 - Never commit or push any changes without explicit confirmation.
 - Use language servers (LSP) for code navigation and refactoring when available for higher confidence edits.
+- Keep exactly the three most recent releases in the README version history and link it to `CHANGELOG.md`. Keep the complete version history, including those three releases, in `CHANGELOG.md`.
