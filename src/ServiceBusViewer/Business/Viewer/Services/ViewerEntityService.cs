@@ -14,12 +14,13 @@ internal sealed class ViewerEntityService : IViewerEntityService
 		try {
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			connection.GetEntityProperties(entityId);
+			ReceivedMessageList messages = await connection.PeekMessagesAsync(entityId);
 
 			session.SelectedEntityId = entityId;
+			session.CurrentMessages = messages;
 			session.DisplayedMessage = null;
 			session.SendResultMessage = null;
 			session.ReceiveSessionId = null;
-			session.CurrentMessages = await connection.PeekMessagesAsync(entityId);
 
 			return session.ToViewerState(connection);
 		}

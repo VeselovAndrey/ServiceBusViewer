@@ -84,26 +84,20 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 
 ## Version history
 
-## 0.40.1 (2026-08-12)
-  - **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
+## 0.40.2 (2026-08-12)
 
-- 0.40.0 (2026-08-12):
-  - **Breaking:** Renamed runtime configuration to `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` with no legacy aliases.
-  - **Added:** An entity sidebar filter with debounced input, immediate application on Enter, and state preserved between viewer and entity details pages.
-  - **Changed:** Unified Azure connection handling so one Manage-capable connection string is used for entity discovery and message operations, with automatic fallback to direct entity access when management is unauthorized.
-  - **Changed:** Reserved the optional second connection string for emulator management and renamed it to **Emulator Management Connection String** throughout the API and UI.
-  - **Fixed:** Failed connection attempts during initial message peeking no longer leave the browser session marked as connected, allowing immediate retry with corrected credentials.
-  - **Fixed:** A queue, topic, or subscription supplied with a management-capable connection is retained as the initial viewer selection.
-  - **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
+- **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
+- **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
 
-- 0.30.0 (2026-08-09):
-  - Replaced the Razor UI with a React + Vite SPA and reorganized the backend as a minimal API.
-  - Isolated viewer state and Service Bus connections by browser session.
-  - Added centralized RFC `ProblemDetails` API error handling.
-  - Consolidated production deployment into one ASP.NET Core container that serves both the SPA and API.
+## 0.40.0 (2026-08-12)
 
-- 0.11.1 (2026-08-04):
-  - Fixed failed connection attempts leaving the app stuck in a connected state. You can now retry immediately with a corrected connection string.
+- **Breaking:** Renamed runtime configuration to `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` with no legacy aliases.
+- **Added:** An entity sidebar filter with debounced input, immediate application on Enter, and state preserved between viewer and entity details pages.
+- **Changed:** Unified Azure connection handling so one Manage-capable connection string is used for entity discovery and message operations, with automatic fallback to direct entity access when management is unauthorized.
+- **Changed:** Reserved the optional second connection string for emulator management and renamed it to **Emulator Management Connection String** throughout the API and UI.
+- **Fixed:** Failed connection attempts during initial message peeking no longer leave the browser session marked as connected, allowing immediate retry with corrected credentials.
+- **Fixed:** A queue, topic, or subscription supplied with a management-capable connection is retained as the initial viewer selection.
+- **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 
