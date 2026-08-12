@@ -21,9 +21,11 @@ internal static class ConnectRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		ViewerConnectionSettings settings = request.RootConnectionString is null
-			? new ViewerConnectionSettings(request.ConnectionString, request.QueueOrTopicName!, request.SubscriptionName)
-			: new ViewerConnectionSettings(request.ConnectionString, request.RootConnectionString, request.QueueOrTopicName, request.SubscriptionName);
+		var settings = new ViewerConnectionSettings(
+			request.ConnectionString,
+			request.EmulatorManagementConnectionString,
+			request.QueueOrTopicName,
+			request.SubscriptionName);
 
 		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ConnectAsync(
 			context.GetClientSessionState(),

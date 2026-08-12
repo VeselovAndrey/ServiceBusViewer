@@ -2,7 +2,7 @@ export type EntityType = 'Queue' | 'Topic' | 'Subscription';
 
 export interface ConnectionSettingsDto {
 	connectionString: string;
-	rootConnectionString: string | null;
+	emulatorManagementConnectionString: string | null;
 	queueOrTopicName: string | null;
 	subscriptionName: string | null;
 }
@@ -54,7 +54,7 @@ export interface SessionStateDto {
 
 export interface ConnectRequestDto {
 	connectionString: string;
-	rootConnectionString: string | null;
+	emulatorManagementConnectionString: string | null;
 	queueOrTopicName: string | null;
 	subscriptionName: string | null;
 }

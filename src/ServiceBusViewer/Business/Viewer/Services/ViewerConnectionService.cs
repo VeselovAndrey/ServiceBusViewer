@@ -32,12 +32,15 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 			IServiceBusConnection connection = await connectionFactory.OpenAsync(settings);
 
 			try {
+				EntityId? selectedEntityId = GetInitialSelectedEntityId(settings, connection.AvailableEntities);
+				ReceivedMessageList currentMessages = selectedEntityId is null
+					? ReceivedMessageList.Empty
+					: await connection.PeekMessagesAsync(selectedEntityId);
+
 				session.ConnectionSettings = settings;
 				session.Connection = connection;
-				session.SelectedEntityId = GetInitialSelectedEntityId(settings);
-				session.CurrentMessages = session.SelectedEntityId is null
-					? ReceivedMessageList.Empty
-					: await connection.PeekMessagesAsync(session.SelectedEntityId);
+				session.SelectedEntityId = selectedEntityId;
+				session.CurrentMessages = currentMessages;
 				session.DisplayedMessage = null;
 				session.SendResultMessage = null;
 				session.ReceiveSessionId = null;
@@ -81,10 +84,27 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 		}
 	}
 
-	private static EntityId? GetInitialSelectedEntityId(ConnectionSettings settings)
-		=> string.IsNullOrWhiteSpace(settings.RootConnectionString) && !string.IsNullOrWhiteSpace(settings.QueueOrTopicName)
-			? string.IsNullOrWhiteSpace(settings.SubscriptionName)
-				? new QueueEntityId(settings.QueueOrTopicName)
-				: new SubscriptionEntityId(settings.SubscriptionName, settings.QueueOrTopicName)
-			: null;
+	private static EntityId? GetInitialSelectedEntityId(ConnectionSettings settings, IReadOnlyList<EntityProperties> availableEntities)
+	{
+		if (string.IsNullOrWhiteSpace(settings.QueueOrTopicName))
+			return null;
+
+		EntityProperties? selectedEntity;
+
+		if (!string.IsNullOrWhiteSpace(settings.SubscriptionName)) {
+			selectedEntity = availableEntities.OfType<SubscriptionEntityProperties>()
+				.FirstOrDefault(subscription =>
+					subscription.Name.Equals(settings.SubscriptionName, StringComparison.OrdinalIgnoreCase)
+					&& subscription.TopicName.Equals(settings.QueueOrTopicName, StringComparison.OrdinalIgnoreCase));
+		}
+		else {
+			selectedEntity = availableEntities.FirstOrDefault(entity =>
+				entity is QueueEntityProperties or TopicEntityProperties
+				&& entity.Name.Equals(settings.QueueOrTopicName, StringComparison.OrdinalIgnoreCase));
+		}
+
+		return selectedEntity is not null
+			? selectedEntity.ToEntityId()
+			: throw new ArgumentException("The requested queue, topic, or subscription was not found in the connected Service Bus namespace.");
+	}
 }

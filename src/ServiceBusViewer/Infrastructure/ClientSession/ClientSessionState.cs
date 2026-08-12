@@ -60,17 +60,19 @@ internal sealed class ClientSessionState : IViewerSessionState
 
 	private static ConnectionSettings CreateDefaultConnectionSettings()
 	{
-		string connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+		string connectionString = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_CONNECTION_STRING")
 			?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
 
-		string? rootConnectionString = Environment.GetEnvironmentVariable("ROOT_CONNECTION_STRING");
+		string? emulatorManagementConnectionString = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING");
 
-		string queueOrTopicName = Environment.GetEnvironmentVariable("QUEUE_OR_TOPIC_NAME") ?? string.Empty;
+		string queueOrTopicName = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME") ?? string.Empty;
 
-		string? subscriptionName = Environment.GetEnvironmentVariable("SUBSCRIPTION_NAME");
+		string? subscriptionName = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_SUBSCRIPTION_NAME");
 
-		return !string.IsNullOrWhiteSpace(rootConnectionString)
-			? new ConnectionSettings(connectionString, rootConnectionString, queueOrTopicName, subscriptionName)
-			: new ConnectionSettings(connectionString, queueOrTopicName, subscriptionName);
+		return new ConnectionSettings(
+			connectionString,
+			emulatorManagementConnectionString,
+			queueOrTopicName,
+			subscriptionName);
 	}
 }

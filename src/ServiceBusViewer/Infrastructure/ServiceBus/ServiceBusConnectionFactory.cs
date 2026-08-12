@@ -1,5 +1,6 @@
 namespace ServiceBusViewer.Infrastructure.ServiceBus;
 
+using Azure;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using ServiceBusViewer.Business.Viewer.Contracts;
@@ -13,18 +14,32 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 	{
 		ArgumentNullException.ThrowIfNull(settings);
 
+		ServiceBusConnectionStringProperties connectionProperties = ServiceBusConnectionStringProperties.Parse(settings.ConnectionString);
+		ServiceBusConnectionStringProperties? emulatorManagementProperties = ParseEmulatorManagementProperties(settings);
+		bool usesDevelopmentEmulator = UsesDevelopmentEmulator(settings.ConnectionString);
+		bool managementUsesDevelopmentEmulator = emulatorManagementProperties is not null
+			&& UsesDevelopmentEmulator(settings.EmulatorManagementConnectionString!);
+		ValidateConnectionCombination(usesDevelopmentEmulator, emulatorManagementProperties, managementUsesDevelopmentEmulator);
+
 		ServiceBusClient client = new(settings.ConnectionString);
 
 		try {
-			ServiceBusAdministrationClient? adminClient = string.IsNullOrWhiteSpace(settings.RootConnectionString)
-				? null
-				: new ServiceBusAdministrationClient(settings.RootConnectionString);
+			if (usesDevelopmentEmulator) {
+				if (emulatorManagementProperties is null)
+					return CreateScopedEntityConnection(client, settings, connectionProperties.FullyQualifiedNamespace);
 
-			ServiceBusConnection connection = adminClient is null
-				? CreateScopedEntityConnection(client, settings)
-				: await CreateNamespaceConnectionAsync(client, adminClient, settings.ConnectionString);
+				ServiceBusAdministrationClient emulatorAdminClient = new(settings.EmulatorManagementConnectionString!);
+				return await CreateNamespaceConnectionAsync(client, emulatorAdminClient, connectionProperties.FullyQualifiedNamespace);
+			}
 
-			return connection;
+			ServiceBusAdministrationClient adminClient = new(settings.ConnectionString);
+
+			try {
+				return await CreateNamespaceConnectionAsync(client, adminClient, connectionProperties.FullyQualifiedNamespace);
+			}
+			catch (Exception exception) when (IsManagementAuthorizationFailure(exception)) {
+				return CreateScopedEntityConnection(client, settings, connectionProperties.FullyQualifiedNamespace);
+			}
 		}
 		catch {
 			await client.DisposeAsync();
@@ -35,21 +50,18 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 	private static async Task<ServiceBusConnection> CreateNamespaceConnectionAsync(
 		ServiceBusClient client,
 		ServiceBusAdministrationClient adminClient,
-		string connectionString)
+		string namespaceHost)
 	{
-		ServiceBusConnection connection = new(
-			client,
-			adminClient,
-			GetServiceBusHost(connectionString));
-
+		var connection = new ServiceBusConnection(client, adminClient, namespaceHost);
 		await connection.RefreshEntitiesAsync();
+
 		return connection;
 	}
 
-	private static ServiceBusConnection CreateScopedEntityConnection(ServiceBusClient client, ConnectionSettings settings)
+	private static ServiceBusConnection CreateScopedEntityConnection(ServiceBusClient client, ConnectionSettings settings, string namespaceHost)
 	{
 		if (string.IsNullOrWhiteSpace(settings.QueueOrTopicName))
-			throw new InvalidOperationException("Queue or topic name is required.");
+			throw new ArgumentException("Queue or topic name is required because Service Bus management is unavailable. Provide a queue or topic name and try again.");
 
 		List<EntityProperties> availableEntities = [];
 
@@ -95,24 +107,43 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 		return new ServiceBusConnection(
 			client,
 			null,
-			GetServiceBusHost(settings.ConnectionString),
+			namespaceHost,
 			availableEntities);
 	}
 
-	private static string GetServiceBusHost(string connectionString)
+	private static ServiceBusConnectionStringProperties? ParseEmulatorManagementProperties(ConnectionSettings settings)
+		=> !string.IsNullOrWhiteSpace(settings.EmulatorManagementConnectionString)
+			? ServiceBusConnectionStringProperties.Parse(settings.EmulatorManagementConnectionString)
+			: null;
+
+	private static void ValidateConnectionCombination(
+		bool usesDevelopmentEmulator,
+		ServiceBusConnectionStringProperties? emulatorManagementProperties,
+		bool managementUsesDevelopmentEmulator)
 	{
-		const string connectionStringPrefix = "Endpoint=sb://";
+		if (emulatorManagementProperties is null)
+			return;
 
-		if (!connectionString.StartsWith(connectionStringPrefix, StringComparison.OrdinalIgnoreCase))
-			throw new ArgumentException("Invalid Service Bus connection string.", nameof(connectionString));
+		if (!usesDevelopmentEmulator)
+			throw new ArgumentException("Emulator management connection string can only be used with an emulator primary connection string.");
 
-		int endIndex = connectionString.IndexOf(';', connectionStringPrefix.Length);
-		if (endIndex < 0)
-			endIndex = connectionString.Length;
-
-		ReadOnlySpan<char> host = connectionString.AsSpan(connectionStringPrefix.Length, endIndex - connectionStringPrefix.Length)
-			.TrimEnd('/');
-
-		return host.ToString();
+		if (!managementUsesDevelopmentEmulator)
+			throw new ArgumentException("Emulator management connection string must include UseDevelopmentEmulator=true.");
 	}
+
+	private static bool UsesDevelopmentEmulator(string connectionString)
+	{
+		foreach (string component in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) {
+			string[] parts = component.Split('=', 2, StringSplitOptions.TrimEntries);
+			if (parts.Length == 2
+				&& parts[0].Equals("UseDevelopmentEmulator", StringComparison.OrdinalIgnoreCase)
+				&& bool.TryParse(parts[1], out bool useDevelopmentEmulator))
+				return useDevelopmentEmulator;
+		}
+
+		return false;
+	}
+
+	private static bool IsManagementAuthorizationFailure(Exception exception)
+		=> exception is UnauthorizedAccessException or RequestFailedException { Status: 401 or 403 };
 }

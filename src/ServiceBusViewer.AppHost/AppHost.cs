@@ -33,8 +33,8 @@ IResourceBuilder<ContainerResource> serviceBusEmulator = builder.AddContainer("S
 
 // Add Service Bus Viewer API
 IResourceBuilder<ProjectResource> serviceBusViewerApi = builder.AddProject<ServiceBusViewer>("ServiceBusViewer-API")
-	.WithEnvironment("CONNECTION_STRING", serviceBusEmulatorConnectionString)
-	.WithEnvironment("ROOT_CONNECTION_STRING", serviceBusEmulatorManagementConnectionString)
+	.WithEnvironment("SERVICEBUSVIEWER_CONNECTION_STRING", serviceBusEmulatorConnectionString)
+	.WithEnvironment("SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING", serviceBusEmulatorManagementConnectionString)
 	.WithExternalHttpEndpoints()
 	.WaitFor(serviceBusEmulator, WaitBehavior.WaitOnResourceUnavailable);
 
