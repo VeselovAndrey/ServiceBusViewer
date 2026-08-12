@@ -55,7 +55,7 @@ internal static class SendRequestHandler
 		};
 	}
 
-	private static List<ApplicationProperty> CreateApplicationProperties(IReadOnlyList<SendMessageApplicationPropertyRequest>? request, IDictionary<string, string[]> errors)
+	private static List<ApplicationProperty> CreateApplicationProperties(IReadOnlyList<SendMessageApplicationPropertyRequest>? request, Dictionary<string, string[]> errors)
 	{
 		if (request is null || request.Count == 0)
 			return [];

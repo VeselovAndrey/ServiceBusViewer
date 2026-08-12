@@ -10,8 +10,6 @@ internal sealed class ClientSessionStateRegistry
 
 	private readonly ConcurrentDictionary<string, ClientSessionState> _sessions = new(StringComparer.Ordinal);
 
-	public TimeSpan IdleTimeout => _idleTimeoutValue;
-
 	public ClientSessionState GetOrCreate(string sessionId)
 	{
 		ClientSessionState state = _sessions.GetOrAdd(sessionId, static _ => new ClientSessionState());

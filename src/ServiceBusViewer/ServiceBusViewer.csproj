@@ -15,6 +15,9 @@
 		<AnalysisLevel>10.0-recommended</AnalysisLevel>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
+		<!-- Disable warning CA1848:Use the LoggerMessage delegates. Reason: Logging performance optimization is not required for this project. -->
+		<NoWarn>$(NoWarn);CA1848</NoWarn>
+
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 	</PropertyGroup>
 
