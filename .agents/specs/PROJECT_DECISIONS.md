@@ -1,5 +1,12 @@
 # Project Decisions
 
+## 2026-08-12: Send completion and message refresh are separate operations
+
+- `POST /api/viewer/send` completes only after the Service Bus send succeeds and returns `204 No Content`; immediate visibility in the peeked-message list is not part of the send contract.
+- The frontend records send success immediately, then calls `/api/viewer/refresh` separately. A refresh failure preserves the send confirmation and stale message list and directs the user to Refresh instead of resending.
+- Refresh replaces only the peeked-message list and preserves the displayed received message and send confirmation.
+- Receive retains its `200` viewer-state response and treats its post-receive peek as best effort so a successfully consumed message is not reported as a failed receive.
+
 ## 2026-08-11: Unified Service Bus connection handling
 
 - The primary connection string is always used for message operations and is also used for Azure entity discovery when its credential has Manage permission.

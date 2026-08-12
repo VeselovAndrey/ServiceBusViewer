@@ -19,6 +19,5 @@ public interface IViewerMessageService
 	/// <summary>Sends a message to the currently selected entity.</summary>
 	/// <param name="session">The viewer session state to use.</param>
 	/// <param name="command">The message body and properties to send.</param>
-	/// <returns>The viewer state after sending the message.</returns>
-	Task<ViewerState> SendAsync(IViewerSessionState session, SendCommand command);
+	Task SendAsync(IViewerSessionState session, SendCommand command);
 }
