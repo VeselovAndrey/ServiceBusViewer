@@ -1,5 +1,9 @@
 # Service Bus Viewer Version History
 
+## 0.40.1 (2026-08-12)
+
+- **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
+- 
 ## 0.40.0 (2026-08-12)
 
 - **Breaking:** Renamed runtime configuration to `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` with no legacy aliases.

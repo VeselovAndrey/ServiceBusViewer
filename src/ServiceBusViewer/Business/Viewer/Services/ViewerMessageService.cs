@@ -1,12 +1,15 @@
 namespace ServiceBusViewer.Business.Viewer.Services;
 
+using Microsoft.Extensions.Logging;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 using ServiceBusViewer.Business.Viewer.Dependencies;
 
 /// <summary>Coordinates message operations for the selected entity in a single browser session.</summary>
-internal sealed class ViewerMessageService : IViewerMessageService
+internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger) : IViewerMessageService
 {
+	private readonly ILogger<ViewerMessageService> _logger = logger;
+
 	/// <inheritdoc/>
 	public async Task<ViewerState> RefreshAsync(IViewerSessionState session)
 	{
@@ -16,8 +19,6 @@ internal sealed class ViewerMessageService : IViewerMessageService
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			EntityId? entityId = session.SelectedEntityId;
 
-			session.DisplayedMessage = null;
-			session.SendResultMessage = null;
 			session.CurrentMessages = entityId is null
 				? ReceivedMessageList.Empty
 				: await connection.PeekMessagesAsync(entityId);
@@ -50,7 +51,15 @@ internal sealed class ViewerMessageService : IViewerMessageService
 			session.ReceiveSessionId = requiresSession ? sessionId : null;
 			session.DisplayedMessage = await connection.ReceiveMessageAsync(entityId, requiresSession ? sessionId : null);
 			session.SendResultMessage = null;
-			session.CurrentMessages = await connection.PeekMessagesAsync(entityId);
+
+			try {
+				session.CurrentMessages = await connection.PeekMessagesAsync(entityId);
+			}
+			catch (Exception exception) {
+				_logger.LogWarning(
+					"Message receive succeeded, but refreshing the peeked message list failed. Error type: {ErrorType}.",
+					exception.GetType().FullName);
+			}
 
 			return session.ToViewerState(connection);
 		}
@@ -60,26 +69,23 @@ internal sealed class ViewerMessageService : IViewerMessageService
 	}
 
 	/// <inheritdoc/>
-	public async Task<ViewerState> SendAsync(IViewerSessionState session, SendCommand command)
+	public async Task SendAsync(IViewerSessionState session, SendCommand command)
 	{
 		await session.Gate.WaitAsync();
 
 		try {
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			EntityId entityId = session.SelectedEntityId ?? throw new InvalidOperationException("No entity selected.");
+			bool requiresSession = connection.GetEntityProperties(entityId) is QueueEntityProperties { RequiresSession: true }
+				or SubscriptionEntityProperties { RequiresSession: true };
 
 			await connection.SendMessageAsync(entityId, command);
 
 			session.DisplayedMessage = null;
 			session.SendResultMessage = BuildSendResultMessage(command.MessageProperties.ContentType, command.MessageProperties.MessageId);
-			session.CurrentMessages = await connection.PeekMessagesAsync(entityId);
-			bool requiresSession = connection.GetEntityProperties(entityId) is QueueEntityProperties { RequiresSession: true }
-				or SubscriptionEntityProperties { RequiresSession: true };
 
 			if (!requiresSession)
 				session.ReceiveSessionId = null;
-
-			return session.ToViewerState(connection);
 		}
 		finally {
 			session.Gate.Release();

@@ -1,9 +1,9 @@
 # ServiceBusViewer — Project Structure
 
-## Folder Structure
+## Repository Structure
 
 ```text
-ServiceBusViewer.sln
+ServiceBusViewer/
 │
 ├─ .agents/                                  <-- Agent-specific repository instructions and supporting guidance
 │  └─ specs/                                 <-- Contributor/agent conventions and implementation guidance
@@ -16,7 +16,8 @@ ServiceBusViewer.sln
 │  └─ design/                                <-- Design/reference images and HTML mockup assets
 │
 ├─ src/                                      <-- Application source
-│  ├─ ServiceBusViewer/                      <-- Backend API project, owns HTTP API, business logic, and browser-session state.
+│  ├─ ServiceBusViewer.sln                   <-- Solution containing the backend, frontend, and AppHost projects
+│  ├─ ServiceBusViewer/                      <-- Backend API project, owns HTTP API, business logic, and browser-session state
 │  │  ├─ Api/                                <-- HTTP boundary; keep minimal API handlers thin and delegate to business slice services
 │  │  │  ├─ ExceptionHandling/                <-- Central exception classification and RFC ProblemDetails responses
 │  │  │  ├─ Endpoints/                       <-- Minimal API endpoint groups organized by feature area
@@ -63,6 +64,7 @@ ServiceBusViewer.sln
 │     ├─ AppHost.cs                          <-- Aspire/AppHost orchestration for emulator, SQL, API, and SPA
 │     └─ ServiceBusConfig.json               <-- Azure Service Bus emulator configuration mounted into the container
 │
+├─ AGENTS.md                                 <-- Repository-specific instructions for coding agents
 ├─ CHANGELOG.md                              <-- Complete product version history
 ├─ README.md                                 <-- Product overview, run instructions, and recent version history
 ├─ package.json                              <-- Repo-level scripts delegating to the SPA project
@@ -87,17 +89,15 @@ ServiceBusViewer.sln
 
 --- 
 
-## Key Principles Reflected
+## Responsibility Separation
 
 ### Application boundaries stay explicit
 
-The solution is intentionally divided into backend, frontend, and local-orchestration projects. Keep ownership clear: backend behavior belongs in `src\ServiceBusViewer`, UI/client behavior belongs in `src\ServiceBusViewer.Web`, and local environment wiring belongs in `src\ServiceBusViewer.AppHost`. This source-level split is preserved even though production deployment uses one container.
+The solution is divided into backend, frontend, and local-orchestration projects. Backend behavior belongs in `src\ServiceBusViewer`, UI and client behavior belongs in `src\ServiceBusViewer.Web`, and local environment wiring belongs in `src\ServiceBusViewer.AppHost`.
 
 ### Minimal API handlers stay thin
 
 `Api` is the HTTP boundary only. Handlers should validate input, call the appropriate business slice service, and map results to HTTP responses instead of owning business logic directly.
-
-Unhandled endpoint exceptions are classified centrally by the API exception handler and written through `IProblemDetailsService` as `application/problem+json`. Known connection-state, request-format, and Service Bus errors may expose actionable details; unexpected failures use a sanitized `500` detail and are logged server-side without exposing exception messages or stack traces to the browser. Validation problems retain their field-level `errors` object.
 
 ### Business is organized by capability first
 
@@ -111,29 +111,17 @@ This application is a **Service Bus Viewer**, not a generic viewer plus a separa
 
 The business layer should describe the collaborators it needs through abstractions in the owning capability slice and depend on those abstractions rather than concrete technical code. Infrastructure exists to implement those dependencies using Azure SDK clients, framework services, and other runtime details without pulling business policy into the infrastructure layer.
 
-### Browser-session isolation is a core runtime behavior
+### Browser-session state has explicit ownership
 
-Viewer state and Service Bus connection state are intentionally isolated per browser session through the `sbv-session` cookie and the browser-session registry/middleware. New features should preserve that isolation rather than introducing shared singleton state for user data.
-
-The session-state response also exposes whether the running application image explicitly identifies itself as containerized. The connection page uses this runtime metadata only for container-specific host-address guidance.
-
-The primary Service Bus connection string is used for all message operations. For Azure namespaces, the backend also probes entity enumeration with that same credential and falls back to direct-entity mode only on explicit authorization failures. Emulator connections never use the messaging endpoint for management discovery; they require the optional emulator management connection string for namespace browsing.
+Viewer state and Service Bus connection state belong to the browser-session infrastructure boundary. They must remain isolated per browser session rather than being stored as shared application state.
 
 ### Frontend and backend communicate through `/api`
 
-`src\ServiceBusViewer.Web` should depend on backend HTTP contracts exposed via `/api`, not backend implementation details or shared internal abstractions. Keep frontend API access centralized in the frontend API layer. Vite proxies `/api` to the separately running API during local development; the combined container serves both from the ASP.NET Core host on port `8080`.
+`src\ServiceBusViewer.Web` depends on backend HTTP contracts exposed through `/api`, not backend implementation details or shared internal abstractions. Frontend API access belongs in the frontend `api` folder.
 
-### AppHost and container assets are configuration boundaries
+### Orchestration and deployment assets stay outside product logic
 
-`src\ServiceBusViewer.AppHost`, the combined-image Dockerfile, and emulator configuration are part of the runtime/development wiring. The AppHost continues to run Vite and the API as separate resources for local development. The Dockerfile builds the SPA, publishes the API, and places the SPA bundle in the published application's `wwwroot`; the final image contains only the ASP.NET Core runtime. Changes to ports, environment variables, `/api` routing, or startup assumptions should keep these assets aligned.
-
-The final image sets the internal `SERVICEBUSVIEWER_RUNNING_IN_CONTAINER` marker. Processes started outside that image default to not containerized; the application does not infer containerization from browser-visible hostnames or filesystem heuristics.
-
-Service Bus runtime defaults use the `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` environment variables. These names are the only supported environment contract; legacy aliases are intentionally not retained.
-
-### Validation is currently manual
-
-The repository currently has no automated tests, so changes should be validated with targeted manual checks that match the behavior being changed.
+`src\ServiceBusViewer.AppHost`, the backend Dockerfile, emulator configuration, and repository workflows own orchestration, deployment, and automation concerns. They may compose application projects but must not contain product or business logic.
 
 ---
 
