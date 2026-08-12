@@ -14,7 +14,7 @@ COPY ["src/ServiceBusViewer/", "src/ServiceBusViewer/"]
 WORKDIR "/workspace/src/ServiceBusViewer"
 RUN dotnet publish "./ServiceBusViewer.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-composite-extra AS final
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080

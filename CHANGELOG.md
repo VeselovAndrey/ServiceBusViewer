@@ -2,9 +2,10 @@
 
 ## 0.40.2 (2026-08-12)
 
+- **Changed:** Reduced the combined Docker image size by using the .NET 10 Ubuntu Chiseled composite runtime with globalization support.
 - **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
 - **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
-- 
+
 ## 0.40.0 (2026-08-12)
 
 - **Breaking:** Renamed runtime configuration to `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` with no legacy aliases.
