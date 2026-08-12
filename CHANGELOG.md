@@ -1,7 +1,8 @@
 # Service Bus Viewer Version History
 
-## 0.40.1 (2026-08-12)
+## 0.40.2 (2026-08-12)
 
+- **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
 - **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
 - 
 ## 0.40.0 (2026-08-12)

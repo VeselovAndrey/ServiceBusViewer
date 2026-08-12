@@ -6,12 +6,13 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<Product>ServiceBusViewer</Product>
-		<Version>0.40.1</Version>
+		<Version>0.40.2</Version>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
 		<Description>HTTP API for the Service Bus Viewer.</Description>
 
 		<AnalysisLevel>latest</AnalysisLevel>
+		<AnalysisLevel>10.0-recommended</AnalysisLevel>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>

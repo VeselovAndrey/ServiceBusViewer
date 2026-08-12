@@ -138,7 +138,7 @@ export function ConnectPage() {
 										),
 									},
 									{
-										body: 'Add the optional emulator management endpoint to browse entities, or provide an entity name for direct access.',
+										body: 'Add the optional emulator management endpoint to browse entities, or provide a queue or subscription for direct access.',
 										iconBackground:
 											'bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300',
 										title: 'Emulator-friendly',
@@ -150,7 +150,7 @@ export function ConnectPage() {
 										),
 									},
 									{
-										body: 'Use one Azure connection string, or provide an entity name when management access is unavailable.',
+										body: 'Use one Azure connection string, or provide a queue or subscription when management access is unavailable.',
 										iconBackground:
 											'bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-300',
 										title: 'Connection modes',
@@ -252,6 +252,9 @@ export function ConnectPage() {
 											value={formState.queueOrTopicName ?? ''}
 											onChange={(event) => handleChange('queueOrTopicName', event)}
 										/>
+										<p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+											Without management access, enter a queue name or pair a topic name with a subscription.
+										</p>
 									</div>
 
 									<div>
