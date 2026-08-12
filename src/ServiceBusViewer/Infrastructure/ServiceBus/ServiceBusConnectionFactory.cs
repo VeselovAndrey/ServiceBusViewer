@@ -61,7 +61,7 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 	private static ServiceBusConnection CreateScopedEntityConnection(ServiceBusClient client, ConnectionSettings settings, string namespaceHost)
 	{
 		if (string.IsNullOrWhiteSpace(settings.QueueOrTopicName))
-			throw new ArgumentException("Queue or topic name is required because Service Bus management is unavailable. Provide a queue or topic name and try again.");
+			throw new ArgumentException("A queue name, or a topic name with a subscription name, is required because Service Bus management is unavailable.");
 
 		List<EntityProperties> availableEntities = [];
 

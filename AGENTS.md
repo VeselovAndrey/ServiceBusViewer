@@ -48,8 +48,8 @@ Enforced rules for agents:
 
 - `SERVICEBUSVIEWER_CONNECTION_STRING` overrides the default primary Service Bus connection string for the API.
 - `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING` optionally supplies the emulator-only administration endpoint.
-- `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` selects the queue or topic used for direct entity access.
-- `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` selects the subscription when direct entity access targets a topic.
+- `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` selects a queue for direct access, or the parent topic when a subscription is also configured.
+- `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` optionally selects a subscription under the configured parent topic; standalone topic access is not supported without management access.
 - `ASPNETCORE_URLS` can be used to pin the backend port for local development and container scenarios.
 - `VITE_PROXY_TARGET` should match the backend URL when running the SPA separately.
 - `VITE_API_BASE_PATH` sets the API base path embedded in the SPA during Vite development or build and defaults to `/api`.

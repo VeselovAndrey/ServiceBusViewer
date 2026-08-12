@@ -4,7 +4,7 @@ Service Bus Viewer is a browser-based tool for inspecting and working with Azure
 
 ## Features
 
-- Automatically browse an Azure namespace when the primary connection has Manage permission, or connect directly to a queue or topic.
+- Automatically browse an Azure namespace when the primary connection has Manage permission, or connect directly to a queue or subscription.
 - Browse queues, topics, subscriptions, entity properties, and subscription filters.
 - Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
 - View message bodies, system properties, and application properties, with client-side JSON formatting.
@@ -27,9 +27,9 @@ Open `http://localhost:8080`. The container listens on port `8080` and serves th
 ## Connection modes
 
 - **Azure namespace browsing:** enter a Manage-capable **Connection String**. The viewer detects management access automatically, discovers all queues, topics, and subscriptions, and uses the same credential for message operations.
-- **Azure direct entity access:** enter a **Connection String** without Manage permission and a **Queue/Topic Name**. For a topic subscription, also enter the **Subscription Name**; otherwise, the specified entity is treated as a queue.
+- **Azure direct entity access:** enter a **Connection String** without Manage permission and a **Queue/Topic Name**. The name identifies a queue unless you also enter a **Subscription Name**, in which case it identifies the parent topic. Standalone topic access is not supported without management access.
 - **Emulator namespace browsing:** enter the emulator messaging **Connection String** and its optional **Emulator Management Connection String**, normally using port `5300` for management.
-- **Emulator direct entity access:** leave **Emulator Management Connection String** empty and provide a **Queue/Topic Name** with the emulator messaging connection string.
+- **Emulator direct entity access:** leave **Emulator Management Connection String** empty and provide either a queue name or a topic and subscription name with the emulator messaging connection string.
 
 Direct entity access requires Listen permission for peeking and receiving messages and Send permission for sending messages. Azure Manage permission includes both Listen and Send.
 
@@ -43,8 +43,8 @@ Settings entered on the connection page apply to the current browser session. Th
 | --- | --- | --- |
 | `SERVICEBUSVIEWER_CONNECTION_STRING` | Primary connection used for messages and, for Azure, automatic management discovery. | Local emulator connection string |
 | `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING` | Optional emulator-only administration connection used to browse and refresh entities. | Not set |
-| `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` | Queue or topic to open in direct entity mode. | Empty |
-| `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` | Subscription to open when `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` identifies a topic. | Not set |
+| `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` | Queue to open directly, or parent topic when a subscription is also configured. | Empty |
+| `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` | Optional subscription to open under the configured parent topic. | Not set |
 
 For example, the following command preconfigures namespace browsing for an emulator running on the Docker host:
 

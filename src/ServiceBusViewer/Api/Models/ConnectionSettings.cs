@@ -3,8 +3,11 @@ namespace ServiceBusViewer.Api.Models;
 /// <summary>Connection settings returned by session-state and disconnect endpoints.</summary>
 /// <param name="ConnectionString">Primary connection string used to connect to Service Bus.</param>
 /// <param name="EmulatorManagementConnectionString">Optional emulator-only management connection string.</param>
-/// <param name="QueueOrTopicName">Optional default queue or topic name.</param>
-/// <param name="SubscriptionName">Optional subscription name.</param>
+/// <param name="QueueOrTopicName">
+/// Optional queue or topic name. Without management access, this identifies a queue unless
+/// <paramref name="SubscriptionName"/> is also provided, in which case it identifies the parent topic.
+/// </param>
+/// <param name="SubscriptionName">Optional subscription name for direct access through its parent topic.</param>
 internal sealed record ConnectionSettings(
 	string ConnectionString,
 	string? EmulatorManagementConnectionString,
