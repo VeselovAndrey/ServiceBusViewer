@@ -86,6 +86,7 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 
 ## 0.40.2 (2026-08-12)
 
+- **Changed:** Reduced the combined Docker image size by using the .NET 10 Ubuntu Chiseled composite runtime with globalization support.
 - **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
 - **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
 
@@ -98,6 +99,13 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 - **Fixed:** Failed connection attempts during initial message peeking no longer leave the browser session marked as connected, allowing immediate retry with corrected credentials.
 - **Fixed:** A queue, topic, or subscription supplied with a management-capable connection is retained as the initial viewer selection.
 - **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
+
+## 0.30.0 (2026-08-09)
+
+- Replaced the Razor UI with a React + Vite SPA and reorganized the backend as a minimal API.
+- Isolated viewer state and Service Bus connections by browser session.
+- Added centralized RFC `ProblemDetails` API error handling.
+- Consolidated production deployment into one ASP.NET Core container that serves both the SPA and API.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 
