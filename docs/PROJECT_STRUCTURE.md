@@ -26,9 +26,13 @@ ServiceBusViewer/
 │  │  │  │  ├─ Entities/                     <-- Queue/topic/subscription details endpoints
 │  │  │  │  └─ Viewer/                       <-- Viewer state, receive, refresh, select, and send endpoints
 │  │  │  └─ Models/                          <-- API-facing models used at the HTTP boundary
+│  │  ├─ Configuration/                      <-- Application-owned configuration adapters used by backend consumers
+│  │  │  ├─ ApplicationContainerConfiguration.cs <-- Backend service registration composition
+│  │  │  └─ Settings/                        <-- Environment-backed settings implementations registered by the composition root
 │  │  ├─ Business/                           <-- Backend business layer organized by business capability rather than global type buckets
 │  │  │  ├─ Application/                     <-- Application-wide metadata such as version/build information
 │  │  │  │  ├─ Contracts/                    <-- Application-facing interfaces for app metadata
+│  │  │  │  ├─ Dependencies/                 <-- Application-owned ports for externally supplied settings
 │  │  │  │  └─ Services/                     <-- Implementations of application metadata providers
 │  │  │  └─ Viewer/                          <-- Core Service Bus viewer capability: use cases, state, and Service Bus subdomain contracts
 │  │  │     ├─ Contracts/                    <-- Viewer DTOs and use-case interfaces consumed by the API layer
@@ -37,6 +41,7 @@ ServiceBusViewer/
 │  │  │     └─ Services/                     <-- Viewer business implementations and internal mapping helpers
 │  │  ├─ Infrastructure/                     <-- Backend infrastructure concerns outside the HTTP/business layers
 │  │  │  ├─ ClientSession/                   <-- Client-session isolation and state scoped to the session cookie
+│  │  │  │  └─ Dependencies/                 <-- Client-session-owned ports for initial session settings
 │  │  │  └─ ServiceBus/                      <-- Azure Service Bus and other technical implementations that satisfy business-defined dependencies
 │  │  └─ Dockerfile                          <-- Multi-stage build for the combined SPA and API container image
 │  │
@@ -80,6 +85,7 @@ ServiceBusViewer/
 | `.agents/specs` | Markdown documentation only | Production source code | Stores agent-facing rules and code-style guidance. |
 | `docs` | Markdown and design assets | Production source code | Holds repository/project documentation only. |
 | `src\ServiceBusViewer\Api` | `Business\Application\Contracts`, `Business\Viewer\Contracts`, API/infrastructure helpers | Frontend code | Keep handlers thin: validate, delegate, map HTTP responses. |
+| `src\ServiceBusViewer\Configuration` | BCL, backend consumer-owned settings interfaces | API endpoint handlers, frontend code, business policy | Implements application configuration adapters and owns direct environment-variable access. |
 | `src\ServiceBusViewer\Business\Application` | BCL | API endpoint handlers, frontend code, concrete infrastructure implementations | Holds application-level metadata contracts and implementations. |
 | `src\ServiceBusViewer\Business\Viewer` | `Business\Application\Contracts`, BCL, Azure SDK models when needed, viewer-owned dependencies | API endpoint handlers, frontend code, concrete infrastructure implementations | Owns the core Service Bus Viewer domain: viewer use cases, UI-facing state, Service Bus-shaped contracts, and viewer-owned ports that infrastructure implements. |
 | `src\ServiceBusViewer\Infrastructure` | Backend project internals, Azure SDK clients, framework primitives, business-defined abstractions when implementing them | Frontend code, business policy | Contains technical implementations and adapters for the dependencies required by the business layer. |
