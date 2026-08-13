@@ -9,7 +9,8 @@ internal static class ConnectRequestHandler
 	public static async Task<IResult> HandleAsync(
 		HttpContext context,
 		ConnectRequest request,
-		ServiceBusViewer.Business.Viewer.Contracts.IViewerConnectionService service)
+		ServiceBusViewer.Business.Viewer.Contracts.IViewerConnectionService service,
+		CancellationToken cancellationToken)
 	{
 		Dictionary<string, string[]> errors = [];
 
@@ -29,7 +30,8 @@ internal static class ConnectRequestHandler
 
 		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ConnectAsync(
 			context.GetClientSessionState(),
-			settings);
+			settings,
+			cancellationToken);
 
 		return TypedResults.Ok(ToConnectResponse(result));
 	}

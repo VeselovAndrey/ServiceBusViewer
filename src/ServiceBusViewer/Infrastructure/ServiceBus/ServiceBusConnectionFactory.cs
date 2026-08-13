@@ -10,7 +10,7 @@ using ServiceBusViewer.Business.Viewer.Dependencies;
 /// <summary>Builds browser-session-scoped Service Bus connections.</summary>
 internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 {
-	public async Task<IServiceBusConnection> OpenAsync(ConnectionSettings settings)
+	public async Task<IServiceBusConnection> OpenAsync(ConnectionSettings settings, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(settings);
 
@@ -29,13 +29,13 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 					return CreateScopedEntityConnection(client, settings, connectionProperties.FullyQualifiedNamespace);
 
 				ServiceBusAdministrationClient emulatorAdminClient = new(settings.EmulatorManagementConnectionString!);
-				return await CreateNamespaceConnectionAsync(client, emulatorAdminClient, connectionProperties.FullyQualifiedNamespace);
+				return await CreateNamespaceConnectionAsync(client, emulatorAdminClient, connectionProperties.FullyQualifiedNamespace, cancellationToken);
 			}
 
 			ServiceBusAdministrationClient adminClient = new(settings.ConnectionString);
 
 			try {
-				return await CreateNamespaceConnectionAsync(client, adminClient, connectionProperties.FullyQualifiedNamespace);
+				return await CreateNamespaceConnectionAsync(client, adminClient, connectionProperties.FullyQualifiedNamespace, cancellationToken);
 			}
 			catch (Exception exception) when (IsManagementAuthorizationFailure(exception)) {
 				return CreateScopedEntityConnection(client, settings, connectionProperties.FullyQualifiedNamespace);
@@ -50,10 +50,11 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 	private static async Task<ServiceBusConnection> CreateNamespaceConnectionAsync(
 		ServiceBusClient client,
 		ServiceBusAdministrationClient adminClient,
-		string namespaceHost)
+		string namespaceHost,
+		CancellationToken cancellationToken)
 	{
 		var connection = new ServiceBusConnection(client, adminClient, namespaceHost);
-		await connection.RefreshEntitiesAsync();
+		await connection.RefreshEntitiesAsync(cancellationToken);
 
 		return connection;
 	}

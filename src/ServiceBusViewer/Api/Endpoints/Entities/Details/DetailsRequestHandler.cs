@@ -8,7 +8,7 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class DetailsRequestHandler
 {
-	public static async Task<IResult> HandleAsync(HttpContext context, [AsParameters] DetailsRequest request, IViewerEntityService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, [AsParameters] DetailsRequest request, IViewerEntityService service, CancellationToken cancellationToken)
 	{
 		Dictionary<string, string[]> errors = [];
 
@@ -24,7 +24,8 @@ internal static class DetailsRequestHandler
 
 		EntityDetailsResult result = await service.GetDetailsAsync(
 			context.GetClientSessionState(),
-			entityId);
+			entityId,
+			cancellationToken);
 
 		return TypedResults.Ok(ToDetailsResponse(result));
 	}

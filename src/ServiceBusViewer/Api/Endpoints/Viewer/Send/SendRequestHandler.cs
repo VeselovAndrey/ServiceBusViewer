@@ -9,7 +9,7 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class SendRequestHandler
 {
-	public static async Task<IResult> HandleAsync(HttpContext context, SendRequest request, IViewerMessageService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, SendRequest request, IViewerMessageService service, CancellationToken cancellationToken)
 	{
 		Dictionary<string, string[]> errors = [];
 
@@ -30,7 +30,8 @@ internal static class SendRequestHandler
 
 		await service.SendAsync(
 			context.GetClientSessionState(),
-			new SendCommand(request.SendMessageBody ?? string.Empty, messageProperties, applicationProperties));
+			new SendCommand(request.SendMessageBody ?? string.Empty, messageProperties, applicationProperties),
+			cancellationToken);
 
 		return TypedResults.NoContent();
 	}
