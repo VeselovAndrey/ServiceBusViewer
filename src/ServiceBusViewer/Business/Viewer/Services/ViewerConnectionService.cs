@@ -12,7 +12,7 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 		await session.Gate.WaitAsync(cancellationToken);
 
 		try {
-			return session.ToViewerConnectionSnapshot();
+			return ToViewerConnectionSnapshot(session);
 		}
 		finally {
 			session.Gate.Release();
@@ -66,7 +66,7 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 
 		try {
 			await session.ResetConnectionAsync();
-			return session.ToViewerConnectionSnapshot();
+			return ToViewerConnectionSnapshot(session);
 		}
 		finally {
 			session.Gate.Release();
@@ -92,22 +92,25 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 		if (string.IsNullOrWhiteSpace(settings.QueueOrTopicName))
 			return null;
 
-		EntityProperties? selectedEntity;
-
-		if (!string.IsNullOrWhiteSpace(settings.SubscriptionName)) {
-			selectedEntity = availableEntities.OfType<SubscriptionEntityProperties>()
+		EntityProperties? selectedEntity = string.IsNullOrWhiteSpace(settings.SubscriptionName)
+			? availableEntities.FirstOrDefault(entity =>
+				entity is QueueEntityProperties or TopicEntityProperties
+				&& entity.Name.Equals(settings.QueueOrTopicName, StringComparison.OrdinalIgnoreCase))
+			: availableEntities.OfType<SubscriptionEntityProperties>()
 				.FirstOrDefault(subscription =>
 					subscription.Name.Equals(settings.SubscriptionName, StringComparison.OrdinalIgnoreCase)
 					&& subscription.TopicName.Equals(settings.QueueOrTopicName, StringComparison.OrdinalIgnoreCase));
-		}
-		else {
-			selectedEntity = availableEntities.FirstOrDefault(entity =>
-				entity is QueueEntityProperties or TopicEntityProperties
-				&& entity.Name.Equals(settings.QueueOrTopicName, StringComparison.OrdinalIgnoreCase));
-		}
 
 		return selectedEntity is not null
 			? selectedEntity.ToEntityId()
 			: throw new ArgumentException("The requested queue, topic, or subscription was not found in the connected Service Bus namespace.");
 	}
+
+	private static ViewerConnectionSnapshot ToViewerConnectionSnapshot(IViewerSessionState session)
+		=> new ViewerConnectionSnapshot(
+			session.ConnectionSettings,
+			session.IsConnected
+				? session.ToViewerState(session.Connection!)
+				: null,
+			session.IsConnected);
 }

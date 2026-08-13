@@ -39,21 +39,3 @@ public sealed record ViewerConnectionSnapshot(
 	ConnectionSettings Connection,
 	ViewerState? Viewer,
 	bool IsConnected);
-
-
-/// <summary>Provides extension methods for <see cref="ViewerConnectionSnapshot"/>.</summary>
-public static class ViewerConnectionSnapshotExtensions
-{
-	/// <summary>
-	/// Creates a <see cref="ViewerConnectionSnapshot"/> from the given <see cref="IViewerSessionState"/>.
-	/// </summary>
-	/// <param name="session">The viewer session state to convert.</param>
-	/// <returns>The resulting <see cref="ViewerConnectionSnapshot"/>.</returns>
-	public static ViewerConnectionSnapshot ToViewerConnectionSnapshot(this IViewerSessionState session)
-		=> new ViewerConnectionSnapshot(
-			session.ConnectionSettings,
-			session.IsConnected
-				? session.ToViewerState(session.Connection!)
-				: null,
-			session.IsConnected);
-}

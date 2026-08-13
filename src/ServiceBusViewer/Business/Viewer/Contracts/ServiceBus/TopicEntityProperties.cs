@@ -15,4 +15,4 @@ public sealed record TopicEntityProperties(
 	TimeSpan DuplicateDetectionHistoryTimeWindow,
 	bool EnableBatchedOperations,
 	bool EnablePartitioning,
-	TimeSpan AutoDeleteOnIdle) : EntityProperties(Name);
+	TimeSpan AutoDeleteOnIdle) : EntityProperties(Name, RequiresSession: false);
