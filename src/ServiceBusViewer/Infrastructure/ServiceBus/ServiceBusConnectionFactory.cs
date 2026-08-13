@@ -10,7 +10,7 @@ using ServiceBusViewer.Business.Viewer.Dependencies;
 /// <summary>Builds browser-session-scoped Service Bus connections.</summary>
 internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 {
-	public async Task<IServiceBusConnection> OpenAsync(ConnectionSettings settings)
+	public async Task<IServiceBusConnection> OpenAsync(ConnectionSettings settings, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(settings);
 
@@ -29,13 +29,13 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 					return CreateScopedEntityConnection(client, settings, connectionProperties.FullyQualifiedNamespace);
 
 				ServiceBusAdministrationClient emulatorAdminClient = new(settings.EmulatorManagementConnectionString!);
-				return await CreateNamespaceConnectionAsync(client, emulatorAdminClient, connectionProperties.FullyQualifiedNamespace);
+				return await CreateNamespaceConnectionAsync(client, emulatorAdminClient, connectionProperties.FullyQualifiedNamespace, cancellationToken);
 			}
 
 			ServiceBusAdministrationClient adminClient = new(settings.ConnectionString);
 
 			try {
-				return await CreateNamespaceConnectionAsync(client, adminClient, connectionProperties.FullyQualifiedNamespace);
+				return await CreateNamespaceConnectionAsync(client, adminClient, connectionProperties.FullyQualifiedNamespace, cancellationToken);
 			}
 			catch (Exception exception) when (IsManagementAuthorizationFailure(exception)) {
 				return CreateScopedEntityConnection(client, settings, connectionProperties.FullyQualifiedNamespace);
@@ -50,10 +50,11 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 	private static async Task<ServiceBusConnection> CreateNamespaceConnectionAsync(
 		ServiceBusClient client,
 		ServiceBusAdministrationClient adminClient,
-		string namespaceHost)
+		string namespaceHost,
+		CancellationToken cancellationToken)
 	{
 		var connection = new ServiceBusConnection(client, adminClient, namespaceHost);
-		await connection.RefreshEntitiesAsync();
+		await connection.RefreshEntitiesAsync(cancellationToken);
 
 		return connection;
 	}
@@ -61,7 +62,7 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 	private static ServiceBusConnection CreateScopedEntityConnection(ServiceBusClient client, ConnectionSettings settings, string namespaceHost)
 	{
 		if (string.IsNullOrWhiteSpace(settings.QueueOrTopicName))
-			throw new ArgumentException("Queue or topic name is required because Service Bus management is unavailable. Provide a queue or topic name and try again.");
+			throw new ArgumentException("A queue name, or a topic name with a subscription name, is required because Service Bus management is unavailable.");
 
 		List<EntityProperties> availableEntities = [];
 
@@ -75,22 +76,22 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 				false,
 				TimeSpan.MaxValue));
 
-			SubscriptionEntityProperties subscription = new(
+			availableEntities.Add(new SubscriptionEntityProperties(
 				settings.SubscriptionName,
 				settings.QueueOrTopicName,
+				false,
 				TimeSpan.FromMinutes(1),
 				10,
 				TimeSpan.MaxValue,
 				false,
-				false,
 				true,
 				TimeSpan.MaxValue,
-				[]);
-			availableEntities.Add(subscription);
+				[]));
 		}
 		else {
-			QueueEntityProperties queue = new(
+			availableEntities.Add(new QueueEntityProperties(
 				settings.QueueOrTopicName,
+				false,
 				TimeSpan.FromMinutes(1),
 				10,
 				TimeSpan.MaxValue,
@@ -99,9 +100,7 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 				false,
 				true,
 				false,
-				false,
-				TimeSpan.MaxValue);
-			availableEntities.Add(queue);
+				TimeSpan.MaxValue));
 		}
 
 		return new ServiceBusConnection(

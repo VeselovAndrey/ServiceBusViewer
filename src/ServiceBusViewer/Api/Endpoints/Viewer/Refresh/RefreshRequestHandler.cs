@@ -6,9 +6,9 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class RefreshRequestHandler
 {
-	public static async Task<IResult> HandleAsync(HttpContext context, IViewerMessageService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, IViewerMessageService service, CancellationToken cancellationToken)
 	{
-		ServiceBusViewer.Business.Viewer.Contracts.ViewerState state = await service.RefreshAsync(context.GetClientSessionState());
+		ServiceBusViewer.Business.Viewer.Contracts.ViewerState state = await service.RefreshAsync(context.GetClientSessionState(), cancellationToken);
 
 		return TypedResults.Ok(ToRefreshResponse(state));
 	}

@@ -39,7 +39,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 	public EntityProperties GetEntityProperties(EntityId entityId)
 	{
-		ThrowIfDisposed();
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		EntityProperties? properties = FindEntity(entityId);
 
@@ -47,9 +47,9 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			?? throw new InvalidOperationException($"Entity properties for '{entityId.Name}' not found in cache. Please refresh the entity list.");
 	}
 
-	public async Task<ReceivedMessageList> PeekMessagesAsync(EntityId entityId, int maxMessages = _maxMessagesToPeek)
+	public async Task<ReceivedMessageList> PeekMessagesAsync(EntityId entityId, int maxMessages, CancellationToken cancellationToken)
 	{
-		ThrowIfDisposed();
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		EntityProperties entity = GetEntityProperties(entityId);
 
@@ -57,47 +57,43 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			return ReceivedMessageList.Empty;
 
 		await using ServiceBusReceiver receiver = GetReceiver(entity);
-		IReadOnlyList<ServiceBusReceivedMessage> messages = await receiver.PeekMessagesAsync(maxMessages + 1);
+		IReadOnlyList<ServiceBusReceivedMessage> messages = await receiver.PeekMessagesAsync(maxMessages + 1, cancellationToken: cancellationToken);
 		bool hasMore = messages.Count > maxMessages;
 		IEnumerable<ServiceBusReceivedMessage> messagesToReturn = hasMore ? messages.Take(maxMessages) : messages;
 		return new ReceivedMessageList([.. messagesToReturn.Select(ConvertToReceivedMessage)], hasMore);
 	}
 
-	public async Task<ReceivedMessage?> ReceiveMessageAsync(EntityId entityId, string? sessionId = null)
+	public async Task<ReceivedMessage?> ReceiveMessageAsync(EntityId entityId, string? sessionId, CancellationToken cancellationToken)
 	{
-		ThrowIfDisposed();
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		EntityProperties entity = GetEntityProperties(entityId);
-		bool requiresSession = entity switch {
-			QueueEntityProperties queue => queue.RequiresSession,
-			SubscriptionEntityProperties subscription => subscription.RequiresSession,
-			_ => false
-		};
+		bool requiresSession = entity.RequiresSession;
 
 		if (!requiresSession) {
 			await using ServiceBusReceiver nonSessionReceiver = GetReceiver(entity);
-			ServiceBusReceivedMessage? nonSessionMessage = await nonSessionReceiver.ReceiveMessageAsync();
+			ServiceBusReceivedMessage? nonSessionMessage = await nonSessionReceiver.ReceiveMessageAsync(cancellationToken: cancellationToken);
 
 			if (nonSessionMessage is null)
 				return null;
 
-			await nonSessionReceiver.CompleteMessageAsync(nonSessionMessage);
+			await nonSessionReceiver.CompleteMessageAsync(nonSessionMessage, cancellationToken);
 			return ConvertToReceivedMessage(nonSessionMessage);
 		}
 
-		await using ServiceBusSessionReceiver receiver = await GetSessionReceiver(entity, sessionId);
-		ServiceBusReceivedMessage? message = await receiver.ReceiveMessageAsync();
+		await using ServiceBusSessionReceiver receiver = await GetSessionReceiverAsync(entity, sessionId, cancellationToken);
+		ServiceBusReceivedMessage? message = await receiver.ReceiveMessageAsync(cancellationToken: cancellationToken);
 
 		if (message is null)
 			return null;
 
-		await receiver.CompleteMessageAsync(message);
+		await receiver.CompleteMessageAsync(message, cancellationToken);
 		return ConvertToReceivedMessage(message);
 	}
 
-	public async Task SendMessageAsync(EntityId entityId, SendCommand command)
+	public async Task SendMessageAsync(EntityId entityId, SendCommand command, CancellationToken cancellationToken)
 	{
-		ThrowIfDisposed();
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		EntityProperties entity = GetEntityProperties(entityId);
 		await using ServiceBusSender sender = GetSender(entity);
@@ -129,34 +125,27 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				message.ApplicationProperties[property.Key] = ConvertApplicationPropertyValue(property.Value, property.Type);
 		}
 
-		await sender.SendMessageAsync(message);
+		await sender.SendMessageAsync(message, cancellationToken);
 	}
 
-	public async Task RefreshEntitiesAsync()
+	public async Task RefreshEntitiesAsync(CancellationToken cancellationToken)
 	{
-		ThrowIfDisposed();
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		if (_adminClient is null)
 			throw new InvalidOperationException("Entity list refresh is only available when management access is available.");
 
 		_availableEntities.Clear();
 
-		await foreach (QueueProperties queue in _adminClient.GetQueuesAsync()) {
+		await foreach (QueueProperties queue in _adminClient.GetQueuesAsync(cancellationToken)) {
 			_availableEntities.Add(new QueueEntityProperties(
 				queue.Name,
-				queue.LockDuration,
-				queue.MaxDeliveryCount,
-				queue.DefaultMessageTimeToLive,
-				queue.RequiresDuplicateDetection,
-				queue.DuplicateDetectionHistoryTimeWindow,
-				queue.DeadLetteringOnMessageExpiration,
-				queue.EnableBatchedOperations,
 				queue.RequiresSession,
-				queue.EnablePartitioning,
-				queue.AutoDeleteOnIdle));
+				queue.LockDuration,
+				queue.MaxDeliveryCount, queue.DefaultMessageTimeToLive, queue.RequiresDuplicateDetection, queue.DuplicateDetectionHistoryTimeWindow, queue.DeadLetteringOnMessageExpiration, queue.EnableBatchedOperations, queue.EnablePartitioning, queue.AutoDeleteOnIdle));
 		}
 
-		await foreach (TopicProperties topic in _adminClient.GetTopicsAsync()) {
+		await foreach (TopicProperties topic in _adminClient.GetTopicsAsync(cancellationToken)) {
 			_availableEntities.Add(new TopicEntityProperties(
 				topic.Name,
 				topic.DefaultMessageTimeToLive,
@@ -166,24 +155,20 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				topic.EnablePartitioning,
 				topic.AutoDeleteOnIdle));
 
-			await foreach (SubscriptionProperties subscription in _adminClient.GetSubscriptionsAsync(topic.Name)) {
+			await foreach (SubscriptionProperties subscription in _adminClient.GetSubscriptionsAsync(topic.Name, cancellationToken)) {
 				List<SubscriptionFilterRule> rules = [];
 
-				await foreach (RuleProperties rule in _adminClient.GetRulesAsync(topic.Name, subscription.SubscriptionName)) {
+				await foreach (RuleProperties rule in _adminClient.GetRulesAsync(topic.Name, subscription.SubscriptionName, cancellationToken)) {
 					rules.Add(ConvertToSubscriptionRule(rule));
 				}
 
 				_availableEntities.Add(new SubscriptionEntityProperties(
 					subscription.SubscriptionName,
 					subscription.TopicName,
+					subscription.RequiresSession,
 					subscription.LockDuration,
 					subscription.MaxDeliveryCount,
-					subscription.DefaultMessageTimeToLive,
-					subscription.DeadLetteringOnMessageExpiration,
-					subscription.RequiresSession,
-					subscription.EnableBatchedOperations,
-					subscription.AutoDeleteOnIdle,
-					rules));
+					subscription.DefaultMessageTimeToLive, subscription.DeadLetteringOnMessageExpiration, subscription.EnableBatchedOperations, subscription.AutoDeleteOnIdle, rules));
 			}
 		}
 	}
@@ -199,63 +184,38 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 	}
 
 	private ServiceBusReceiver GetReceiver(EntityProperties entity)
-	{
-		if (entity is SubscriptionEntityProperties subscription) {
-			return _client.CreateReceiver(subscription.TopicName, subscription.Name, new ServiceBusReceiverOptions {
-				ReceiveMode = ServiceBusReceiveMode.PeekLock
-			});
-		}
+		=> entity switch {
+			SubscriptionEntityProperties subscription => _client.CreateReceiver(subscription.TopicName, subscription.Name, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock }),
+			QueueEntityProperties queue => _client.CreateReceiver(queue.Name, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock }),
+			_ => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
+		};
 
-		if (entity is QueueEntityProperties queue) {
-			return _client.CreateReceiver(queue.Name, new ServiceBusReceiverOptions {
-				ReceiveMode = ServiceBusReceiveMode.PeekLock
-			});
-		}
-
-		throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.");
-	}
-
-	private async Task<ServiceBusSessionReceiver> GetSessionReceiver(EntityProperties entity, string? sessionId)
-	{
-		if (entity is SubscriptionEntityProperties subscription) {
-			return string.IsNullOrWhiteSpace(sessionId)
-				? await _client.AcceptNextSessionAsync(subscription.TopicName, subscription.Name)
-				: await _client.AcceptSessionAsync(subscription.TopicName, subscription.Name, sessionId);
-		}
-
-		if (entity is QueueEntityProperties queue) {
-			return string.IsNullOrWhiteSpace(sessionId)
-				? await _client.AcceptNextSessionAsync(queue.Name)
-				: await _client.AcceptSessionAsync(queue.Name, sessionId);
-		}
-
-		throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.");
-	}
+	private async Task<ServiceBusSessionReceiver> GetSessionReceiverAsync(EntityProperties entity, string? sessionId, CancellationToken cancellationToken)
+		=> entity switch {
+			SubscriptionEntityProperties subscription => string.IsNullOrWhiteSpace(sessionId)
+				? await _client.AcceptNextSessionAsync(subscription.TopicName, subscription.Name, cancellationToken: cancellationToken)
+				: await _client.AcceptSessionAsync(subscription.TopicName, subscription.Name, sessionId, cancellationToken: cancellationToken),
+			QueueEntityProperties queue => string.IsNullOrWhiteSpace(sessionId)
+				? await _client.AcceptNextSessionAsync(queue.Name, cancellationToken: cancellationToken)
+				: await _client.AcceptSessionAsync(queue.Name, sessionId, cancellationToken: cancellationToken),
+			_ => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
+		};
 
 	private ServiceBusSender GetSender(EntityProperties entity)
-	{
-		return entity switch {
+		=> entity switch {
 			QueueEntityProperties queue => _client.CreateSender(queue.Name),
 			SubscriptionEntityProperties subscription => _client.CreateSender(subscription.TopicName),
 			TopicEntityProperties topic => _client.CreateSender(topic.Name),
 			_ => throw new InvalidOperationException($"Cannot create sender for entity type '{entity.GetType().Name}'.")
 		};
-	}
 
 	private EntityProperties? FindEntity(EntityId entityId)
-	{
-		return entityId switch {
+		=> entityId switch {
 			QueueEntityId queueId => _availableEntities.FirstOrDefault(p => p is QueueEntityProperties && p.Name == queueId.Name),
 			TopicEntityId topicId => _availableEntities.FirstOrDefault(p => p is TopicEntityProperties && p.Name == topicId.Name),
 			SubscriptionEntityId subscriptionId => _availableEntities.FirstOrDefault(p => p is SubscriptionEntityProperties subscription && subscription.Name == subscriptionId.Name && subscription.TopicName == subscriptionId.TopicName),
 			_ => throw new ArgumentException($"Unknown entity type: {entityId.GetType().FullName}", nameof(entityId))
 		};
-	}
-
-	private void ThrowIfDisposed()
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-	}
 
 	private static ReceivedMessage ConvertToReceivedMessage(ServiceBusReceivedMessage message)
 	{
@@ -312,39 +272,45 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 	private static SubscriptionFilterRule ConvertToSubscriptionRule(RuleProperties rule)
 	{
-		if (rule.Filter is SqlRuleFilter sqlFilter) {
-			string? actionExpression = rule.Action is SqlRuleAction sqlAction
+		return rule.Filter switch {
+			SqlRuleFilter sqlFilter => ConvertSqlRule(rule, sqlFilter),
+			CorrelationRuleFilter correlationFilter => ConvertCorrelationRule(rule, correlationFilter),
+			_ => ConvertUnknownRule(rule)
+		};
+
+		static SqlSubscriptionFilterRule ConvertSqlRule(RuleProperties source, SqlRuleFilter filter)
+		{
+			string? actionExpression = source.Action is SqlRuleAction sqlAction
 				? sqlAction.SqlExpression
 				: null;
 
-			return new SqlSubscriptionFilterRule(rule.Name, sqlFilter.SqlExpression, actionExpression);
+			return new SqlSubscriptionFilterRule(source.Name, filter.SqlExpression, actionExpression);
 		}
 
-		if (rule.Filter is CorrelationRuleFilter correlationFilter) {
-			string? actionExpression = rule.Action is SqlRuleAction sqlAction
+		static CorrelationSubscriptionFilterRule ConvertCorrelationRule(RuleProperties source, CorrelationRuleFilter filter)
+		{
+			string? actionExpression = source.Action is SqlRuleAction sqlAction
 				? sqlAction.SqlExpression
 				: null;
 
-			IReadOnlyDictionary<string, object> applicationProperties = correlationFilter.ApplicationProperties
+			IReadOnlyDictionary<string, object> applicationProperties = filter.ApplicationProperties
 				.ToDictionary(static pair => pair.Key, static pair => pair.Value);
 
 			return new CorrelationSubscriptionFilterRule(
-				rule.Name,
-				correlationFilter.CorrelationId,
-				correlationFilter.MessageId,
-				correlationFilter.To,
-				correlationFilter.ReplyTo,
-				correlationFilter.Subject,
-				correlationFilter.SessionId,
-				correlationFilter.ReplyToSessionId,
-				correlationFilter.ContentType,
+				source.Name,
+				filter.CorrelationId,
+				filter.MessageId,
+				filter.To,
+				filter.ReplyTo,
+				filter.Subject,
+				filter.SessionId,
+				filter.ReplyToSessionId,
+				filter.ContentType,
 				applicationProperties,
 				actionExpression);
 		}
 
-		return new UnknownSubscriptionFilterRule(
-			rule.Name,
-			rule.Filter?.GetType().Name ?? "null",
-			"Unknown filter type");
+		static UnknownSubscriptionFilterRule ConvertUnknownRule(RuleProperties source)
+			=> new UnknownSubscriptionFilterRule(source.Name, source.Filter?.GetType().Name ?? "null", "Unknown filter type");
 	}
 }

@@ -6,13 +6,17 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<Product>ServiceBusViewer</Product>
-		<Version>0.40.0</Version>
+		<Version>0.40.3</Version>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
 		<Description>HTTP API for the Service Bus Viewer.</Description>
 
 		<AnalysisLevel>latest</AnalysisLevel>
+		<AnalysisLevel>10.0-recommended</AnalysisLevel>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+		<!-- Disable warning CA1848:Use the LoggerMessage delegates. Reason: Logging performance optimization is not required for this project. -->
+		<NoWarn>$(NoWarn);CA1848</NoWarn>
 
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 	</PropertyGroup>

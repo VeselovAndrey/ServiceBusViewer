@@ -7,19 +7,22 @@ using ServiceBusViewer.Business.Viewer.Dependencies;
 /// <summary>Coordinates entity selection and details for a single browser session.</summary>
 internal sealed class ViewerEntityService : IViewerEntityService
 {
-	public async Task<ViewerState> SelectEntityAsync(IViewerSessionState session, EntityId entityId)
+	public async Task<ViewerState> SelectEntityAsync(IViewerSessionState session, EntityId entityId, CancellationToken cancellationToken)
 	{
-		await session.Gate.WaitAsync();
+		await session.Gate.WaitAsync(cancellationToken);
 
 		try {
+			using var operationCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.ConnectionCancellationToken);
+
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			connection.GetEntityProperties(entityId);
+			ReceivedMessageList messages = await connection.PeekMessagesAsync(entityId, 50, operationCancellationSource.Token);
 
 			session.SelectedEntityId = entityId;
+			session.CurrentMessages = messages;
 			session.DisplayedMessage = null;
 			session.SendResultMessage = null;
 			session.ReceiveSessionId = null;
-			session.CurrentMessages = await connection.PeekMessagesAsync(entityId);
 
 			return session.ToViewerState(connection);
 		}
@@ -28,9 +31,9 @@ internal sealed class ViewerEntityService : IViewerEntityService
 		}
 	}
 
-	public async Task<EntityDetailsResult> GetDetailsAsync(IViewerSessionState session, EntityId entityId)
+	public async Task<EntityDetailsResult> GetDetailsAsync(IViewerSessionState session, EntityId entityId, CancellationToken cancellationToken)
 	{
-		await session.Gate.WaitAsync();
+		await session.Gate.WaitAsync(cancellationToken);
 
 		try {
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();

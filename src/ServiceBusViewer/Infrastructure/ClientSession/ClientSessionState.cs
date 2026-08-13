@@ -8,14 +8,19 @@ using ServiceBusViewer.Business.Viewer.Dependencies;
 internal sealed class ClientSessionState : IViewerSessionState
 {
 	private long _lastAccessUnixTimeSeconds;
+	private CancellationTokenSource _connectionCancellationSource = new();
 
-	public ClientSessionState()
+	public ClientSessionState(ConnectionSettings connectionSettings)
 	{
-		ConnectionSettings = CreateDefaultConnectionSettings();
+		ConnectionSettings = connectionSettings;
 		Touch();
 	}
 
 	public SemaphoreSlim Gate { get; } = new(1, 1);
+
+	public CancellationToken ConnectionCancellationToken => _connectionCancellationSource.Token;
+
+	public void CancelActiveConnectionOperations() => _connectionCancellationSource.Cancel();
 
 	public ConnectionSettings ConnectionSettings { get; set; }
 
@@ -40,39 +45,34 @@ internal sealed class ClientSessionState : IViewerSessionState
 
 	public async Task ResetConnectionAsync()
 	{
-		if (Connection is not null) {
-			await Connection.DisposeAsync();
-			Connection = null;
-		}
+		IServiceBusConnection? connection = Connection;
+		Connection = null;
+
+		if (connection is not null)
+			await connection.DisposeAsync();
 
 		SelectedEntityId = null;
 		CurrentMessages = ReceivedMessageList.Empty;
 		DisplayedMessage = null;
 		ReceiveSessionId = null;
 		SendResultMessage = null;
+		_connectionCancellationSource.Dispose();
+		_connectionCancellationSource = new CancellationTokenSource();
 	}
 
 	public async ValueTask DisposeAsync()
 	{
-		await ResetConnectionAsync();
-		Gate.Dispose();
+		CancelActiveConnectionOperations();
+		await Gate.WaitAsync();
+
+		try {
+			await ResetConnectionAsync();
+		}
+		finally {
+			Gate.Release();
+			Gate.Dispose();
+			_connectionCancellationSource.Dispose();
+		}
 	}
 
-	private static ConnectionSettings CreateDefaultConnectionSettings()
-	{
-		string connectionString = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_CONNECTION_STRING")
-			?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
-
-		string? emulatorManagementConnectionString = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING");
-
-		string queueOrTopicName = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME") ?? string.Empty;
-
-		string? subscriptionName = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_SUBSCRIPTION_NAME");
-
-		return new ConnectionSettings(
-			connectionString,
-			emulatorManagementConnectionString,
-			queueOrTopicName,
-			subscriptionName);
-	}
 }

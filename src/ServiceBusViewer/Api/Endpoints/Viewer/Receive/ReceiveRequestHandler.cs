@@ -6,7 +6,7 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class ReceiveRequestHandler
 {
-	public static async Task<IResult> HandleAsync(HttpContext context, ReceiveRequest request, IViewerMessageService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, ReceiveRequest request, IViewerMessageService service, CancellationToken cancellationToken)
 	{
 		Dictionary<string, string[]> errors = [];
 		if (!ReceiveRequestValidator.Validate(request, out IReadOnlyDictionary<string, string[]>? receiveErrors) && receiveErrors is not null) {
@@ -17,7 +17,7 @@ internal static class ReceiveRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ReceiveAsync(context.GetClientSessionState(), request.ReceiveSessionId);
+		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ReceiveAsync(context.GetClientSessionState(), request.ReceiveSessionId, cancellationToken);
 
 		return TypedResults.Ok(ToReceiveResponse(result));
 	}

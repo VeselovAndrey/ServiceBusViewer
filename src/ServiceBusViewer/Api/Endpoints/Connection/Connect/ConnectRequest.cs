@@ -7,8 +7,11 @@ using System.Collections.Generic;
 /// </summary>
 /// <param name="ConnectionString">Primary connection string.</param>
 /// <param name="EmulatorManagementConnectionString">Optional emulator-only management connection string.</param>
-/// <param name="QueueOrTopicName">Optional queue or topic name to connect to.</param>
-/// <param name="SubscriptionName">Optional subscription name when connecting to a subscription.</param>
+/// <param name="QueueOrTopicName">
+/// Optional queue or topic name. Without management access, this identifies a queue unless
+/// <paramref name="SubscriptionName"/> is also provided, in which case it identifies the parent topic.
+/// </param>
+/// <param name="SubscriptionName">Optional subscription name for direct access through its parent topic.</param>
 internal sealed record ConnectRequest(
 	string ConnectionString,
 	string? EmulatorManagementConnectionString,

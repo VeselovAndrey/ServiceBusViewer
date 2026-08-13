@@ -3,14 +3,13 @@ namespace ServiceBusViewer.Api.Endpoints.Viewer.Send;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class SendRequestHandler
 {
-	public static async Task<IResult> HandleAsync(HttpContext context, SendRequest request, IViewerMessageService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, SendRequest request, IViewerMessageService service, CancellationToken cancellationToken)
 	{
 		Dictionary<string, string[]> errors = [];
 
@@ -29,29 +28,12 @@ internal static class SendRequestHandler
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
 
-		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SendAsync(
+		await service.SendAsync(
 			context.GetClientSessionState(),
-			new SendCommand(request.SendMessageBody ?? string.Empty, messageProperties, applicationProperties));
+			new SendCommand(request.SendMessageBody ?? string.Empty, messageProperties, applicationProperties),
+			cancellationToken);
 
-		return TypedResults.Ok(ToSendResponse(result));
-	}
-
-	private static SendResponse ToSendResponse(ServiceBusViewer.Business.Viewer.Contracts.ViewerState state)
-	{
-		Models.ViewerState response = state.ToApiModel();
-
-		return new SendResponse(
-			response.ServiceBusHostName,
-			response.EntityName,
-			response.TopicName,
-			response.RequiresSession,
-			response.IsManagementApiAvailable,
-			response.AvailableEntities,
-			response.Messages,
-			response.HasMoreMessages,
-			response.DisplayedMessage,
-			response.SendResultMessage,
-			response.ReceiveSessionId);
+		return TypedResults.NoContent();
 	}
 
 	private static MessageProperties CreateMessageProperties(SendMessagePropertiesRequest? request, IDictionary<string, string[]> errors)
@@ -74,7 +56,7 @@ internal static class SendRequestHandler
 		};
 	}
 
-	private static List<ApplicationProperty> CreateApplicationProperties(IReadOnlyList<SendMessageApplicationPropertyRequest>? request, IDictionary<string, string[]> errors)
+	private static List<ApplicationProperty> CreateApplicationProperties(IReadOnlyList<SendMessageApplicationPropertyRequest>? request, Dictionary<string, string[]> errors)
 	{
 		if (request is null || request.Count == 0)
 			return [];

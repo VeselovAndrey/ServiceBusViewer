@@ -1,8 +1,12 @@
 namespace ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
+
+using System.Diagnostics.CodeAnalysis;
+
 /// <summary>Supported application property value types for outgoing Service Bus messages.</summary>
+[SuppressMessage("Naming", "CA1720:Identifier contains type name", Justification = "Member names are serialized application-property type values shared with the frontend.")]
 public enum ApplicationPropertyType
 {
-	String = 0,
+	String = 1,
 	Bool,
 	Byte,
 	SByte,

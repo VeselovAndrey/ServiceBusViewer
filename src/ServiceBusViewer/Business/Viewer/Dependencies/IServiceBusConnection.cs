@@ -23,8 +23,9 @@ public interface IServiceBusConnection : IAsyncDisposable
 	IReadOnlyList<EntityProperties> AvailableEntities { get; }
 
 	/// <summary>Refreshes the catalog of available entities from the management API.</summary>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>A task that completes when the refresh finishes.</returns>
-	Task RefreshEntitiesAsync();
+	Task RefreshEntitiesAsync(CancellationToken cancellationToken);
 
 	/// <summary>Retrieves the properties for a specific entity previously discovered.</summary>
 	/// <param name="entityId">The identity of the entity whose properties are requested.</param>
@@ -34,18 +35,21 @@ public interface IServiceBusConnection : IAsyncDisposable
 	/// <summary>Peeks up to <paramref name="maxMessages"/> messages from the requested entity without removing them from the queue/topic subscription.</summary>
 	/// <param name="entityId">Identifier of the entity to peek.</param>
 	/// <param name="maxMessages">Maximum number of messages to peek. Defaults to 50.</param>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>A task that completes with the list of peeked messages.</returns>
-	Task<ReceivedMessageList> PeekMessagesAsync(EntityId entityId, int maxMessages = 50);
+	Task<ReceivedMessageList> PeekMessagesAsync(EntityId entityId, int maxMessages, CancellationToken cancellationToken);
 
 	/// <summary>Receives the next available message from the requested entity.</summary>
 	/// <param name="entityId">Identifier of the entity to receive from.</param>
 	/// <param name="sessionId">Session id to receive from, or <c>null</c> for non-session receive or next available session.</param>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>A task that completes with the received message or <c>null</c> if none available.</returns>
-	Task<ReceivedMessage?> ReceiveMessageAsync(EntityId entityId, string? sessionId = null);
+	Task<ReceivedMessage?> ReceiveMessageAsync(EntityId entityId, string? sessionId, CancellationToken cancellationToken);
 
 	/// <summary>Sends a message to the requested entity.</summary>
 	/// <param name="entityId">Identifier of the entity to send to.</param>
 	/// <param name="command">Command containing the message body and associated properties.</param>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>A task that completes when the send operation completes.</returns>
-	Task SendMessageAsync(EntityId entityId, SendCommand command);
+	Task SendMessageAsync(EntityId entityId, SendCommand command, CancellationToken cancellationToken);
 }

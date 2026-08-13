@@ -4,7 +4,7 @@ Service Bus Viewer is a browser-based tool for inspecting and working with Azure
 
 ## Features
 
-- Automatically browse an Azure namespace when the primary connection has Manage permission, or connect directly to a queue or topic.
+- Automatically browse an Azure namespace when the primary connection has Manage permission, or connect directly to a queue or subscription.
 - Browse queues, topics, subscriptions, entity properties, and subscription filters.
 - Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
 - View message bodies, system properties, and application properties, with client-side JSON formatting.
@@ -27,9 +27,9 @@ Open `http://localhost:8080`. The container listens on port `8080` and serves th
 ## Connection modes
 
 - **Azure namespace browsing:** enter a Manage-capable **Connection String**. The viewer detects management access automatically, discovers all queues, topics, and subscriptions, and uses the same credential for message operations.
-- **Azure direct entity access:** enter a **Connection String** without Manage permission and a **Queue/Topic Name**. For a topic subscription, also enter the **Subscription Name**; otherwise, the specified entity is treated as a queue.
+- **Azure direct entity access:** enter a **Connection String** without Manage permission and a **Queue/Topic Name**. The name identifies a queue unless you also enter a **Subscription Name**, in which case it identifies the parent topic. Standalone topic access is not supported without management access.
 - **Emulator namespace browsing:** enter the emulator messaging **Connection String** and its optional **Emulator Management Connection String**, normally using port `5300` for management.
-- **Emulator direct entity access:** leave **Emulator Management Connection String** empty and provide a **Queue/Topic Name** with the emulator messaging connection string.
+- **Emulator direct entity access:** leave **Emulator Management Connection String** empty and provide either a queue name or a topic and subscription name with the emulator messaging connection string.
 
 Direct entity access requires Listen permission for peeking and receiving messages and Send permission for sending messages. Azure Manage permission includes both Listen and Send.
 
@@ -43,8 +43,8 @@ Settings entered on the connection page apply to the current browser session. Th
 | --- | --- | --- |
 | `SERVICEBUSVIEWER_CONNECTION_STRING` | Primary connection used for messages and, for Azure, automatic management discovery. | Local emulator connection string |
 | `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING` | Optional emulator-only administration connection used to browse and refresh entities. | Not set |
-| `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` | Queue or topic to open in direct entity mode. | Empty |
-| `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` | Subscription to open when `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` identifies a topic. | Not set |
+| `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` | Queue to open directly, or parent topic when a subscription is also configured. | Empty |
+| `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` | Optional subscription to open under the configured parent topic. | Not set |
 
 For example, the following command preconfigures namespace browsing for an emulator running on the Docker host:
 
@@ -84,23 +84,29 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 
 ## Version history
 
-- 0.40.0 (2026-08-12):
-  - **Breaking:** Renamed runtime configuration to `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` with no legacy aliases.
-  - **Added:** An entity sidebar filter with debounced input, immediate application on Enter, and state preserved between viewer and entity details pages.
-  - **Changed:** Unified Azure connection handling so one Manage-capable connection string is used for entity discovery and message operations, with automatic fallback to direct entity access when management is unauthorized.
-  - **Changed:** Reserved the optional second connection string for emulator management and renamed it to **Emulator Management Connection String** throughout the API and UI.
-  - **Fixed:** Failed connection attempts during initial message peeking no longer leave the browser session marked as connected, allowing immediate retry with corrected credentials.
-  - **Fixed:** A queue, topic, or subscription supplied with a management-capable connection is retained as the initial viewer selection.
-  - **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
+## 0.40.3 (2026-08-13)
 
-- 0.30.0 (2026-08-09):
-  - Replaced the Razor UI with a React + Vite SPA and reorganized the backend as a minimal API.
-  - Isolated viewer state and Service Bus connections by browser session.
-  - Added centralized RFC `ProblemDetails` API error handling.
-  - Consolidated production deployment into one ASP.NET Core container that serves both the SPA and API.
+- **Changed:** Reduced the combined Docker image size by using the .NET 10 Ubuntu Chiseled composite runtime with globalization support.
+- **Fixed:** Aborted requests and disconnects now cancel in-flight Service Bus operations so they do not block the browser session.
+- **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
+- **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
 
-- 0.11.1 (2026-08-04):
-  - Fixed failed connection attempts leaving the app stuck in a connected state. You can now retry immediately with a corrected connection string.
+## 0.40.0 (2026-08-12)
+
+- **Breaking:** Renamed runtime configuration to `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` with no legacy aliases.
+- **Added:** An entity sidebar filter with debounced input, immediate application on Enter, and state preserved between viewer and entity details pages.
+- **Changed:** Unified Azure connection handling so one Manage-capable connection string is used for entity discovery and message operations, with automatic fallback to direct entity access when management is unauthorized.
+- **Changed:** Reserved the optional second connection string for emulator management and renamed it to **Emulator Management Connection String** throughout the API and UI.
+- **Fixed:** Failed connection attempts during initial message peeking no longer leave the browser session marked as connected, allowing immediate retry with corrected credentials.
+- **Fixed:** A queue, topic, or subscription supplied with a management-capable connection is retained as the initial viewer selection.
+- **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
+
+## 0.30.0 (2026-08-09)
+
+- Replaced the Razor UI with a React + Vite SPA and reorganized the backend as a minimal API.
+- Isolated viewer state and Service Bus connections by browser session.
+- Added centralized RFC `ProblemDetails` API error handling.
+- Consolidated production deployment into one ASP.NET Core container that serves both the SPA and API.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 
