@@ -2,17 +2,15 @@ namespace ServiceBusViewer.Business.Application.Services;
 
 using System.Reflection;
 using ServiceBusViewer.Business.Application.Contracts;
+using ServiceBusViewer.Business.Application.Dependencies;
 
-internal sealed class ApplicationInfoProvider : IApplicationInfoProvider
+internal sealed class ApplicationInfoProvider(IApplicationInfoProviderSettings settings) : IApplicationInfoProvider
 {
-	private const string _containerMarkerEnvironmentVariable = "SERVICEBUSVIEWER_RUNNING_IN_CONTAINER";
-
 	private static readonly string _applicationVersion = GetApplicationVersion();
-	private static readonly bool _isRunningInContainer = string.Equals(Environment.GetEnvironmentVariable(_containerMarkerEnvironmentVariable), "true", StringComparison.OrdinalIgnoreCase);
 
 	public string ApplicationVersion => _applicationVersion;
 
-	public bool IsRunningInContainer => _isRunningInContainer;
+	public bool IsRunningInContainer { get; } = settings.IsRunningInContainer;
 
 	private static string GetApplicationVersion()
 	{

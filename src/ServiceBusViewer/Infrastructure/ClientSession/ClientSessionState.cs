@@ -10,9 +10,9 @@ internal sealed class ClientSessionState : IViewerSessionState
 	private long _lastAccessUnixTimeSeconds;
 	private CancellationTokenSource _connectionCancellationSource = new();
 
-	public ClientSessionState()
+	public ClientSessionState(ConnectionSettings connectionSettings)
 	{
-		ConnectionSettings = CreateDefaultConnectionSettings();
+		ConnectionSettings = connectionSettings;
 		Touch();
 	}
 
@@ -20,8 +20,7 @@ internal sealed class ClientSessionState : IViewerSessionState
 
 	public CancellationToken ConnectionCancellationToken => _connectionCancellationSource.Token;
 
-	public void CancelActiveConnectionOperations()
-		=> _connectionCancellationSource.Cancel();
+	public void CancelActiveConnectionOperations() => _connectionCancellationSource.Cancel();
 
 	public ConnectionSettings ConnectionSettings { get; set; }
 
@@ -76,21 +75,4 @@ internal sealed class ClientSessionState : IViewerSessionState
 		}
 	}
 
-	private static ConnectionSettings CreateDefaultConnectionSettings()
-	{
-		string connectionString = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_CONNECTION_STRING")
-			?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
-
-		string? emulatorManagementConnectionString = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING");
-
-		string queueOrTopicName = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME") ?? string.Empty;
-
-		string? subscriptionName = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_SUBSCRIPTION_NAME");
-
-		return new ConnectionSettings(
-			connectionString,
-			emulatorManagementConnectionString,
-			queueOrTopicName,
-			subscriptionName);
-	}
 }
