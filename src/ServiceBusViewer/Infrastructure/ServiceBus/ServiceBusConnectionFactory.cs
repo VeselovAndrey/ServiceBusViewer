@@ -76,22 +76,22 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 				false,
 				TimeSpan.MaxValue));
 
-			SubscriptionEntityProperties subscription = new(
+			availableEntities.Add(new SubscriptionEntityProperties(
 				settings.SubscriptionName,
 				settings.QueueOrTopicName,
+				false,
 				TimeSpan.FromMinutes(1),
 				10,
 				TimeSpan.MaxValue,
 				false,
-				false,
 				true,
 				TimeSpan.MaxValue,
-				[]);
-			availableEntities.Add(subscription);
+				[]));
 		}
 		else {
-			QueueEntityProperties queue = new(
+			availableEntities.Add(new QueueEntityProperties(
 				settings.QueueOrTopicName,
+				false,
 				TimeSpan.FromMinutes(1),
 				10,
 				TimeSpan.MaxValue,
@@ -100,9 +100,7 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 				false,
 				true,
 				false,
-				false,
-				TimeSpan.MaxValue);
-			availableEntities.Add(queue);
+				TimeSpan.MaxValue));
 		}
 
 		return new ServiceBusConnection(

@@ -1,7 +1,6 @@
 namespace ServiceBusViewer.Business.Viewer.Contracts;
 
 using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
-using ServiceBusViewer.Business.Viewer.Dependencies;
 
 /// <summary>Represents the current state of the Service Bus viewer.</summary>
 /// <param name="ServiceBusHostName">The host name of the connected Service Bus namespace or emulator.</param>
@@ -27,41 +26,3 @@ public sealed record ViewerState(
 	ReceivedMessage? DisplayedMessage,
 	string? SendResultMessage,
 	string? ReceiveSessionId);
-
-
-/// <summary>Provides extension methods related to <see cref="ViewerState"/>.</summary>
-public static class ViewerStateExtensions
-{
-	/// <summary>Converts the current viewer session state and service bus connection into a <see cref="ViewerState"/> instance.</summary>
-	/// <param name="session">The current viewer session state.</param>
-	/// <param name="connection">The service bus connection.</param>
-	/// <returns>A <see cref="ViewerState"/> instance representing the current state.</returns>
-	public static ViewerState ToViewerState(this IViewerSessionState session, IServiceBusConnection connection)
-	{
-		EntityProperties? selectedEntity = session.SelectedEntityId is null
-			? null
-			: connection.GetEntityProperties(session.SelectedEntityId);
-
-		bool requiresSession = RequiresSession(selectedEntity);
-
-		return new ViewerState(
-			connection.NamespaceHost,
-			selectedEntity?.Name,
-			(selectedEntity as SubscriptionEntityProperties)?.TopicName,
-			requiresSession,
-			connection.IsManagementApiAvailable,
-			[.. connection.AvailableEntities.Select(x => x.ToEntityId())],
-			session.CurrentMessages.Messages,
-			session.CurrentMessages.HasMore,
-			session.DisplayedMessage,
-			session.SendResultMessage,
-			requiresSession ? session.ReceiveSessionId : null);
-	}
-
-	private static bool RequiresSession(EntityProperties? entity)
-		=> entity switch {
-			QueueEntityProperties queue => queue.RequiresSession,
-			SubscriptionEntityProperties subscription => subscription.RequiresSession,
-			_ => false
-		};
-}
