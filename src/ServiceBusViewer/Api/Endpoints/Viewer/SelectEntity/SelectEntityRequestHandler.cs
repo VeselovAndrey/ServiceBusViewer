@@ -7,7 +7,7 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class SelectEntityRequestHandler
 {
-	public static async Task<IResult> HandleAsync(HttpContext context, SelectEntityRequest request, IViewerEntityService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, SelectEntityRequest request, IViewerEntityService service, CancellationToken cancellationToken)
 	{
 		Dictionary<string, string[]> errors = [];
 
@@ -33,7 +33,8 @@ internal static class SelectEntityRequestHandler
 
 		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.SelectEntityAsync(
 			context.GetClientSessionState(),
-			entityId);
+			entityId,
+			cancellationToken);
 
 		return TypedResults.Ok(ToSelectEntityResponse(result));
 	}

@@ -6,9 +6,9 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class GetViewerRequestHandler
 {
-	public static async Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service)
+	public static async Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service, CancellationToken cancellationToken)
 	{
-		ServiceBusViewer.Business.Viewer.Contracts.ViewerState state = await service.GetCurrentStateAsync(context.GetClientSessionState());
+		ServiceBusViewer.Business.Viewer.Contracts.ViewerState state = await service.GetCurrentStateAsync(context.GetClientSessionState(), cancellationToken);
 
 		return TypedResults.Ok(ToGetViewerResponse(state));
 	}

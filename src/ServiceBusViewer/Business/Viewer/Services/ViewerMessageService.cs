@@ -11,17 +11,19 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 	private readonly ILogger<ViewerMessageService> _logger = logger;
 
 	/// <inheritdoc/>
-	public async Task<ViewerState> RefreshAsync(IViewerSessionState session)
+	public async Task<ViewerState> RefreshAsync(IViewerSessionState session, CancellationToken cancellationToken)
 	{
-		await session.Gate.WaitAsync();
+		await session.Gate.WaitAsync(cancellationToken);
 
 		try {
+			using var operationCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.ConnectionCancellationToken);
+			CancellationToken operationCancellationToken = operationCancellationSource.Token;
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			EntityId? entityId = session.SelectedEntityId;
 
 			session.CurrentMessages = entityId is null
 				? ReceivedMessageList.Empty
-				: await connection.PeekMessagesAsync(entityId);
+				: await connection.PeekMessagesAsync(entityId, 50, operationCancellationToken);
 
 			bool requiresSession = entityId is not null
 				&& connection.GetEntityProperties(entityId) is QueueEntityProperties { RequiresSession: true }
@@ -38,22 +40,27 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 	}
 
 	/// <inheritdoc/>
-	public async Task<ViewerState> ReceiveAsync(IViewerSessionState session, string? sessionId)
+	public async Task<ViewerState> ReceiveAsync(IViewerSessionState session, string? sessionId, CancellationToken cancellationToken)
 	{
-		await session.Gate.WaitAsync();
+		await session.Gate.WaitAsync(cancellationToken);
 
 		try {
+			using var operationCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.ConnectionCancellationToken);
+			CancellationToken operationCancellationToken = operationCancellationSource.Token;
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			EntityId entityId = session.SelectedEntityId ?? throw new InvalidOperationException("No entity selected.");
 			bool requiresSession = connection.GetEntityProperties(entityId) is QueueEntityProperties { RequiresSession: true }
 				or SubscriptionEntityProperties { RequiresSession: true };
 
 			session.ReceiveSessionId = requiresSession ? sessionId : null;
-			session.DisplayedMessage = await connection.ReceiveMessageAsync(entityId, requiresSession ? sessionId : null);
+			session.DisplayedMessage = await connection.ReceiveMessageAsync(entityId, requiresSession ? sessionId : null, operationCancellationToken);
 			session.SendResultMessage = null;
 
 			try {
-				session.CurrentMessages = await connection.PeekMessagesAsync(entityId);
+				session.CurrentMessages = await connection.PeekMessagesAsync(entityId, 50, operationCancellationToken);
+			}
+			catch (OperationCanceledException) when (operationCancellationToken.IsCancellationRequested) {
+				throw;
 			}
 			catch (Exception exception) {
 				_logger.LogWarning(
@@ -69,17 +76,19 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 	}
 
 	/// <inheritdoc/>
-	public async Task SendAsync(IViewerSessionState session, SendCommand command)
+	public async Task SendAsync(IViewerSessionState session, SendCommand command, CancellationToken cancellationToken)
 	{
-		await session.Gate.WaitAsync();
+		await session.Gate.WaitAsync(cancellationToken);
 
 		try {
+			using var operationCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.ConnectionCancellationToken);
+			CancellationToken operationCancellationToken = operationCancellationSource.Token;
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			EntityId entityId = session.SelectedEntityId ?? throw new InvalidOperationException("No entity selected.");
 			bool requiresSession = connection.GetEntityProperties(entityId) is QueueEntityProperties { RequiresSession: true }
 				or SubscriptionEntityProperties { RequiresSession: true };
 
-			await connection.SendMessageAsync(entityId, command);
+			await connection.SendMessageAsync(entityId, command, operationCancellationToken);
 
 			session.DisplayedMessage = null;
 			session.SendResultMessage = BuildSendResultMessage(command.MessageProperties.ContentType, command.MessageProperties.MessageId);

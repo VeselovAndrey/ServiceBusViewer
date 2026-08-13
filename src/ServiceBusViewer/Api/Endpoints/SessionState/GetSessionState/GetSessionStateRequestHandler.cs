@@ -7,9 +7,9 @@ using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class GetSessionStateRequestHandler
 {
-	public static async Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service, IApplicationInfoProvider applicationInfoProvider)
+	public static async Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service, IApplicationInfoProvider applicationInfoProvider, CancellationToken cancellationToken)
 	{
-		ViewerConnectionSnapshot viewerConnectionSnapshot = await service.GetSnapshotAsync(context.GetClientSessionState());
+		ViewerConnectionSnapshot viewerConnectionSnapshot = await service.GetSnapshotAsync(context.GetClientSessionState(), cancellationToken);
 
 		return TypedResults.Ok(new SessionStateResponse(
 				applicationInfoProvider.ApplicationVersion,

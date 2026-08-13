@@ -7,9 +7,9 @@ using ServiceBusViewer.Business.Viewer.Dependencies;
 /// <summary>Coordinates connection lifecycle operations for a single browser session.</summary>
 internal sealed class ViewerConnectionService(IServiceBusConnectionFactory connectionFactory) : IViewerConnectionService
 {
-	public async Task<ViewerConnectionSnapshot> GetSnapshotAsync(IViewerSessionState session)
+	public async Task<ViewerConnectionSnapshot> GetSnapshotAsync(IViewerSessionState session, CancellationToken cancellationToken)
 	{
-		await session.Gate.WaitAsync();
+		await session.Gate.WaitAsync(cancellationToken);
 
 		try {
 			return session.ToViewerConnectionSnapshot();
@@ -19,23 +19,24 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 		}
 	}
 
-	public async Task<ViewerState> ConnectAsync(IViewerSessionState session, ConnectionSettings settings)
+	public async Task<ViewerState> ConnectAsync(IViewerSessionState session, ConnectionSettings settings, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(settings);
 
-		await session.Gate.WaitAsync();
+		await session.Gate.WaitAsync(cancellationToken);
 
 		try {
+			using var operationCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.ConnectionCancellationToken);
 			if (session.IsConnected)
 				throw new ViewerAlreadyConnectedException();
 
-			IServiceBusConnection connection = await connectionFactory.OpenAsync(settings);
+			IServiceBusConnection connection = await connectionFactory.OpenAsync(settings, operationCancellationSource.Token);
 
 			try {
 				EntityId? selectedEntityId = GetInitialSelectedEntityId(settings, connection.AvailableEntities);
 				ReceivedMessageList currentMessages = selectedEntityId is null
 					? ReceivedMessageList.Empty
-					: await connection.PeekMessagesAsync(selectedEntityId);
+					: await connection.PeekMessagesAsync(selectedEntityId, 50, operationCancellationSource.Token);
 
 				session.ConnectionSettings = settings;
 				session.Connection = connection;
@@ -57,9 +58,11 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 		}
 	}
 
-	public async Task<ViewerConnectionSnapshot> DisconnectAsync(IViewerSessionState session)
+	public async Task<ViewerConnectionSnapshot> DisconnectAsync(IViewerSessionState session, CancellationToken cancellationToken)
 	{
-		await session.Gate.WaitAsync();
+		session.CancelActiveConnectionOperations();
+		// Disconnect must complete cleanup after cancelling an in-flight operation, even when its caller aborts the HTTP request.
+		await session.Gate.WaitAsync(CancellationToken.None);
 
 		try {
 			await session.ResetConnectionAsync();
@@ -70,9 +73,9 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 		}
 	}
 
-	public async Task<ViewerState> GetCurrentStateAsync(IViewerSessionState session)
+	public async Task<ViewerState> GetCurrentStateAsync(IViewerSessionState session, CancellationToken cancellationToken)
 	{
-		await session.Gate.WaitAsync();
+		await session.Gate.WaitAsync(cancellationToken);
 
 		try {
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();

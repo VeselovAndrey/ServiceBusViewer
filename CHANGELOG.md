@@ -1,8 +1,9 @@
 # Service Bus Viewer Version History
 
-## 0.40.2 (2026-08-12)
+## 0.40.3 (2026-08-13)
 
 - **Changed:** Reduced the combined Docker image size by using the .NET 10 Ubuntu Chiseled composite runtime with globalization support.
+- **Fixed:** Aborted requests and disconnects now cancel in-flight Service Bus operations so they do not block the browser session.
 - **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
 - **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
 
