@@ -7,7 +7,9 @@ on:
     paths:
     - '.dockerignore'
     - 'src/ServiceBusViewer/**'
+    - '!src/ServiceBusViewer/**/*.md'
     - 'src/ServiceBusViewer.Web/**'
+    - '!src/ServiceBusViewer.Web/**/*.md'
 
 jobs:
   build-and-push:

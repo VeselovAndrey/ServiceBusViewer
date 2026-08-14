@@ -1,0 +1,39 @@
+name: Build and publish the development NuGet package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["development"]
+    paths:
+      - 'src/SolidCode.Aspire.Hosting.ServiceBusViewer/**'
+      - '!src/SolidCode.Aspire.Hosting.ServiceBusViewer/**/*.md'
+
+permissions:
+  contents: read
+
+env:
+  PROJECT: ./src/SolidCode.Aspire.Hosting.ServiceBusViewer/SolidCode.Aspire.Hosting.ServiceBusViewer.csproj
+  PACKAGES: ./artifacts/packages
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Pack NuGet package
+        run: dotnet pack "$PROJECT" --configuration Release --output "$PACKAGES"
+
+      - name: Publish NuGet package
+        run: |
+          dotnet nuget push "$PACKAGES"/*.nupkg \
+            --source "${{ vars.MYGET_FEED_URL }}" \
+            --api-key "${{ secrets.MYGET_API_KEY }}" \
+            --skip-duplicate

@@ -10,13 +10,16 @@ ServiceBusViewer/
 │     └─ CSHARP_CODESTYLE.md                 <-- Agent/contributor C# conventions
 │
 ├─ .github/                                  <-- GitHub automation and repository-level platform configuration
-│  └─ workflows/                             <-- Container-image CI workflows
+│  └─ workflows/                             <-- Container-image and NuGet package CI workflows
 │
 ├─ docs/                                     <-- Project documentation and design references for the product/repository
 │  └─ design/                                <-- Design/reference images and HTML mockup assets
 │
 ├─ src/                                      <-- Application source
 │  ├─ ServiceBusViewer.sln                   <-- Solution containing the backend, frontend, and AppHost projects
+│  ├─ SolidCode.Aspire.Hosting.ServiceBusViewer/  <-- Reusable Aspire hosting integration package for running the published ServiceBusViewer container
+│  │  └─ README.md                           <-- Package-focused setup and configuration guide for AppHost consumers
+│  │
 │  ├─ ServiceBusViewer/                      <-- Backend API project, owns HTTP API, business logic, and browser-session state
 │  │  ├─ Api/                                <-- HTTP boundary; keep minimal API handlers thin and delegate to business slice services
 │  │  │  ├─ ExceptionHandling/                <-- Central exception classification and RFC ProblemDetails responses
@@ -91,7 +94,8 @@ ServiceBusViewer/
 | `src\ServiceBusViewer\Infrastructure` | Backend project internals, Azure SDK clients, framework primitives, business-defined abstractions when implementing them | Frontend code, business policy | Contains technical implementations and adapters for the dependencies required by the business layer. |
 | `src\ServiceBusViewer.Web` | Browser libraries, React, local frontend utilities | Backend internals | Talks to the backend only through `/api`. |
 | `src\ServiceBusViewer.AppHost` | Aspire hosting model, project references, emulator/container config | Frontend/backend internal implementation details | Orchestrates local development resources; it should not absorb product logic. |
-| `.github/workflows` | Docker build/publish assets and repository files | Application runtime logic | CI/CD automation only. |
+| `src\SolidCode.Aspire.Hosting.ServiceBusViewer` | Aspire hosting model abstractions, container-resource configuration, package metadata | Backend/frontend business logic, emulator orchestration policy | Reusable AppHost-facing package for registering the published ServiceBusViewer container. |
+| `.github/workflows` | Docker and NuGet package build/publish assets plus repository files | Application runtime logic | CI/CD automation only. |
 
 --- 
 

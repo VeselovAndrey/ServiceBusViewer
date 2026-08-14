@@ -18,7 +18,21 @@
 
 	<ItemGroup>
 		<PackageReference Include="Aspire.Hosting.JavaScript" Version="13.4.6" />
-		<ProjectReference Include="..\\ServiceBusViewer\\ServiceBusViewer.csproj" />
+		<PackageReference Include="Aspire.Hosting.Azure.ServiceBus" Version="13.4.6" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\ServiceBusViewer\ServiceBusViewer.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\SolidCode.Aspire.Hosting.ServiceBusViewer\SolidCode.Aspire.Hosting.ServiceBusViewer.csproj" IsAspireProjectResource="false" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="ServiceBusConfig.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 
 </Project>
