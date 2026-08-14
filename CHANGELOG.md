@@ -2,6 +2,7 @@
 
 ## 0.40.3 (2026-08-13)
 
+- **Added:** Introduced the `SolidCode.Aspire.Hosting.ServiceBusViewer` hosting library for running the published Service Bus Viewer container from Aspire AppHosts.
 - **Changed:** Reduced the combined Docker image size by using the .NET 10 Ubuntu Chiseled composite runtime with globalization support.
 - **Fixed:** Aborted requests and disconnects now cancel in-flight Service Bus operations so they do not block the browser session.
 - **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
