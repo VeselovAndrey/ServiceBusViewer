@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>SolidCode.Aspire.Hosting</RootNamespace>
+
+		<Product>ServiceBusViewer</Product>
+		<Description>A reusable .NET Aspire hosting integration for the Service Bus Viewer container.</Description>
+		<Authors>Andrey Veselov</Authors>
+		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
+		<Version>0.1.0</Version>
+
+		<PackageId>SolidCode.Aspire.Hosting.ServiceBusViewer</PackageId>
+		<Title>Aspire Hosting for Service Bus Viewer</Title>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageTags>aspire;dotnet-aspire;servicebus;azure-service-bus;service-bus-viewer;development-tools</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/VeselovAndrey/ServiceBusViewer</PackageProjectUrl>
+		<PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/README.md"))</PackageReleaseNotes>
+		<PackageIcon>icon.png</PackageIcon>
+		<RepositoryUrl>https://github.com/VeselovAndrey/ServiceBusViewer</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<EnablePackageValidation>true</EnablePackageValidation>
+
+		<AnalysisLevel>10.0-recommended</AnalysisLevel>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+	</PropertyGroup>
+
+	<!--
+	Enable deterministic CI-specific build behavior and path normalization.
+	See: https://devblogs.microsoft.com/dotnet/producing-packages-with-source-link/#deterministic-builds
+	-->
+	<PropertyGroup Condition="'$(TF_BUILD)' == 'true' Or '$(GITHUB_ACTIONS)' == 'true'">
+		<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Aspire.Hosting" Version="13.4.6" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="CHANGELOG.md" Pack="true" PackagePath="/" />
+		<None Include="README.md" Pack="true" PackagePath="/" />
+		<None Include="icon.png" Pack="true" PackagePath="/" />
+	</ItemGroup>
+
+</Project>

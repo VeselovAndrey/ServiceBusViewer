@@ -2,6 +2,8 @@
 
 Service Bus Viewer is a browser-based tool for inspecting and working with Azure Service Bus queues, topics, and subscriptions. It is primarily intended for local development and testing with the [Azure Service Bus Emulator](https://github.com/Azure/azure-service-bus-emulator-installer), but it can also connect to Azure Service Bus namespaces.
 
+The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Aspire support package for registering the published Service Bus Viewer container from .NET Aspire AppHosts. See [`src\SolidCode.Aspire.Hosting.ServiceBusViewer\README.md`](src/SolidCode.Aspire.Hosting.ServiceBusViewer/README.md) for package installation and usage details.
+
 ## Features
 
 - Automatically browse an Azure namespace when the primary connection has Manage permission, or connect directly to a queue or subscription.
@@ -80,12 +82,14 @@ Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAcce
 
 ## Browser-session isolation
 
-The API keeps viewer state in a server-side bucket identified by the `sbv-session` cookie. Different browser profiles and private browsing sessions have isolated viewer state. Tabs that share the same browser cookie jar also share the same Service Bus Viewer session.
+The API keeps viewer state in a server-side bucket identified by the `sbv-session` cookie. Different browser profiles and private browsing sessions have isolated viewer state. 
+Tabs that share the same browser cookie jar also share the same Service Bus Viewer session.
 
 ## Version history
 
 ## 0.40.3 (2026-08-13)
 
+- **Added:** Introduced the `SolidCode.Aspire.Hosting.ServiceBusViewer` hosting library for running the published Service Bus Viewer container from Aspire AppHosts.
 - **Changed:** Reduced the combined Docker image size by using the .NET 10 Ubuntu Chiseled composite runtime with globalization support.
 - **Fixed:** Aborted requests and disconnects now cancel in-flight Service Bus operations so they do not block the browser session.
 - **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
@@ -117,6 +121,9 @@ See the [full changelog](CHANGELOG.md) for the complete version history.
 - `src\ServiceBusViewer` - ASP.NET Core minimal API backend
 - `src\ServiceBusViewer.Web` - React + Vite SPA frontend
 - `src\ServiceBusViewer.AppHost` - Aspire orchestration for local development
+- `src\SolidCode.Aspire.Hosting.ServiceBusViewer` - reusable Aspire hosting integration for the published Service Bus Viewer container
+
+For the package-specific installation and AppHost usage guide, see [`src\SolidCode.Aspire.Hosting.ServiceBusViewer\README.md`](src/SolidCode.Aspire.Hosting.ServiceBusViewer/README.md).
 
 Local development runs the API and Vite as separate processes. The production Docker build compiles the SPA and packages it with the API so that one ASP.NET Core process serves both.
 
@@ -145,10 +152,12 @@ AppHost starts:
 - SQL Server for emulator storage
 - Azure Service Bus Emulator 2.0.1
 - `ServiceBusViewer`
-- `ServiceBusViewer.Web` via the Vite development server
+- `ServiceBusViewer.Web` via the Vite development server when `AppHost:UsePublishedServiceBusViewerContainer` is `false`
 
-The Aspire dashboard opens in the browser. Select the `servicebusviewer-web` endpoint to open the app. 
-The Vite server proxies `/api` requests to the API automatically.
+Set `AppHost:UsePublishedServiceBusViewerContainer` to `true` in `src\ServiceBusViewer.AppHost\appsettings.json` if you want to run the published combined `ghcr.io/veselovandrey/servicebusviewer:latest` container instead of the local backend project and Vite development server.
+
+The Aspire dashboard opens in the browser. 
+Select the `servicebusviewer-web` endpoint in local-project mode, or the `servicebusviewer` endpoint in container mode.
 
 ### Run the API and SPA separately
 
@@ -191,7 +200,8 @@ Build the combined SPA and API image:
 docker build -f src\ServiceBusViewer\Dockerfile -t ServiceBusViewer .
 ```
 
-The development workflow publishes the combined image with the `canary` tag.
+The development workflow publishes the combined image with the `canary` tag. 
+The release workflows publish the combined image.
 
 ## Copyright
 

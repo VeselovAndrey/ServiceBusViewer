@@ -1,0 +1,43 @@
+name: Build and publish the release NuGet package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["release"]
+    paths:
+      - 'src/SolidCode.Aspire.Hosting.ServiceBusViewer/**'
+      - '!src/SolidCode.Aspire.Hosting.ServiceBusViewer/**/*.md'
+
+permissions:
+  contents: read
+
+env:
+  PROJECT: ./src/SolidCode.Aspire.Hosting.ServiceBusViewer/SolidCode.Aspire.Hosting.ServiceBusViewer.csproj
+  PACKAGES: ./artifacts/packages
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Pack NuGet package
+        run: |
+          dotnet pack "$PROJECT" \
+            --configuration Release \
+            --output "$PACKAGES" \
+            --version-suffix "rc.${{ github.run_number }}"
+
+      - name: Publish NuGet package
+        run: |
+          dotnet nuget push "$PACKAGES"/*.nupkg \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --skip-duplicate
