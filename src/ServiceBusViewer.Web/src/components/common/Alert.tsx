@@ -16,7 +16,7 @@ const toneClasses = {
 const iconMarkup = {
   error: (
     <svg
-      className="mt-0.5 h-5 w-5 shrink-0"
+      className="h-5 w-5 shrink-0"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -29,7 +29,7 @@ const iconMarkup = {
   ),
   success: (
     <svg
-      className="mt-0.5 h-5 w-5 shrink-0"
+      className="h-5 w-5 shrink-0"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -51,9 +51,11 @@ export function Alert({ className, messages, tone }: AlertProps) {
     return null;
   }
 
+  const layoutClassName = messages.length === 1 ? 'items-center' : 'items-start';
+
   return (
     <div className={cx('rounded-2xl border px-4 py-3 text-sm', toneClasses[tone], className)}>
-      <div className="flex items-start gap-3">
+      <div className={cx('flex gap-3', layoutClassName)}>
         {iconMarkup[tone]}
         <div className="space-y-1">
           {messages.map((message, index) => (

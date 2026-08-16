@@ -10,7 +10,7 @@ using ServiceBusViewer.Business.Viewer.Dependencies;
 /// <summary>Manages a single browser-session-scoped Service Bus connection and entity cache.</summary>
 internal sealed class ServiceBusConnection : IServiceBusConnection
 {
-	private const int _maxMessagesToPeek = 50;
+	private static readonly TimeSpan _emptyReceiveWaitTime = TimeSpan.FromSeconds(1);
 
 	private readonly ServiceBusClient _client;
 	private readonly ServiceBusAdministrationClient? _adminClient;
@@ -68,27 +68,10 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		EntityProperties entity = GetEntityProperties(entityId);
-		bool requiresSession = entity.RequiresSession;
 
-		if (!requiresSession) {
-			await using ServiceBusReceiver nonSessionReceiver = GetReceiver(entity);
-			ServiceBusReceivedMessage? nonSessionMessage = await nonSessionReceiver.ReceiveMessageAsync(cancellationToken: cancellationToken);
-
-			if (nonSessionMessage is null)
-				return null;
-
-			await nonSessionReceiver.CompleteMessageAsync(nonSessionMessage, cancellationToken);
-			return ConvertToReceivedMessage(nonSessionMessage);
-		}
-
-		await using ServiceBusSessionReceiver receiver = await GetSessionReceiverAsync(entity, sessionId, cancellationToken);
-		ServiceBusReceivedMessage? message = await receiver.ReceiveMessageAsync(cancellationToken: cancellationToken);
-
-		if (message is null)
-			return null;
-
-		await receiver.CompleteMessageAsync(message, cancellationToken);
-		return ConvertToReceivedMessage(message);
+		return entity.RequiresSession
+			? await ReceiveSessionMessageAsync(entity, sessionId, cancellationToken)
+			: await ReceiveNonSessionMessageAsync(entity, cancellationToken);
 	}
 
 	public async Task SendMessageAsync(EntityId entityId, SendCommand command, CancellationToken cancellationToken)
@@ -190,16 +173,61 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			_ => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
 		};
 
-	private async Task<ServiceBusSessionReceiver> GetSessionReceiverAsync(EntityProperties entity, string? sessionId, CancellationToken cancellationToken)
-		=> entity switch {
-			SubscriptionEntityProperties subscription => string.IsNullOrWhiteSpace(sessionId)
-				? await _client.AcceptNextSessionAsync(subscription.TopicName, subscription.Name, cancellationToken: cancellationToken)
-				: await _client.AcceptSessionAsync(subscription.TopicName, subscription.Name, sessionId, cancellationToken: cancellationToken),
-			QueueEntityProperties queue => string.IsNullOrWhiteSpace(sessionId)
-				? await _client.AcceptNextSessionAsync(queue.Name, cancellationToken: cancellationToken)
-				: await _client.AcceptSessionAsync(queue.Name, sessionId, cancellationToken: cancellationToken),
-			_ => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
-		};
+	private async Task<ReceivedMessage?> ReceiveNonSessionMessageAsync(EntityProperties entity, CancellationToken cancellationToken)
+	{
+		await using ServiceBusReceiver receiver = GetReceiver(entity);
+		ServiceBusReceivedMessage? message = await receiver.ReceiveMessageAsync(_emptyReceiveWaitTime, cancellationToken);
+
+		if (message is null)
+			return null;
+
+		await receiver.CompleteMessageAsync(message, cancellationToken);
+
+		return ConvertToReceivedMessage(message);
+	}
+
+	private async Task<ReceivedMessage?> ReceiveSessionMessageAsync(EntityProperties entity, string? sessionId, CancellationToken cancellationToken)
+	{
+		ServiceBusSessionReceiver? receiver = await TryGetSessionReceiverAsync(entity, sessionId, cancellationToken);
+
+		if (receiver is null)
+			return null;
+
+		await using (receiver) {
+			ServiceBusReceivedMessage? message = await receiver.ReceiveMessageAsync(_emptyReceiveWaitTime, cancellationToken);
+
+			if (message is null)
+				return null;
+
+			await receiver.CompleteMessageAsync(message, cancellationToken);
+
+			return ConvertToReceivedMessage(message);
+		}
+	}
+
+	private async Task<ServiceBusSessionReceiver?> TryGetSessionReceiverAsync(EntityProperties entity, string? sessionId, CancellationToken cancellationToken)
+	{
+		using CancellationTokenSource timeoutCancellationSource = new(_emptyReceiveWaitTime);
+		using CancellationTokenSource linkedCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCancellationSource.Token);
+
+		try {
+			return entity switch {
+				SubscriptionEntityProperties subscription => string.IsNullOrWhiteSpace(sessionId)
+					? await _client.AcceptNextSessionAsync(subscription.TopicName, subscription.Name, cancellationToken: linkedCancellationSource.Token)
+					: await _client.AcceptSessionAsync(subscription.TopicName, subscription.Name, sessionId, cancellationToken: linkedCancellationSource.Token),
+				QueueEntityProperties queue => string.IsNullOrWhiteSpace(sessionId)
+					? await _client.AcceptNextSessionAsync(queue.Name, cancellationToken: linkedCancellationSource.Token)
+					: await _client.AcceptSessionAsync(queue.Name, sessionId, cancellationToken: linkedCancellationSource.Token),
+				_ => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
+			};
+		}
+		catch (OperationCanceledException) when (timeoutCancellationSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested) {
+			return null;
+		}
+		catch (ServiceBusException exception) when (exception.Reason == ServiceBusFailureReason.ServiceTimeout && !cancellationToken.IsCancellationRequested) {
+			return null;
+		}
+	}
 
 	private ServiceBusSender GetSender(EntityProperties entity)
 		=> entity switch {

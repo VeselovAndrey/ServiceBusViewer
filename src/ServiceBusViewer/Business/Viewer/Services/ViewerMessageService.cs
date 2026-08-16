@@ -84,18 +84,26 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			CancellationToken operationCancellationToken = operationCancellationSource.Token;
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			EntityId entityId = session.SelectedEntityId ?? throw new InvalidOperationException("No entity selected.");
-			bool requiresSession = connection.GetEntityProperties(entityId).RequiresSession;
+			EntityProperties entity = connection.GetEntityProperties(entityId);
+
+			ValidateRequiredSessionId(entity, command.MessageProperties);
 
 			await connection.SendMessageAsync(entityId, command, operationCancellationToken);
 
 			session.SendResultMessage = BuildSendResultMessage(command.MessageProperties.ContentType, command.MessageProperties.MessageId);
 
-			if (!requiresSession)
+			if (!entity.RequiresSession)
 				session.ReceiveSessionId = null;
 		}
 		finally {
 			session.Gate.Release();
 		}
+	}
+
+	private static void ValidateRequiredSessionId(EntityProperties entity, MessageProperties messageProperties)
+	{
+		if (entity.RequiresSession && string.IsNullOrWhiteSpace(messageProperties.SessionId))
+			throw new SendMessageValidationException($"A Session ID is required when sending to '{entity.Name}' because the selected entity requires sessions.");
 	}
 
 	private static string BuildSendResultMessage(string? sentContentType, string? sentMessageId)
