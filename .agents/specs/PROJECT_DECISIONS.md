@@ -1,5 +1,10 @@
 # Project Decisions
 
+## 2026-08-16: Empty receive timeout behavior
+
+- Receive operations treat an empty queue or subscription as a short-poll scenario and return after about one second instead of inheriting the Azure Service Bus default wait timeout.
+- Session-enabled receives apply the same bounded wait to session acquisition and normalize the expected "no active session/message available" timeout into the same empty-receive result used for non-session entities.
+
 ## 2026-08-13: Aspire hosting package defaults
 
 - The reusable `SolidCode.Aspire.Hosting.ServiceBusViewer` package registers the published `ghcr.io/veselovandrey/servicebusviewer:latest` container image by default and exposes convenience helpers for the supported `SERVICEBUSVIEWER_*` runtime environment variables.

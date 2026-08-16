@@ -185,7 +185,6 @@ export function ViewerPage() {
 			if (currentViewer) {
 				setViewerState({
 					...currentViewer,
-					displayedMessage: null,
 					sendResultMessage: buildSendResultMessage(request),
 				});
 			}
@@ -302,13 +301,18 @@ export function ViewerPage() {
 								<button
 									type="button"
 									className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+									aria-busy={pendingAction === 'refresh'}
 									disabled={pendingAction === 'refresh'}
 									onClick={() => {
 										void handleRefresh();
 									}}
 								>
-									<span className="material-icons-round text-sm">refresh</span>
-									{pendingAction === 'refresh' ? 'Refreshing...' : 'Refresh'}
+									<span
+										className={`material-icons-round text-sm${pendingAction === 'refresh' ? ' animate-spin' : ''}`}
+									>
+										refresh
+									</span>
+									Refresh
 								</button>
 
 								<div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -346,6 +350,7 @@ export function ViewerPage() {
 							<SendMessageForm
 								canSend={Boolean(currentViewer?.entityName)}
 								isSubmitting={pendingAction === 'send'}
+								requiresSession={Boolean(currentViewer?.requiresSession)}
 								onSubmit={handleSend}
 								onValidationError={setErrorMessages}
 							/>
@@ -353,7 +358,7 @@ export function ViewerPage() {
 							<section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
 								<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40">
 									<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-										Received Message
+										Last Received Message
 									</h2>
 									{currentViewer?.displayedMessage ? (
 										<span className="rounded-xl bg-slate-200 px-2 py-1 font-mono text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
