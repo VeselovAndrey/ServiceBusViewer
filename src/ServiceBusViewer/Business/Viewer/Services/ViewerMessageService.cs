@@ -88,7 +88,6 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 
 			await connection.SendMessageAsync(entityId, command, operationCancellationToken);
 
-			session.DisplayedMessage = null;
 			session.SendResultMessage = BuildSendResultMessage(command.MessageProperties.ContentType, command.MessageProperties.MessageId);
 
 			if (!requiresSession)
