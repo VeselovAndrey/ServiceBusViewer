@@ -185,7 +185,6 @@ export function ViewerPage() {
 			if (currentViewer) {
 				setViewerState({
 					...currentViewer,
-					displayedMessage: null,
 					sendResultMessage: buildSendResultMessage(request),
 				});
 			}
@@ -353,7 +352,7 @@ export function ViewerPage() {
 							<section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
 								<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40">
 									<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-										Received Message
+										Last Received Message
 									</h2>
 									{currentViewer?.displayedMessage ? (
 										<span className="rounded-xl bg-slate-200 px-2 py-1 font-mono text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">

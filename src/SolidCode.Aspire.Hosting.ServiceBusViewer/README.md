@@ -34,7 +34,7 @@ await builder.Build().RunAsync();
 The integration exposes Service Bus Viewer on container port `8080`. You can pin a host port and override the image tag during registration:
 
 ```csharp
-builder.AddServiceBusViewer("servicebusviewer", tag: "0.40.3", httpPort: 8081);
+builder.AddServiceBusViewer("servicebusviewer", tag: "0.40.4", httpPort: 8081);
 ```
 
 ### Configure connection settings with `WithConnectionSettings(...)`
