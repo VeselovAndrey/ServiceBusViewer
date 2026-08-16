@@ -87,11 +87,12 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 0.40.4 (2026-08-16)
+## 0.40.5 (2026-08-17)
 
 - **Added:** Introduced the `SolidCode.Aspire.Hosting.ServiceBusViewer` hosting library for running the published Service Bus Viewer container from Aspire AppHosts.
 - **Changed:** Reduced the combined Docker image size by using the .NET 10 Ubuntu Chiseled composite runtime with globalization support.
 - **Fixed:** Sending a message no longer clears the last received message details.
+- **Fixed:** Empty receives from queues and subscriptions now return after about one second instead of waiting for the Azure Service Bus default timeout, including session-enabled entities with no active messages.
 - **Fixed:** Aborted requests and disconnects now cancel in-flight Service Bus operations so they do not block the browser session.
 - **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
 - **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.

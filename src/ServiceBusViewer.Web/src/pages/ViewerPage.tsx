@@ -301,13 +301,18 @@ export function ViewerPage() {
 								<button
 									type="button"
 									className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+									aria-busy={pendingAction === 'refresh'}
 									disabled={pendingAction === 'refresh'}
 									onClick={() => {
 										void handleRefresh();
 									}}
 								>
-									<span className="material-icons-round text-sm">refresh</span>
-									{pendingAction === 'refresh' ? 'Refreshing...' : 'Refresh'}
+									<span
+										className={`material-icons-round text-sm${pendingAction === 'refresh' ? ' animate-spin' : ''}`}
+									>
+										refresh
+									</span>
+									Refresh
 								</button>
 
 								<div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -345,6 +350,7 @@ export function ViewerPage() {
 							<SendMessageForm
 								canSend={Boolean(currentViewer?.entityName)}
 								isSubmitting={pendingAction === 'send'}
+								requiresSession={Boolean(currentViewer?.requiresSession)}
 								onSubmit={handleSend}
 								onValidationError={setErrorMessages}
 							/>

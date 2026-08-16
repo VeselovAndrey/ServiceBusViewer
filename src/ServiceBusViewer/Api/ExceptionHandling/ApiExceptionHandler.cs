@@ -68,6 +68,7 @@ internal sealed class ApiExceptionHandler(
 		=> exception switch {
 			ViewerAlreadyConnectedException => new ExceptionResponse(StatusCodes.Status409Conflict, "Already connected", exception.Message, false),
 			ViewerNotConnectedException => new ExceptionResponse(StatusCodes.Status409Conflict, "Not connected", exception.Message, false),
+			SendMessageValidationException => new ExceptionResponse(StatusCodes.Status400BadRequest, "Invalid request", exception.Message, false),
 			OperationCanceledException => new ExceptionResponse(StatusCodes.Status409Conflict, "Operation cancelled", "The Service Bus operation was cancelled because the viewer disconnected.", false),
 			ArgumentException or FormatException => new ExceptionResponse(StatusCodes.Status400BadRequest, "Invalid request", exception.Message, false),
 			RequestFailedException or ServiceBusException => new ExceptionResponse(
