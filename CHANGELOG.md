@@ -1,5 +1,9 @@
 # Service Bus Viewer Version History
 
+## 0.41.0 (2026-08-19)
+
+- **Added:** Received and peeked message details now display each application property's type alongside its name and value.
+
 ## 0.40.5 (2026-08-17)
 
 - **Added:** Introduced the `SolidCode.Aspire.Hosting.ServiceBusViewer` hosting library for running the published Service Bus Viewer container from Aspire AppHosts.

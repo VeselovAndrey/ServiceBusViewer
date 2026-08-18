@@ -17,7 +17,7 @@ namespace ServiceBusViewer.Api.Models;
 /// <param name="EnablePartitioning">Whether partitioning is enabled.</param>
 /// <param name="AutoDeleteOnIdle">Auto-delete on idle as string or null.</param>
 /// <param name="Rules">Subscription rules if applicable.</param>
-internal sealed record EntityProperties(
+public sealed record EntityProperties(
 	string Kind,
 	string Name,
 	string? TopicName,

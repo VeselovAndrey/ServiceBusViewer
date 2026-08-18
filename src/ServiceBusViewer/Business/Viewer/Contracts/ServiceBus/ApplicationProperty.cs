@@ -9,6 +9,7 @@ public enum ApplicationPropertyType
 	String = 1,
 	Bool,
 	Byte,
+	ByteArray,
 	SByte,
 	Short,
 	UShort,
@@ -23,7 +24,9 @@ public enum ApplicationPropertyType
 	Guid,
 	DateTime,
 	DateTimeOffset,
-	TimeSpan
+	TimeSpan,
+	Null,
+	Unknown
 }
 
 /// <summary>Represents a single application property for an outgoing Service Bus message.</summary>

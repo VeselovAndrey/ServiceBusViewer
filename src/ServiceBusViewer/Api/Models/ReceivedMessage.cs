@@ -3,19 +3,17 @@ namespace ServiceBusViewer.Api.Models;
 using System.Globalization;
 using ServiceBusViewer.Api.Converters;
 
-/// <summary>
-/// Represents a received message body and its metadata.
-/// </summary>
+/// <summary>Represents a received message body and its metadata.</summary>
 /// <param name="Body">Message body as a string.</param>
 /// <param name="Properties">System properties of the received message.</param>
 /// <param name="ApplicationProperties">Application properties dictionary.</param>
-internal sealed record ReceivedMessage(
+public sealed record ReceivedMessage(
 	string Body,
 	ReceivedMessageProperties Properties,
-	IReadOnlyDictionary<string, object> ApplicationProperties);
+	IReadOnlyDictionary<string, ReceivedMessageApplicationProperty> ApplicationProperties);
 
 /// <summary>Provides mappings from business received-message models to API models.</summary>
-internal static class ReceivedMessageExtensions
+public static class ReceivedMessageExtensions
 {
 	/// <summary>Maps a business received message to its API representation.</summary>
 	/// <param name="message">The business received message to map.</param>
@@ -23,7 +21,7 @@ internal static class ReceivedMessageExtensions
 	internal static ReceivedMessage ToApiModel(this Business.Viewer.Contracts.ServiceBus.ReceivedMessage message)
 		=> new Models.ReceivedMessage(
 				message.Body,
-				new Models.ReceivedMessageProperties(
+				new ReceivedMessageProperties(
 					message.Properties.MessageId,
 					message.Properties.PartitionKey,
 					message.Properties.SessionId,
@@ -32,5 +30,15 @@ internal static class ReceivedMessageExtensions
 					message.Properties.EnqueuedTimeUtc.ToString("O", CultureInfo.InvariantCulture),
 					message.Properties.ScheduledEnqueueTime?.ToString("O", CultureInfo.InvariantCulture),
 					message.Properties.TimeToLive?.ToString("c", CultureInfo.InvariantCulture)),
-				message.ApplicationProperties.ToDictionary<KeyValuePair<string, object>, string, object>(pair => pair.Key, pair => ResponseMapping.NormalizeObjectValue(pair.Value) ?? string.Empty));
+				message.ApplicationProperties.ToDictionary<KeyValuePair<string, object>, string, ReceivedMessageApplicationProperty>(
+					pair => pair.Key,
+					pair => new ReceivedMessageApplicationProperty(
+						ResponseMapping.NormalizeObjectValue(pair.Value) ?? string.Empty,
+						ResponseMapping.GetApplicationPropertyType(pair.Value))));
 }
+
+
+/// <summary>Represents a received message application property value and its type metadata.</summary>
+/// <param name="Value">The normalized application property value.</param>
+/// <param name="Type">The original application property type name.</param>
+public sealed record ReceivedMessageApplicationProperty(object Value, ApplicationPropertyType Type);
