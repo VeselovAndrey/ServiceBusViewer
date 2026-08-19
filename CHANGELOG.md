@@ -1,7 +1,8 @@
 # Service Bus Viewer Version History
 
-## 0.41.0 (2026-08-19)
+## 0.42.0 (2026-08-19)
 
+- **Added:** Copy button for received and peeked message bodies that copies the original message body text as plain text.
 - **Added:** Received and peeked message details now display each application property's type alongside its name and value.
 
 ## 0.40.5 (2026-08-17)
@@ -77,3 +78,4 @@
 ## 0.5.0 (2025-05-26)
 
 - Initial version.
+

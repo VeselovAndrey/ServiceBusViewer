@@ -91,8 +91,9 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 0.41.0 (2026-08-19)
+## 0.42.0 (2026-08-19)
 
+- **Added:** Copy button for received and peeked message bodies that copies the original message body text as plain text.
 - **Added:** Received and peeked message details now display each application property's type alongside its name and value.
 
 ## 0.40.5 (2026-08-17)
@@ -211,3 +212,4 @@ The release workflows publish the combined image.
 Copyright © 2025–2026 Andrey Veselov.
 
 This project is distributed under the [MIT License](LICENSE).
+
