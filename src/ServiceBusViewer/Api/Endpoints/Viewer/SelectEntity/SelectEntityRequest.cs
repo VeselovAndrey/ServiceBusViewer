@@ -8,13 +8,18 @@ using System.Collections.Generic;
 /// <param name="SelectedEntityType">Type of entity to select ("Queue", "Topic", "Subscription").</param>
 /// <param name="SelectedEntityName">Name of the entity to select.</param>
 /// <param name="SelectedTopicName">Topic name when selecting a subscription.</param>
-internal sealed record SelectEntityRequest(
+public sealed record SelectEntityRequest(
 	string SelectedEntityType,
 	string SelectedEntityName,
 	string? SelectedTopicName);
 
+/// <summary>Validates a <see cref="SelectEntityRequest"/> instance.</summary>
 internal static class SelectEntityRequestValidator
 {
+	/// <summary>Validates a <see cref="SelectEntityRequest"/> instance.</summary>
+	/// <param name="request">The <see cref="SelectEntityRequest"/> instance to validate.</param>
+	/// <param name="errors">A dictionary of validation errors, if any.</param>
+	/// <returns><c>true</c> if the request is valid; otherwise, <c>false</c>.</returns>
 	public static bool Validate(SelectEntityRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
 		Dictionary<string, string[]> local = new();
@@ -24,9 +29,8 @@ internal static class SelectEntityRequestValidator
 		if (string.IsNullOrWhiteSpace(request.SelectedEntityName))
 			local[nameof(request.SelectedEntityName)] = ["Entity name is required."];
 
-		if (local.Count > 0) { errors = local; return false; }
+		errors = local.Count > 0 ? local : null;
 
-		errors = null;
-		return true;
+		return errors is null;
 	}
 }

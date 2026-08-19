@@ -16,7 +16,7 @@ using ServiceBusViewer.Api.Models;
 /// <param name="DisplayedMessage">Currently displayed message or null.</param>
 /// <param name="SendResultMessage">Result message from the last send operation or null.</param>
 /// <param name="ReceiveSessionId">Session id used for receive or null.</param>
-internal sealed record ConnectResponse(
+public sealed record ConnectResponse(
 	string ServiceBusHostName,
 	string? EntityName,
 	string? TopicName,

@@ -12,7 +12,7 @@ namespace ServiceBusViewer.Api.Models;
 /// <param name="ContentType">Optional content type filter value.</param>
 /// <param name="ApplicationProperties">Application properties used by the correlation filter.</param>
 /// <param name="ActionExpression">Optional action expression applied by the rule.</param>
-internal sealed record CorrelationSubscriptionRule(
+public sealed record CorrelationSubscriptionRule(
 	string Name,
 	string? CorrelationId,
 	string? MessageId,

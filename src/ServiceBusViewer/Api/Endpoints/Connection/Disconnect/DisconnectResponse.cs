@@ -9,7 +9,7 @@ using ServiceBusViewer.Api.Models;
 /// <param name="Connection">Connection settings snapshot.</param>
 /// <param name="Viewer">Current viewer state or null.</param>
 /// <param name="IsConnected">Whether the viewer is currently connected.</param>
-internal sealed record DisconnectResponse(
+public sealed record DisconnectResponse(
 	string ApplicationVersion,
 	ConnectionSettings Connection,
 	ViewerState? Viewer,

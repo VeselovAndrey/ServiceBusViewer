@@ -12,14 +12,19 @@ using System.Collections.Generic;
 /// <paramref name="SubscriptionName"/> is also provided, in which case it identifies the parent topic.
 /// </param>
 /// <param name="SubscriptionName">Optional subscription name for direct access through its parent topic.</param>
-internal sealed record ConnectRequest(
+public sealed record ConnectRequest(
 	string ConnectionString,
 	string? EmulatorManagementConnectionString,
 	string? QueueOrTopicName,
 	string? SubscriptionName);
 
+/// <summary>Validator for <see cref="ConnectRequest"/>.</summary>
 internal static class ConnectRequestValidator
 {
+	/// <summary>Validates a <see cref="ConnectRequest"/> instance.</summary>
+	/// <param name="request">The <see cref="ConnectRequest"/> instance to validate.</param>
+	/// <param name="errors">A dictionary to receive validation errors, if any.</param>
+	/// <returns><c>true</c> if the request is valid; otherwise, <c>false</c>.</returns>
 	public static bool Validate(ConnectRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
 		var local = new Dictionary<string, string[]>(capacity: 1);

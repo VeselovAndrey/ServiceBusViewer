@@ -70,6 +70,8 @@ When the viewer runs directly on the host, use:
 
 ```text
 Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+```
+```text
 Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
 ```
 
@@ -77,6 +79,8 @@ When the viewer runs in a container and the emulator runs on the host, use:
 
 ```text
 Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+```
+```text
 Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
 ```
 
@@ -86,6 +90,10 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 Tabs that share the same browser cookie jar also share the same Service Bus Viewer session.
 
 ## Version history
+
+## 0.41.0 (2026-08-19)
+
+- **Added:** Received and peeked message details now display each application property's type alongside its name and value.
 
 ## 0.40.5 (2026-08-17)
 
@@ -106,13 +114,6 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Fixed:** Failed connection attempts during initial message peeking no longer leave the browser session marked as connected, allowing immediate retry with corrected credentials.
 - **Fixed:** A queue, topic, or subscription supplied with a management-capable connection is retained as the initial viewer selection.
 - **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
-
-## 0.30.0 (2026-08-09)
-
-- Replaced the Razor UI with a React + Vite SPA and reorganized the backend as a minimal API.
-- Isolated viewer state and Service Bus connections by browser session.
-- Added centralized RFC `ProblemDetails` API error handling.
-- Consolidated production deployment into one ASP.NET Core container that serves both the SPA and API.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 

@@ -12,7 +12,7 @@ using ServiceBusViewer.Api.Models;
 /// <param name="Name">Entity name.</param>
 /// <param name="TopicName">Topic name for subscriptions, otherwise null.</param>
 /// <param name="Properties">Entity properties when available.</param>
-internal sealed record DetailsResponse(
+public sealed record DetailsResponse(
 	string ServiceBusHostName,
 	bool IsManagementApiAvailable,
 	IReadOnlyList<EntityId> AvailableEntities,

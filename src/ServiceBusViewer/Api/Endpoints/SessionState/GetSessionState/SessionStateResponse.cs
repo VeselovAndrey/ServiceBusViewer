@@ -8,7 +8,7 @@ using ServiceBusViewer.Api.Models;
 /// <param name="Connection">Connection settings snapshot.</param>
 /// <param name="Viewer">Current viewer state or null.</param>
 /// <param name="IsConnected">Whether the viewer is currently connected.</param>
-internal sealed record SessionStateResponse(
+public sealed record SessionStateResponse(
 	string ApplicationVersion,
 	bool IsRunningInContainer,
 	ConnectionSettings Connection,
