@@ -439,7 +439,11 @@ export function ViewerPage() {
 												</div>
 											</div>
 
-											<JsonMessageBody body={currentViewer.displayedMessage.body} className="mt-6" />
+											<JsonMessageBody
+												body={currentViewer.displayedMessage.body}
+												fullMessage={currentViewer.displayedMessage}
+												className="mt-6"
+											/>
 										</>
 									) : (
 										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
@@ -555,7 +559,11 @@ export function ViewerPage() {
 																			</div>
 																		</div>
 
-																		<JsonMessageBody body={message.body} className="mt-4" />
+																		<JsonMessageBody
+																			body={message.body}
+																			fullMessage={message}
+																			className="mt-4"
+																		/>
 																	</td>
 																</tr>
 															) : null}

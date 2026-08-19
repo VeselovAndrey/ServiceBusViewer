@@ -1,7 +1,8 @@
 # Service Bus Viewer Version History
 
-## 0.42.0 (2026-08-19)
+## 0.43.0 (2026-08-20)
 
+- **Added:** Full-message JSON copy button for received and peeked messages that copies the message body, system properties, and application properties as valid JSON, alongside the existing body-only copy action.
 - **Added:** Copy button for received and peeked message bodies that copies the original message body text as plain text.
 - **Added:** Received and peeked message details now display each application property's type alongside its name and value.
 

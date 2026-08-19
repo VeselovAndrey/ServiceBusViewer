@@ -10,6 +10,7 @@ The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Asp
 - Browse queues, topics, subscriptions, entity properties, and subscription filters.
 - Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
 - View message bodies, system properties, and application properties, with client-side JSON formatting.
+- Copy a received or peeked message body as plain text, or copy the full message as JSON including system and application properties.
 - Send messages to queues or topics with system and typed application properties.
 
 ## Run with Docker
@@ -91,8 +92,9 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 0.42.0 (2026-08-19)
+## 0.43.0 (2026-08-20)
 
+- **Added:** Full-message JSON copy button for received and peeked messages that copies the message body, system properties, and application properties as valid JSON, alongside the existing body-only copy action.
 - **Added:** Copy button for received and peeked message bodies that copies the original message body text as plain text.
 - **Added:** Received and peeked message details now display each application property's type alongside its name and value.
 
