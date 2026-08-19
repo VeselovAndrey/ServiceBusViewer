@@ -15,8 +15,13 @@ public sealed record SendRequest(
 	SendMessagePropertiesRequest? SendMessageProperties,
 	IReadOnlyList<SendMessageApplicationPropertyRequest>? SendMessageApplicationProperties);
 
+/// <summary>Validates a <see cref="SendRequest"/> instance.</summary>
 internal static class SendRequestValidator
 {
+	/// <summary>Validates a <see cref="SendRequest"/> instance.</summary>
+	/// <param name="request">The <see cref="SendRequest"/> instance to validate.</param>
+	/// <param name="errors">A dictionary of validation errors, if any.</param>
+	/// <returns><c>true</c> if the request is valid; otherwise, <c>false</c>.</returns>
 	public static bool Validate(SendRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
 		Dictionary<string, string[]> local = new();
@@ -46,10 +51,15 @@ public sealed record SendMessagePropertiesRequest(
 	string? ScheduledEnqueueTime,
 	string? TimeToLive);
 
+/// <summary>Validates a <see cref="SendMessagePropertiesRequest"/> instance.</summary>
 internal static class SendMessagePropertiesRequestValidator
 {
 	private const int _maxSystemPropertyLength = 128;
 
+	/// <summary>Validates a <see cref="SendMessagePropertiesRequest"/> instance.</summary>
+	/// <param name="request">The <see cref="SendMessagePropertiesRequest"/> instance to validate.</param>
+	/// <param name="errors">A dictionary of validation errors, if any.</param>
+	/// <returns><c>true</c> if the request is valid; otherwise, <c>false</c>.</returns>
 	public static bool Validate(SendMessagePropertiesRequest? request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
 		Dictionary<string, string[]> local = new();
@@ -90,8 +100,14 @@ public sealed record SendMessageApplicationPropertyRequest(
 	string? Value,
 	string? Type);
 
+/// <summary>Validates a <see cref="SendMessageApplicationPropertyRequest"/> instance.	</summary>
 internal static class SendMessageApplicationPropertyRequestValidator
 {
+	/// <summary>Validates a <see cref="SendMessageApplicationPropertyRequest"/> instance.</summary>
+	/// <param name="request">The <see cref="SendMessageApplicationPropertyRequest"/> instance to validate.</param>
+	/// <param name="fieldName">The field name for error reporting.</param>
+	/// <param name="errors">A dictionary of validation errors, if any.</param>
+	/// <returns><c>true</c> if the request is valid; otherwise, <c>false</c>.</returns>
 	public static bool Validate(SendMessageApplicationPropertyRequest request, string fieldName, out IReadOnlyDictionary<string, string[]>? errors)
 	{
 		var local = new Dictionary<string, string[]>();
