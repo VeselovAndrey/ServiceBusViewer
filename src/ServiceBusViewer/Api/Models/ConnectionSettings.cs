@@ -8,7 +8,7 @@ namespace ServiceBusViewer.Api.Models;
 /// <paramref name="SubscriptionName"/> is also provided, in which case it identifies the parent topic.
 /// </param>
 /// <param name="SubscriptionName">Optional subscription name for direct access through its parent topic.</param>
-internal sealed record ConnectionSettings(
+public sealed record ConnectionSettings(
 	string ConnectionString,
 	string? EmulatorManagementConnectionString,
 	string? QueueOrTopicName,

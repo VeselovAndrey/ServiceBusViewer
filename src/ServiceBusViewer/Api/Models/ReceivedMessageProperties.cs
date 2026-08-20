@@ -11,7 +11,7 @@ namespace ServiceBusViewer.Api.Models;
 /// <param name="EnqueuedTimeUtc">Enqueued time in UTC (ISO-8601).</param>
 /// <param name="ScheduledEnqueueTime">Scheduled enqueue time (ISO-8601) or null.</param>
 /// <param name="TimeToLive">Time-to-live as string or null.</param>
-internal sealed record ReceivedMessageProperties(
+public sealed record ReceivedMessageProperties(
 	string MessageId,
 	string? PartitionKey,
 	string? SessionId,

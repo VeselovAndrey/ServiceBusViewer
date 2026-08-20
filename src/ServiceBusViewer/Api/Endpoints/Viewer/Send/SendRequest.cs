@@ -10,26 +10,27 @@ using System.Globalization;
 /// <param name="SendMessageBody">Message body to send.</param>
 /// <param name="SendMessageProperties">Optional system properties for the message.</param>
 /// <param name="SendMessageApplicationProperties">Optional list of application properties.</param>
-internal sealed record SendRequest(
+public sealed record SendRequest(
 	string? SendMessageBody,
 	SendMessagePropertiesRequest? SendMessageProperties,
 	IReadOnlyList<SendMessageApplicationPropertyRequest>? SendMessageApplicationProperties);
 
+/// <summary>Validates a <see cref="SendRequest"/> instance.</summary>
 internal static class SendRequestValidator
 {
+	/// <summary>Validates a <see cref="SendRequest"/> instance.</summary>
+	/// <param name="request">The <see cref="SendRequest"/> instance to validate.</param>
+	/// <param name="errors">A dictionary of validation errors, if any.</param>
+	/// <returns><c>true</c> if the request is valid; otherwise, <c>false</c>.</returns>
 	public static bool Validate(SendRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
 		Dictionary<string, string[]> local = new();
 		if (string.IsNullOrWhiteSpace(request.SendMessageBody))
 			local[nameof(request.SendMessageBody)] = ["Message body cannot be empty."];
 
-		if (local.Count > 0) {
-			errors = local;
-			return false;
-		}
+		errors = local.Count > 0 ? local : null;
 
-		errors = null;
-		return true;
+		return errors is null;
 	}
 }
 
@@ -42,7 +43,7 @@ internal static class SendRequestValidator
 /// <param name="ContentType">Content type.</param>
 /// <param name="ScheduledEnqueueTime">Scheduled enqueue time (ISO-8601) or null.</param>
 /// <param name="TimeToLive">Time-to-live string or null.</param>
-internal sealed record SendMessagePropertiesRequest(
+public sealed record SendMessagePropertiesRequest(
 	string? MessageId,
 	string? SessionId,
 	string? CorrelationId,
@@ -50,10 +51,15 @@ internal sealed record SendMessagePropertiesRequest(
 	string? ScheduledEnqueueTime,
 	string? TimeToLive);
 
+/// <summary>Validates a <see cref="SendMessagePropertiesRequest"/> instance.</summary>
 internal static class SendMessagePropertiesRequestValidator
 {
 	private const int _maxSystemPropertyLength = 128;
 
+	/// <summary>Validates a <see cref="SendMessagePropertiesRequest"/> instance.</summary>
+	/// <param name="request">The <see cref="SendMessagePropertiesRequest"/> instance to validate.</param>
+	/// <param name="errors">A dictionary of validation errors, if any.</param>
+	/// <returns><c>true</c> if the request is valid; otherwise, <c>false</c>.</returns>
 	public static bool Validate(SendMessagePropertiesRequest? request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
 		Dictionary<string, string[]> local = new();
@@ -77,36 +83,42 @@ internal static class SendMessagePropertiesRequestValidator
 		if (!string.IsNullOrWhiteSpace(request.TimeToLive) && !TimeSpan.TryParse(request.TimeToLive, CultureInfo.InvariantCulture, out _))
 			local[nameof(SendMessagePropertiesRequest.TimeToLive)] = ["Time to live must be a valid time span value."];
 
-		if (local.Count > 0) {
-			errors = local;
-			return false;
-		}
+		errors = local.Count > 0 ? local : null;
 
-		errors = null;
-		return true;
+		return errors is null;
 	}
 }
+
 /// <summary>
 /// Single application property entry for a message to send.
 /// </summary>
 /// <param name="Key">Property key.</param>
 /// <param name="Value">Property value.</param>
 /// <param name="Type">Property type name.</param>
-internal sealed record SendMessageApplicationPropertyRequest(
+public sealed record SendMessageApplicationPropertyRequest(
 	string? Key,
 	string? Value,
 	string? Type);
 
+/// <summary>Validates a <see cref="SendMessageApplicationPropertyRequest"/> instance.	</summary>
 internal static class SendMessageApplicationPropertyRequestValidator
 {
+	/// <summary>Validates a <see cref="SendMessageApplicationPropertyRequest"/> instance.</summary>
+	/// <param name="request">The <see cref="SendMessageApplicationPropertyRequest"/> instance to validate.</param>
+	/// <param name="fieldName">The field name for error reporting.</param>
+	/// <param name="errors">A dictionary of validation errors, if any.</param>
+	/// <returns><c>true</c> if the request is valid; otherwise, <c>false</c>.</returns>
 	public static bool Validate(SendMessageApplicationPropertyRequest request, string fieldName, out IReadOnlyDictionary<string, string[]>? errors)
 	{
 		var local = new Dictionary<string, string[]>();
+
 		if (string.IsNullOrWhiteSpace(request.Type))
 			local[fieldName] = ["Application property type is required."];
+
 		// enum parsing and type-specific validation remains in the handler helper where the ApplicationProperty instance is constructed.
-		if (local.Count > 0) { errors = local; return false; }
-		errors = null;
-		return true;
+
+		errors = local.Count > 0 ? local : null;
+
+		return errors is null;
 	}
 }

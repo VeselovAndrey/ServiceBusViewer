@@ -10,6 +10,7 @@ The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Asp
 - Browse queues, topics, subscriptions, entity properties, and subscription filters.
 - Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
 - View message bodies, system properties, and application properties, with client-side JSON formatting.
+- Copy a received or peeked message body as plain text, or copy the full message as JSON including system and application properties.
 - Send messages to queues or topics with system and typed application properties.
 
 ## Run with Docker
@@ -70,6 +71,8 @@ When the viewer runs directly on the host, use:
 
 ```text
 Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+```
+```text
 Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
 ```
 
@@ -77,6 +80,8 @@ When the viewer runs in a container and the emulator runs on the host, use:
 
 ```text
 Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+```
+```text
 Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
 ```
 
@@ -86,6 +91,14 @@ The API keeps viewer state in a server-side bucket identified by the `sbv-sessio
 Tabs that share the same browser cookie jar also share the same Service Bus Viewer session.
 
 ## Version history
+
+## 0.45.0 (2026-08-20)
+
+- **Added:** Full-message JSON copy button for received and peeked messages that copies the message body, system properties, and application properties as valid JSON, alongside the existing body-only copy action.
+- **Added:** Paste-from-clipboard action in the Send Message window that loads a full-message JSON payload copied from a received or peeked message into the payload editor, message properties, and application properties, updating only the fields present in the JSON.
+- **Added:** Warning indicator on the Message ID field when the selected queue or topic (the parent topic of a selected subscription) has duplicate detection enabled and the pasted JSON carries a non-empty message ID; the warning resets when the message ID is edited or after a successful send, and a failed send keeps it.
+- **Added:** Copy button for received and peeked message bodies that copies the original message body text as plain text.
+- **Added:** Received and peeked message details now display each application property's type alongside its name and value.
 
 ## 0.40.5 (2026-08-17)
 
@@ -106,13 +119,6 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Fixed:** Failed connection attempts during initial message peeking no longer leave the browser session marked as connected, allowing immediate retry with corrected credentials.
 - **Fixed:** A queue, topic, or subscription supplied with a management-capable connection is retained as the initial viewer selection.
 - **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
-
-## 0.30.0 (2026-08-09)
-
-- Replaced the Razor UI with a React + Vite SPA and reorganized the backend as a minimal API.
-- Isolated viewer state and Service Bus connections by browser session.
-- Added centralized RFC `ProblemDetails` API error handling.
-- Consolidated production deployment into one ASP.NET Core container that serves both the SPA and API.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 
@@ -210,3 +216,4 @@ The release workflows publish the combined image.
 Copyright © 2025–2026 Andrey Veselov.
 
 This project is distributed under the [MIT License](LICENSE).
+

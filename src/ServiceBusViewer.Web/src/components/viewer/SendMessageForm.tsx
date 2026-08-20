@@ -1,13 +1,8 @@
-import {
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-	type ChangeEvent,
-	type FormEvent,
-} from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { serviceBusApi } from '../../api/serviceBusApi';
 import { useStoredBoolean } from '../../hooks/useStoredBoolean';
 import { cx } from '../../lib/cx';
+import { parseSendWindowJson } from '../../lib/sendWindowJsonImport';
 import type {
 	ApplicationPropertyInputDto,
 	ApplicationPropertyType,
@@ -50,6 +45,8 @@ interface SendMessageFormProps {
 	canSend: boolean;
 	isSubmitting: boolean;
 	requiresSession: boolean;
+	entityName: string | null;
+	topicName: string | null;
 	onSubmit: (request: SendMessageRequestDto) => Promise<void>;
 	onValidationError: (messages: string[]) => void;
 }
@@ -67,10 +64,19 @@ function createProperty(): ApplicationPropertyInputDto {
 	return { key: '', type: 'String', value: '' };
 }
 
+const messageIdFieldClasses =
+	'block w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20';
+const messageIdFieldNormalClasses =
+	'border-slate-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:focus:border-brand-400';
+const messageIdFieldWarningClasses =
+	'border-amber-400 bg-amber-50/60 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-amber-600/70 dark:bg-amber-950/20 dark:focus:border-amber-500';
+
 export function SendMessageForm({
 	canSend,
 	isSubmitting,
 	requiresSession,
+	entityName,
+	topicName,
 	onSubmit,
 	onValidationError,
 }: SendMessageFormProps) {
@@ -84,6 +90,97 @@ export function SendMessageForm({
 	const [isContentTypeMenuOpen, setIsContentTypeMenuOpen] = useState(false);
 	const [contentTypeFilter, setContentTypeFilter] = useState('');
 	const contentTypeContainerRef = useRef<HTMLDivElement | null>(null);
+	const [duplicateDetection, setDuplicateDetection] = useState<boolean | null>(null);
+	const [loadJsonStatus, setLoadJsonStatus] = useState<{
+		kind: 'error';
+		message: string;
+	} | null>(null);
+	const [loadJsonStatusFading, setLoadJsonStatusFading] = useState(false);
+	const loadJsonStatusTimerRef = useRef<number | null>(null);
+	const loadJsonFadeTimerRef = useRef<number | null>(null);
+	const [duplicateDetectionArmed, setDuplicateDetectionArmed] = useState(false);
+
+	const clearLoadJsonStatusTimers = () => {
+		if (loadJsonStatusTimerRef.current !== null) {
+			window.clearTimeout(loadJsonStatusTimerRef.current);
+			loadJsonStatusTimerRef.current = null;
+		}
+		if (loadJsonFadeTimerRef.current !== null) {
+			window.clearTimeout(loadJsonFadeTimerRef.current);
+			loadJsonFadeTimerRef.current = null;
+		}
+	};
+
+	const clearLoadJsonStatus = () => {
+		clearLoadJsonStatusTimers();
+		setLoadJsonStatus(null);
+		setLoadJsonStatusFading(false);
+	};
+
+	const showLoadJsonError = (message: string) => {
+		clearLoadJsonStatusTimers();
+		setLoadJsonStatus({ kind: 'error', message });
+		setLoadJsonStatusFading(false);
+		loadJsonStatusTimerRef.current = window.setTimeout(() => {
+			loadJsonStatusTimerRef.current = null;
+			setLoadJsonStatusFading(true);
+			loadJsonFadeTimerRef.current = window.setTimeout(() => {
+				loadJsonFadeTimerRef.current = null;
+				setLoadJsonStatus(null);
+				setLoadJsonStatusFading(false);
+			}, 500);
+		}, 5000);
+	};
+
+	useEffect(() => clearLoadJsonStatusTimers, []);
+
+	const duplicateDetectionWarning = duplicateDetection === true && duplicateDetectionArmed;
+
+	const messageIdValueRef = useRef(messageProperties.messageId);
+
+	useEffect(() => {
+		messageIdValueRef.current = messageProperties.messageId;
+	}, [messageProperties.messageId]);
+
+	useEffect(() => {
+		if (duplicateDetection === true && messageIdValueRef.current.length > 0) {
+			setDuplicateDetectionArmed(true);
+		}
+	}, [duplicateDetection]);
+
+	useEffect(() => {
+		setDuplicateDetectionArmed(false);
+		setDuplicateDetection(null);
+
+		const detailsType = topicName ? 'Topic' : 'Queue';
+		const detailsName = topicName ?? entityName;
+		if (!detailsName) {
+			return;
+		}
+
+		let isDisposed = false;
+		void serviceBusApi
+			.getEntityDetails(detailsType, detailsName, null)
+			.then((details) => {
+				if (isDisposed || details.properties === null) {
+					return;
+				}
+				const requiresDuplicate =
+					'requiresDuplicateDetection' in details.properties
+						? Boolean(details.properties.requiresDuplicateDetection)
+						: false;
+				setDuplicateDetection(requiresDuplicate);
+			})
+			.catch(() => {
+				if (!isDisposed) {
+					setDuplicateDetection(null);
+				}
+			});
+
+		return () => {
+			isDisposed = true;
+		};
+	}, [entityName, topicName]);
 
 	useEffect(() => {
 		if (!isContentTypeMenuOpen) {
@@ -158,6 +255,8 @@ export function SendMessageForm({
 		setApplicationProperties([]);
 		setIsContentTypeMenuOpen(false);
 		setContentTypeFilter('');
+		clearLoadJsonStatus();
+		// A successful send is the warning reset: do not re-arm here.
 	};
 
 	const handlePropertiesChange = (
@@ -173,6 +272,9 @@ export function SendMessageForm({
 			setContentTypeFilter(value);
 			setIsContentTypeMenuOpen(true);
 		}
+		if (key === 'messageId' && duplicateDetectionWarning) {
+			setDuplicateDetectionArmed(false);
+		}
 	};
 
 	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -183,15 +285,66 @@ export function SendMessageForm({
 			return;
 		}
 
-		await onSubmit({
-			sendMessageApplicationProperties: applicationProperties,
-			sendMessageBody: messageBody,
-			sendMessageProperties: {
-				...messageProperties,
-				scheduledEnqueueTime: messageProperties.scheduledEnqueueTime || null,
-			},
-		});
+		clearLoadJsonStatus();
+
+		try {
+			await onSubmit({
+				sendMessageApplicationProperties: applicationProperties,
+				sendMessageBody: messageBody,
+				sendMessageProperties: {
+					...messageProperties,
+					scheduledEnqueueTime: messageProperties.scheduledEnqueueTime || null,
+				},
+			});
+		} catch {
+			return;
+		}
+
+		setDuplicateDetectionArmed(false);
 		resetForm();
+	};
+
+	const handleLoadJson = async () => {
+		clearLoadJsonStatus();
+		let pastedText: string;
+		try {
+			pastedText = await navigator.clipboard.readText();
+		} catch {
+			showLoadJsonError(
+				'Clipboard access was blocked. Allow clipboard access and try again, or paste the JSON into the payload manually.',
+			);
+			return;
+		}
+
+		if (pastedText.length === 0) {
+			showLoadJsonError('The clipboard is empty. Copy a full message as JSON first.');
+			return;
+		}
+
+		const result = parseSendWindowJson(pastedText);
+		if (!result.ok) {
+			showLoadJsonError(result.error);
+			return;
+		}
+
+		if (result.value.body !== null) {
+			setMessageBody(result.value.body);
+		}
+
+		const importedProperties = result.value.properties;
+		if (importedProperties && Object.keys(importedProperties).length > 0) {
+			setMessageProperties((current) => ({ ...current, ...importedProperties }));
+		}
+
+		const importedApplicationProperties = result.value.applicationProperties;
+		if (importedApplicationProperties) {
+			setApplicationProperties(importedApplicationProperties);
+		}
+
+		const pastedMessageId = result.value.properties?.messageId;
+		if (duplicateDetection === true && pastedMessageId !== undefined && pastedMessageId.length > 0) {
+			setDuplicateDetectionArmed(true);
+		}
 	};
 
 	return (
@@ -200,16 +353,42 @@ export function SendMessageForm({
 				<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
 					Send Message
 				</h2>
-				<button
-					type="button"
-					className="inline-flex w-20 items-center justify-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-					onClick={() => setIsOpen((current) => !current)}
-				>
-					<span className="material-icons-round text-sm">
-						{isOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
-					</span>
-					<span className="text-center">{isOpen ? 'Hide' : 'Show'}</span>
-				</button>
+				<div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+					{isOpen && loadJsonStatus ? (
+						<span
+							role="alert"
+							className={cx(
+								'max-w-full truncate text-xs font-medium text-rose-700 transition-opacity duration-500 dark:text-rose-300',
+								loadJsonStatusFading && 'opacity-0',
+							)}
+						>
+							{loadJsonStatus.message}
+						</span>
+					) : null}
+					<button
+						type="button"
+						disabled={!isOpen}
+						className={cx(
+							'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-white',
+							!isOpen && 'cursor-not-allowed opacity-40 hover:border-slate-200 hover:text-slate-500 dark:hover:border-slate-800 dark:hover:text-slate-300',
+						)}
+						onClick={() => void handleLoadJson()}
+						title="Paste the full message JSON from the clipboard into this form"
+					>
+						<span className="material-icons-round text-sm">content_paste</span>
+						Paste From Clipboard
+					</button>
+					<button
+						type="button"
+						className="inline-flex w-20 items-center justify-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+						onClick={() => setIsOpen((current) => !current)}
+					>
+						<span className="material-icons-round text-sm">
+							{isOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+						</span>
+						<span className="text-center">{isOpen ? 'Hide' : 'Show'}</span>
+					</button>
+				</div>
 			</div>
 
 			<div className={cx('send-form-transition', !isOpen && 'js-send-form-hidden')}>
@@ -229,17 +408,33 @@ export function SendMessageForm({
 
 						<div className="space-y-4">
 							<div>
-								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+								<label className="mb-2 flex items-center justify-between pr-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									Message ID
+									{duplicateDetectionWarning ? (
+										<span
+											id="messageIdDuplicateDetectionWarning"
+											className="flex items-center gap-1 normal-case tracking-normal text-xs font-medium text-amber-700 dark:text-amber-400"
+										>
+											<span className="material-icons-round text-sm" aria-hidden="true">warning_amber</span>
+											<span>Duplicate detection enabled</span>
+										</span>
+									) : null}
 								</label>
 								<input
 									type="text"
 									maxLength={128}
-									className="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
-									value={messageProperties.messageId}
-									onChange={(event) => handlePropertiesChange('messageId', event)}
-								/>
-							</div>
+									aria-invalid={duplicateDetectionWarning || undefined}
+									aria-describedby={duplicateDetectionWarning ? 'messageIdDuplicateDetectionWarning' : undefined}
+									className={cx(
+										messageIdFieldClasses,
+										duplicateDetectionWarning
+											? messageIdFieldWarningClasses
+											: messageIdFieldNormalClasses,
+									)}
+								value={messageProperties.messageId}
+								onChange={(event) => handlePropertiesChange('messageId', event)}
+							/>
+						</div>
 
 							<div>
 								<label className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
@@ -380,7 +575,7 @@ export function SendMessageForm({
 					</div>
 
 					<div className="mt-6">
-						<div className="mb-3 flex items-center justify-between gap-3">
+						<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
 							<div>
 								<label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									Application Properties
@@ -389,23 +584,25 @@ export function SendMessageForm({
 									Optional typed key-value metadata to attach to the outgoing message.
 								</p>
 							</div>
-							<button
-								type="button"
-								className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800"
-								onClick={() => setApplicationProperties((current) => [...current, createProperty()])}
-							>
-								<svg
-									className="h-4 w-4"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth="1.8"
-									aria-hidden="true"
+							<div className="flex flex-wrap items-center gap-2">
+								<button
+									type="button"
+									className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800"
+									onClick={() => setApplicationProperties((current) => [...current, createProperty()])}
 								>
-									<path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
-								</svg>
-								Add Property
-							</button>
+									<svg
+										className="h-4 w-4"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										strokeWidth="1.8"
+										aria-hidden="true"
+									>
+										<path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+									</svg>
+									Add Property
+								</button>
+							</div>
 						</div>
 
 						<div className="space-y-3">

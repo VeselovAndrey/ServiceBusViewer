@@ -13,7 +13,7 @@ namespace ServiceBusViewer.Api.Models;
 /// <param name="DisplayedMessage">Currently selected/displayed message or null.</param>
 /// <param name="SendResultMessage">Result message from the last send operation or null.</param>
 /// <param name="ReceiveSessionId">Session id currently used for receive operations or null.</param>
-internal record ViewerState(
+public record ViewerState(
 	string ServiceBusHostName,
 	string? EntityName,
 	string? TopicName,
@@ -27,11 +27,15 @@ internal record ViewerState(
 	string? ReceiveSessionId);
 
 
+
+/// <summary>Extension methods for <see cref="ViewerState"/>.</summary>
 internal static class ViewerStateExtensions
 {
+	/// <summary>Converts a business model <see cref="Business.Viewer.Contracts.ViewerState"/> to an API model <see cref="ViewerState"/>.</summary>
+	/// <param name="state">The business model viewer state to convert.</param>
+	/// <returns>The converted API model viewer state.</returns>
 	internal static ViewerState ToApiModel(this Business.Viewer.Contracts.ViewerState state)
-	{
-		return new Models.ViewerState(
+		=> new ViewerState(
 			state.ServiceBusHostName,
 			state.EntityName,
 			state.TopicName,
@@ -43,5 +47,4 @@ internal static class ViewerStateExtensions
 			state.DisplayedMessage?.ToApiModel(),
 			state.SendResultMessage,
 			state.ReceiveSessionId);
-	}
 }

@@ -75,6 +75,11 @@ internal static class SendRequestHandler
 				continue;
 			}
 
+			if (!IsSupportedSendApplicationPropertyType(propertyType)) {
+				errors[fieldName] = [$"Application property type '{property.Type}' is not supported for sending."];
+				continue;
+			}
+
 			properties.Add(new ApplicationProperty(
 				property.Key ?? string.Empty,
 				property.Value ?? string.Empty,
@@ -83,4 +88,9 @@ internal static class SendRequestHandler
 
 		return properties;
 	}
+
+	private static bool IsSupportedSendApplicationPropertyType(ApplicationPropertyType type)
+		=> type is not ApplicationPropertyType.ByteArray
+		   && type is not ApplicationPropertyType.Null
+		   && type is not ApplicationPropertyType.Unknown;
 }

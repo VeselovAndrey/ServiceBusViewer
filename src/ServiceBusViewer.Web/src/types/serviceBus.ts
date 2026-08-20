@@ -24,10 +24,15 @@ export interface ReceivedMessagePropertiesDto {
 	timeToLive: string | null;
 }
 
+export interface ReceivedMessageApplicationPropertyDto {
+	value: unknown;
+	type: ApplicationPropertyType;
+}
+
 export interface ReceivedMessageDto {
 	body: string;
 	properties: ReceivedMessagePropertiesDto;
-	applicationProperties: Record<string, unknown> | null;
+	applicationProperties: Record<string, ReceivedMessageApplicationPropertyDto> | null;
 }
 
 export interface ViewerState {
@@ -67,6 +72,7 @@ export type ApplicationPropertyType =
 	| 'String'
 	| 'Bool'
 	| 'Byte'
+	| 'ByteArray'
 	| 'SByte'
 	| 'Short'
 	| 'UShort'
@@ -81,7 +87,9 @@ export type ApplicationPropertyType =
 	| 'Guid'
 	| 'DateTime'
 	| 'DateTimeOffset'
-	| 'TimeSpan';
+	| 'TimeSpan'
+	| 'Null'
+	| 'Unknown';
 
 export interface ApplicationPropertyInputDto {
 	key: string;

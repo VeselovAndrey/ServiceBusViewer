@@ -272,6 +272,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				ApplicationPropertyType.String => value,
 				ApplicationPropertyType.Bool => bool.Parse(value),
 				ApplicationPropertyType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.ByteArray => throw new FormatException("ByteArray application properties are not supported for sending."),
 				ApplicationPropertyType.SByte => sbyte.Parse(value, CultureInfo.InvariantCulture),
 				ApplicationPropertyType.Short => short.Parse(value, CultureInfo.InvariantCulture),
 				ApplicationPropertyType.UShort => ushort.Parse(value, CultureInfo.InvariantCulture),
@@ -287,6 +288,8 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				ApplicationPropertyType.DateTime => DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
 				ApplicationPropertyType.DateTimeOffset => DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
 				ApplicationPropertyType.TimeSpan => TimeSpan.Parse(value, CultureInfo.InvariantCulture),
+				ApplicationPropertyType.Null => throw new FormatException("Null application properties are not supported for sending."),
+				ApplicationPropertyType.Unknown => throw new FormatException("Unknown application property types are not supported for sending."),
 				_ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported application property type.")
 			};
 		}
