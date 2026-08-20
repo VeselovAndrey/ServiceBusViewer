@@ -7,7 +7,7 @@
 
         "queues": [
           {
-            "name": "queue1",
+            "name": "queue",
             "properties": {
               "lockDuration": "PT5M",
               "requiresDuplicateDetection": false,
@@ -22,7 +22,22 @@
           },
 
           {
-            "name": "queue2-with-session",
+            "name": "queue-with-duplicate-detection",
+            "properties": {
+              "lockDuration": "PT5M",
+              "requiresDuplicateDetection": true,
+              "requiresSession": false,
+              "defaultMessageTimeToLive": "PT1H",
+              "deadLetteringOnMessageExpiration": true,
+              "enableBatchedOperations": true,
+              "duplicateDetectionHistoryTimeWindow": "PT5M",
+              "maxDeliveryCount": 10,
+              "status": "Active"
+            }
+          },
+
+          {
+            "name": "queue-with-sessions",
             "properties": {
               "lockDuration": "PT5M",
               "requiresDuplicateDetection": false,

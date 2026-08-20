@@ -1,8 +1,10 @@
 # Service Bus Viewer Version History
 
-## 0.43.0 (2026-08-20)
+## 0.45.0 (2026-08-20)
 
 - **Added:** Full-message JSON copy button for received and peeked messages that copies the message body, system properties, and application properties as valid JSON, alongside the existing body-only copy action.
+- **Added:** Paste-from-clipboard action in the Send Message window that loads a full-message JSON payload copied from a received or peeked message into the payload editor, message properties, and application properties, updating only the fields present in the JSON.
+- **Added:** Warning indicator on the Message ID field when the selected queue or topic (the parent topic of a selected subscription) has duplicate detection enabled and the pasted JSON carries a non-empty message ID; the warning resets when the message ID is edited or after a successful send, and a failed send keeps it.
 - **Added:** Copy button for received and peeked message bodies that copies the original message body text as plain text.
 - **Added:** Received and peeked message details now display each application property's type alongside its name and value.
 

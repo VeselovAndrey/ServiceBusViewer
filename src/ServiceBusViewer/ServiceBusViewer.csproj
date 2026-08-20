@@ -6,7 +6,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<Product>ServiceBusViewer</Product>
-		<Version>0.43.0</Version>
+		<Version>0.45.0</Version>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
 		<Description>HTTP API for the Service Bus Viewer.</Description>

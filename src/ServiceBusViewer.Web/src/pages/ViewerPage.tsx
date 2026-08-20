@@ -92,8 +92,10 @@ export function ViewerPage() {
 
 			try {
 				await work();
+				return true;
 			} catch (error: unknown) {
 				setErrorMessages(getErrorMessages(error));
+				return false;
 			} finally {
 				setPendingAction(null);
 			}
@@ -180,7 +182,7 @@ export function ViewerPage() {
 	};
 
 	const handleSend = async (request: SendMessageRequestDto) => {
-		await runAction('send', async () => {
+		const succeeded = await runAction('send', async () => {
 			await serviceBusApi.send(request);
 
 			if (currentViewer) {
@@ -200,6 +202,9 @@ export function ViewerPage() {
 				]);
 			}
 		});
+		if (!succeeded) {
+			throw new Error('The message was not sent.');
+		}
 	};
 
 	const renderApplicationPropertiesTable = (
@@ -352,13 +357,15 @@ export function ViewerPage() {
 								tone="success"
 							/>
 
-							<SendMessageForm
-								canSend={Boolean(currentViewer?.entityName)}
-								isSubmitting={pendingAction === 'send'}
-								requiresSession={Boolean(currentViewer?.requiresSession)}
-								onSubmit={handleSend}
-								onValidationError={setErrorMessages}
-							/>
+						<SendMessageForm
+							canSend={Boolean(currentViewer?.entityName)}
+							entityName={currentViewer?.entityName ?? null}
+							isSubmitting={pendingAction === 'send'}
+							requiresSession={Boolean(currentViewer?.requiresSession)}
+							topicName={currentViewer?.topicName ?? null}
+							onSubmit={handleSend}
+							onValidationError={setErrorMessages}
+						/>
 
 							<section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
 								<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40">
