@@ -88,17 +88,6 @@ export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBod
                   ? 'Copy failed'
                   : null}
           </span>
-          <button
-            type="button"
-            className={iconButtonClassName}
-            onClick={handleCopyClick}
-            aria-label="Copy message body"
-            title="Copy message body"
-          >
-            <span className="material-icons-round text-sm" aria-hidden="true">
-              content_copy
-            </span>
-          </button>
           {fullMessage ? (
             <button
               type="button"
@@ -112,6 +101,17 @@ export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBod
               </span>
             </button>
           ) : null}
+          <button
+            type="button"
+            className={cx(iconButtonClassName, 'ml-2')}
+            onClick={handleCopyClick}
+            aria-label="Copy message body"
+            title="Copy message body"
+          >
+            <span className="material-icons-round text-sm" aria-hidden="true">
+              content_copy
+            </span>
+          </button>
           <button
             type="button"
             className={cx(
