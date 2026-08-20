@@ -1,16 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
+import { buildFullMessageJson } from '../../lib/messageJson';
 import { cx } from '../../lib/cx';
 import { tryFormatJsonBody } from '../../lib/jsonFormatting';
+import type { ReceivedMessageDto } from '../../types/serviceBus';
 
 interface JsonMessageBodyProps {
   body: string;
+  fullMessage?: ReceivedMessageDto;
   className?: string;
 }
 
-export function JsonMessageBody({ body, className }: JsonMessageBodyProps) {
+type CopyStatus = 'idle' | 'copied' | 'copied-json' | 'failed';
+
+const iconButtonClassName =
+  'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800';
+
+export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBodyProps) {
   const formattedJson = useMemo(() => tryFormatJsonBody(body), [body]);
   const [isFormatted, setIsFormatted] = useState(Boolean(formattedJson));
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
 
   useEffect(() => {
     setIsFormatted(Boolean(formattedJson));
@@ -30,18 +38,30 @@ export function JsonMessageBody({ body, className }: JsonMessageBodyProps) {
     };
   }, [copyStatus]);
 
-  const handleCopyClick = async () => {
+  const copyText = async (text: string, successStatus: 'copied' | 'copied-json'): Promise<void> => {
     if (!navigator.clipboard?.writeText) {
       setCopyStatus('failed');
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(body);
-      setCopyStatus('copied');
+      await navigator.clipboard.writeText(text);
+      setCopyStatus(successStatus);
     } catch {
       setCopyStatus('failed');
     }
+  };
+
+  const handleCopyClick = async () => {
+    await copyText(body, 'copied');
+  };
+
+  const handleFullCopyClick = async () => {
+    if (!fullMessage) {
+      return;
+    }
+
+    await copyText(buildFullMessageJson(fullMessage), 'copied-json');
   };
 
   return (
@@ -55,19 +75,22 @@ export function JsonMessageBody({ body, className }: JsonMessageBodyProps) {
             aria-live="polite"
             className={cx(
               'text-[11px] font-medium',
-              copyStatus === 'copied' && 'text-emerald-600 dark:text-emerald-400',
+              (copyStatus === 'copied' || copyStatus === 'copied-json') &&
+                'text-emerald-600 dark:text-emerald-400',
               copyStatus === 'failed' && 'text-rose-600 dark:text-rose-400',
             )}
           >
             {copyStatus === 'copied'
               ? 'Copied'
-              : copyStatus === 'failed'
-                ? 'Copy failed'
-                : null}
+              : copyStatus === 'copied-json'
+                ? 'Copied JSON'
+                : copyStatus === 'failed'
+                  ? 'Copy failed'
+                  : null}
           </span>
           <button
             type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800"
+            className={iconButtonClassName}
             onClick={handleCopyClick}
             aria-label="Copy message body"
             title="Copy message body"
@@ -76,6 +99,19 @@ export function JsonMessageBody({ body, className }: JsonMessageBodyProps) {
               content_copy
             </span>
           </button>
+          {fullMessage ? (
+            <button
+              type="button"
+              className={iconButtonClassName}
+              onClick={handleFullCopyClick}
+              aria-label="Copy full message as JSON"
+              title="Copy full message as JSON"
+            >
+              <span className="material-icons-round text-sm" aria-hidden="true">
+                data_object
+              </span>
+            </button>
+          ) : null}
           <button
             type="button"
             className={cx(
