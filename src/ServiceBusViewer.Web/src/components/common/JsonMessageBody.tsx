@@ -10,14 +10,15 @@ interface JsonMessageBodyProps {
   className?: string;
 }
 
+type CopyStatus = 'idle' | 'copied' | 'copied-json' | 'failed';
+
 const iconButtonClassName =
   'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800';
 
 export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBodyProps) {
   const formattedJson = useMemo(() => tryFormatJsonBody(body), [body]);
   const [isFormatted, setIsFormatted] = useState(Boolean(formattedJson));
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const [fullCopyStatus, setFullCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
 
   useEffect(() => {
     setIsFormatted(Boolean(formattedJson));
@@ -37,24 +38,7 @@ export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBod
     };
   }, [copyStatus]);
 
-  useEffect(() => {
-    if (fullCopyStatus === 'idle') {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setFullCopyStatus('idle');
-    }, 2000);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [fullCopyStatus]);
-
-  const copyText = async (
-    text: string,
-    setCopyStatus: (status: 'copied' | 'failed') => void,
-  ): Promise<void> => {
+  const copyText = async (text: string, successStatus: 'copied' | 'copied-json'): Promise<void> => {
     if (!navigator.clipboard?.writeText) {
       setCopyStatus('failed');
       return;
@@ -62,14 +46,14 @@ export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBod
 
     try {
       await navigator.clipboard.writeText(text);
-      setCopyStatus('copied');
+      setCopyStatus(successStatus);
     } catch {
       setCopyStatus('failed');
     }
   };
 
   const handleCopyClick = async () => {
-    await copyText(body, setCopyStatus);
+    await copyText(body, 'copied');
   };
 
   const handleFullCopyClick = async () => {
@@ -77,7 +61,7 @@ export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBod
       return;
     }
 
-    await copyText(buildFullMessageJson(fullMessage), setFullCopyStatus);
+    await copyText(buildFullMessageJson(fullMessage), 'copied-json');
   };
 
   return (
@@ -91,15 +75,18 @@ export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBod
             aria-live="polite"
             className={cx(
               'text-[11px] font-medium',
-              copyStatus === 'copied' && 'text-emerald-600 dark:text-emerald-400',
+              (copyStatus === 'copied' || copyStatus === 'copied-json') &&
+                'text-emerald-600 dark:text-emerald-400',
               copyStatus === 'failed' && 'text-rose-600 dark:text-rose-400',
             )}
           >
             {copyStatus === 'copied'
               ? 'Copied'
-              : copyStatus === 'failed'
-                ? 'Copy failed'
-                : null}
+              : copyStatus === 'copied-json'
+                ? 'Copied JSON'
+                : copyStatus === 'failed'
+                  ? 'Copy failed'
+                  : null}
           </span>
           <button
             type="button"
@@ -113,33 +100,17 @@ export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBod
             </span>
           </button>
           {fullMessage ? (
-            <>
-              <button
-                type="button"
-                className={iconButtonClassName}
-                onClick={handleFullCopyClick}
-                aria-label="Copy full message as JSON"
-                title="Copy full message as JSON"
-              >
-                <span className="material-icons-round text-sm" aria-hidden="true">
-                  data_object
-                </span>
-              </button>
-              <span
-                aria-live="polite"
-                className={cx(
-                  'text-[11px] font-medium',
-                  fullCopyStatus === 'copied' && 'text-emerald-600 dark:text-emerald-400',
-                  fullCopyStatus === 'failed' && 'text-rose-600 dark:text-rose-400',
-                )}
-              >
-                {fullCopyStatus === 'copied'
-                  ? 'Copied JSON'
-                  : fullCopyStatus === 'failed'
-                    ? 'Copy failed'
-                    : null}
+            <button
+              type="button"
+              className={iconButtonClassName}
+              onClick={handleFullCopyClick}
+              aria-label="Copy full message as JSON"
+              title="Copy full message as JSON"
+            >
+              <span className="material-icons-round text-sm" aria-hidden="true">
+                data_object
               </span>
-            </>
+            </button>
           ) : null}
           <button
             type="button"

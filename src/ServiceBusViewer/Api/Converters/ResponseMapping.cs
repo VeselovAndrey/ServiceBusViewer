@@ -17,6 +17,12 @@ internal static class ResponseMapping
 			Guid guid => guid.ToString(),
 			char character => character.ToString(),
 			byte[] bytes => Convert.ToBase64String(bytes),
+
+			// Preserve values that may exceed JavaScript's safe numeric precision so client-side JSON export remains exact.
+			long number => number.ToString(CultureInfo.InvariantCulture),
+			ulong number => number.ToString(CultureInfo.InvariantCulture),
+			decimal number => number.ToString(CultureInfo.InvariantCulture),
+
 			_ => value
 		};
 
