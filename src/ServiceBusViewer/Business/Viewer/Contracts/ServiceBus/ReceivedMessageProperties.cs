@@ -9,6 +9,9 @@ namespace ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 /// <param name="EnqueuedTimeUtc">The enqueue time in UTC.</param>
 /// <param name="ScheduledEnqueueTime">The scheduled enqueue time, if any.</param>
 /// <param name="TimeToLive">The time to live, if any.</param>
+/// <param name="To">The To property, if any.</param>
+/// <param name="ReplyTo">The Reply To property, if any.</param>
+/// <param name="Subject">The subject, if any.</param>
 public sealed record ReceivedMessageProperties(
 	string MessageId,
 	string? PartitionKey,
@@ -17,4 +20,7 @@ public sealed record ReceivedMessageProperties(
 	string? ContentType,
 	DateTimeOffset EnqueuedTimeUtc,
 	DateTimeOffset? ScheduledEnqueueTime,
-	TimeSpan? TimeToLive);
+	TimeSpan? TimeToLive,
+	string? To,
+	string? ReplyTo,
+	string? Subject);

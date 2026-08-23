@@ -209,8 +209,6 @@ export function ConnectPage() {
 								</div>
 							</div>
 
-							<Alert className="mt-5" messages={errorMessages} tone="error" />
-
 							<form className="mt-6 space-y-5" onSubmit={(event) => void handleSubmit(event)}>
 								<div>
 									<label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
@@ -271,21 +269,33 @@ export function ConnectPage() {
 								</div>
 
 								{sessionState.isRunningInContainer && (
-									<div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
+									<div className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
 										<span className="material-icons-round text-base" aria-hidden="true">
 											info
 										</span>
-										<span>
-											For Docker or Podman, use{' '}
-											<span className="font-mono text-slate-700 dark:text-slate-200">
-												host.docker.internal
-											</span>{' '}
-											instead of{' '}
-											<span className="font-mono text-slate-700 dark:text-slate-200">
-												localhost
-											</span>{' '}
-											when targeting the emulator on the host machine.
-										</span>
+										<div>
+											<p>To reach the emulator on the host machine:</p>
+											<ul className="mt-1 list-disc space-y-1 pl-4">
+												<li>
+													Docker: use{' '}
+													<span className="font-mono text-slate-700 dark:text-slate-200">
+														host.docker.internal
+													</span>
+												</li>
+												<li>
+													Podman: use{' '}
+													<span className="font-mono text-slate-700 dark:text-slate-200">
+														host.docker.internal
+													</span>{' '}
+													or{' '}
+													<span className="font-mono text-slate-700 dark:text-slate-200">
+														host.containers.internal
+													</span>
+													, and the host service must listen on a non-loopback
+													interface (not just 127.0.0.1) to be reachable
+												</li>
+											</ul>
+										</div>
 									</div>
 								)}
 
@@ -306,6 +316,8 @@ export function ConnectPage() {
 									</svg>
 									{isSubmitting ? 'Connecting...' : 'Connect'}
 								</button>
+
+								<Alert className="mt-5" messages={errorMessages} tone="error" />
 							</form>
 						</section>
 					</div>

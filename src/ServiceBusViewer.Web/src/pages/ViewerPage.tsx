@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { serviceBusApi } from '../api/serviceBusApi';
 import { Alert } from '../components/common/Alert';
+import { CopyFullMessageButton } from '../components/common/CopyFullMessageButton';
 import { JsonMessageBody } from '../components/common/JsonMessageBody';
 import { EntitySidebar } from '../components/entities/EntitySidebar';
 import { AppLayout } from '../components/layout/AppLayout';
@@ -28,14 +29,11 @@ import type {
 type ViewerAction = 'disconnect' | 'receive' | 'refresh' | 'send';
 
 function buildSendResultMessage(request: SendMessageRequestDto) {
-	const { contentType, messageId } = request.sendMessageProperties;
-	const contentTypeDescription = contentType.trim()
-		? `with content type '${contentType}'`
-		: 'without a content type';
+	const { messageId } = request.sendMessageProperties;
 
 	return messageId.trim()
-		? `Message '${messageId}' sent successfully ${contentTypeDescription}.`
-		: `Message sent successfully ${contentTypeDescription}.`;
+		? `Message '${messageId}' sent successfully.`
+		: 'Message sent successfully.';
 }
 
 export function ViewerPage() {
@@ -45,6 +43,7 @@ export function ViewerPage() {
 	const currentViewer = viewer;
 	const [pendingAction, setPendingAction] = useState<ViewerAction | null>(null);
 	const [errorMessages, setErrorMessages] = useState<string[]>([]);
+	const [sendErrorMessages, setSendErrorMessages] = useState<string[]>([]);
 	const [selectionKey, setSelectionKey] = useState<string | null>(null);
 	const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 	const [receiveSessionId, setReceiveSessionId] = useState(viewer?.receiveSessionId ?? '');
@@ -77,6 +76,29 @@ export function ViewerPage() {
 		setReceiveSessionId(viewer?.receiveSessionId ?? '');
 	}, [viewer?.receiveSessionId]);
 
+	const sendResultMessage = viewer?.sendResultMessage ?? null;
+
+	useEffect(() => {
+		if (!sendResultMessage || sendErrorMessages.length > 0) {
+			return;
+		}
+
+		const timerId = window.setTimeout(() => {
+			setViewerState((currentViewer) => {
+				if (!currentViewer) {
+					return currentViewer;
+				}
+
+				return {
+					...currentViewer,
+					sendResultMessage: null,
+				};
+			});
+		}, 5000);
+
+		return () => window.clearTimeout(timerId);
+	}, [sendResultMessage, sendErrorMessages.length, setViewerState]);
+
 	const syncViewer = useCallback(
 		async (nextViewer: ViewerState) => {
 			setViewerState(nextViewer);
@@ -89,12 +111,18 @@ export function ViewerPage() {
 		async (action: ViewerAction, work: () => Promise<void>) => {
 			setPendingAction(action);
 			setErrorMessages([]);
+			setSendErrorMessages([]);
 
 			try {
 				await work();
 				return true;
 			} catch (error: unknown) {
-				setErrorMessages(getErrorMessages(error));
+				const messages = getErrorMessages(error);
+				if (action === 'send') {
+					setSendErrorMessages(messages);
+				} else {
+					setErrorMessages(messages);
+				}
 				return false;
 			} finally {
 				setPendingAction(null);
@@ -110,11 +138,13 @@ export function ViewerPage() {
 
 		const properties = currentViewer.displayedMessage.properties;
 		return [
-			['Message ID', properties.messageId],
 			['Content Type', formatNullable(properties.contentType, 'not set')],
-			['Partition Key', formatNullable(properties.partitionKey)],
-			['Scheduled Enqueue', formatDateTime(properties.scheduledEnqueueTime)],
 			['Time To Live', formatNullable(properties.timeToLive)],
+			['Scheduled Enqueue', formatDateTime(properties.scheduledEnqueueTime)],
+			['Correlation ID', formatNullable(properties.correlationId)],
+			['Subject', formatNullable(properties.subject)],
+			['To', formatNullable(properties.to)],
+			['Reply To', formatNullable(properties.replyTo)]
 		];
 	}, [currentViewer?.displayedMessage]);
 
@@ -135,6 +165,13 @@ export function ViewerPage() {
 	const peekedMessageSummary = currentViewer
 		? buildPeekedMessageSummary(currentViewer.messages, currentViewer.hasMoreMessages)
 		: '0 total';
+	const showScheduledEnqueue = currentViewer?.messages.some((message) =>
+		Boolean(message.properties.scheduledEnqueueTime),
+	) ?? false;
+	const showPartitionKey = currentViewer?.messages.some((message) =>
+		Boolean(message.properties.partitionKey),
+	) ?? false;
+	const peekedMessageColumnCount = 5 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0);
 
 	const handleDisconnect = async () => {
 		await runAction('disconnect', async () => {
@@ -148,6 +185,7 @@ export function ViewerPage() {
 		const nextSelectionKey = getEntityKey(entity);
 		setSelectionKey(nextSelectionKey);
 		setErrorMessages([]);
+		setSendErrorMessages([]);
 
 		try {
 			const nextViewer = await syncViewer(await serviceBusApi.selectEntity(entity));
@@ -182,22 +220,27 @@ export function ViewerPage() {
 	};
 
 	const handleSend = async (request: SendMessageRequestDto) => {
+		if (currentViewer) {
+			setViewerState({
+				...currentViewer,
+				sendResultMessage: null,
+			});
+		}
+
 		const succeeded = await runAction('send', async () => {
 			await serviceBusApi.send(request);
-
-			if (currentViewer) {
-				setViewerState({
-					...currentViewer,
-					sendResultMessage: buildSendResultMessage(request),
-				});
-			}
+			const sendResultMessage = buildSendResultMessage(request);
 
 			try {
 				const nextViewer = await syncViewer(await serviceBusApi.refreshViewer());
 				setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 				setExpandedRows(new Set());
+				setViewerState({
+					...nextViewer,
+					sendResultMessage,
+				});
 			} catch {
-				setErrorMessages([
+				setSendErrorMessages([
 					'The message was sent successfully, but the message list could not be refreshed. Use Refresh to try again.',
 				]);
 			}
@@ -217,7 +260,7 @@ export function ViewerPage() {
 					<table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
 						<thead className="bg-slate-50 text-slate-500 dark:bg-slate-950/40 dark:text-slate-400">
 							<tr>
-								<th className="px-4 py-2 text-left font-medium">Application Property</th>
+								<th className="px-4 py-2 text-left font-medium">Custom Property</th>
 								<th className="px-4 py-2 text-left font-medium">Value</th>
 								<th className="px-4 py-2 text-left font-medium">Type</th>
 							</tr>
@@ -242,7 +285,7 @@ export function ViewerPage() {
 			);
 		}
 
-		return <div className={emptyClassName}>No application properties on this message.</div>;
+		return <div className={emptyClassName}>No custom properties on this message.</div>;
 	};
 
 	const toggleExpandedRow = (rowKey: string) => {
@@ -351,32 +394,28 @@ export function ViewerPage() {
 
 						<div className="custom-scrollbar flex-1 overflow-y-auto p-4 lg:p-6">
 							<Alert className="mb-6" messages={errorMessages} tone="error" />
-							<Alert
-								className="mb-6"
-								messages={currentViewer?.sendResultMessage ? [currentViewer.sendResultMessage] : []}
-								tone="success"
-							/>
 
-						<SendMessageForm
-							canSend={Boolean(currentViewer?.entityName)}
-							entityName={currentViewer?.entityName ?? null}
-							isSubmitting={pendingAction === 'send'}
-							requiresSession={Boolean(currentViewer?.requiresSession)}
-							topicName={currentViewer?.topicName ?? null}
-							onSubmit={handleSend}
-							onValidationError={setErrorMessages}
-						/>
+							<SendMessageForm
+								canSend={Boolean(currentViewer?.entityName)}
+								entityName={currentViewer?.entityName ?? null}
+								isSubmitting={pendingAction === 'send'}
+								requiresSession={Boolean(currentViewer?.requiresSession)}
+								sendResultMessage={currentViewer?.sendResultMessage ?? null}
+								sendErrorMessages={sendErrorMessages}
+								topicName={currentViewer?.topicName ?? null}
+								onSubmit={handleSend}
+								onValidationError={setSendErrorMessages}
+							/>
 
 							<section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
 								<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40">
 									<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
 										Last Received Message
 									</h2>
-									{currentViewer?.displayedMessage ? (
-										<span className="rounded-xl bg-slate-200 px-2 py-1 font-mono text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-											ID: {currentViewer.displayedMessage.properties.messageId}
-										</span>
-									) : null}
+									<CopyFullMessageButton
+										message={currentViewer?.displayedMessage ?? null}
+										disabled={!currentViewer?.displayedMessage}
+									/>
 								</div>
 
 								<div className="p-4 lg:p-6">
@@ -393,29 +432,26 @@ export function ViewerPage() {
 												</div>
 												<div>
 													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+														Message ID
+													</div>
+													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
+														{currentViewer.displayedMessage.properties.messageId}
+													</div>
+												</div>
+												<div>
+													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+														Partition Key
+													</div>
+													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
+														{formatNullable(currentViewer.displayedMessage.properties.partitionKey)}
+													</div>
+												</div>
+												<div>
+													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
 														Session ID
 													</div>
 													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
 														{formatNullable(currentViewer.displayedMessage.properties.sessionId)}
-													</div>
-												</div>
-												<div>
-													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-														Correlation ID
-													</div>
-													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
-														{formatNullable(currentViewer.displayedMessage.properties.correlationId)}
-													</div>
-												</div>
-												<div>
-													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-														Content Type
-													</div>
-													<div className="mt-1 text-xs text-slate-700 dark:text-slate-200">
-														{formatNullable(
-															currentViewer.displayedMessage.properties.contentType,
-															'not set',
-														)}
 													</div>
 												</div>
 											</div>
@@ -423,13 +459,19 @@ export function ViewerPage() {
 											<div className="mt-4 grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
 												<div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
 													<table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
+														<thead className="bg-slate-50 text-slate-500 dark:bg-slate-950/40 dark:text-slate-400">
+															<tr>
+																<th className="px-4 py-2 text-left font-medium">Message Property</th>
+																<th className="px-4 py-2 text-left font-medium">Value</th>
+															</tr>
+														</thead>
 														<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
 															{activeMessagePropertyRows.map(([label, value]) => (
 																<tr key={label}>
-																	<th className="w-40 bg-slate-50 px-4 py-3 text-left font-medium text-slate-500 dark:bg-slate-950/40 dark:text-slate-400">
+																	<th className="w-44 whitespace-nowrap bg-white px-4 py-2 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
 																		{label}
 																	</th>
-																	<td className="px-4 py-3 text-slate-700 dark:text-slate-200">
+																	<td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
 																		{value}
 																	</td>
 																</tr>
@@ -448,7 +490,6 @@ export function ViewerPage() {
 
 											<JsonMessageBody
 												body={currentViewer.displayedMessage.body}
-												fullMessage={currentViewer.displayedMessage}
 												className="mt-6"
 											/>
 										</>
@@ -482,10 +523,12 @@ export function ViewerPage() {
 											<thead className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
 												<tr>
 													<th className="px-4 py-3 font-medium">Message ID</th>
-													<th className="px-4 py-3 font-medium">Enqueued Time</th>
+													{showPartitionKey && <th className="px-4 py-3 font-medium">Partition Key</th>}
+													<th className="px-4 py-3 font-medium">Session</th>
+													<th className="px-4 py-3 font-medium">Enqueued Time / TTL</th>
+													{showScheduledEnqueue && <th className="px-4 py-3 font-medium">Scheduled Enqueue</th>}
 													<th className="px-4 py-3 font-medium">Content Type</th>
-													<th className="px-4 py-3 font-medium">Session / TTL</th>
-													<th className="px-4 py-3 text-right font-medium">Actions</th>
+													<th className="px-4 py-3 text-center font-medium">Actions</th>
 												</tr>
 											</thead>
 											<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -493,13 +536,11 @@ export function ViewerPage() {
 													const rowKey = createMessageRowKey(message, index);
 													const isExpanded = expandedRows.has(rowKey);
 													const propertyRows: Array<[string, string]> = [
-														['Message ID', message.properties.messageId],
-														['Enqueued Time', formatDateTime(message.properties.enqueuedTimeUtc)],
-														['Content Type', formatNullable(message.properties.contentType, 'not set')],
-														['Partition Key', formatNullable(message.properties.partitionKey)],
-														['Correlation ID', formatNullable(message.properties.correlationId)],
 														['Scheduled Enqueue', formatDateTime(message.properties.scheduledEnqueueTime)],
-														['Time To Live', formatNullable(message.properties.timeToLive)],
+														['Correlation ID', formatNullable(message.properties.correlationId)],
+														['Subject', formatNullable(message.properties.subject)],
+														['To', formatNullable(message.properties.to)],
+														['Reply To', formatNullable(message.properties.replyTo)],
 													];
 
 													return (
@@ -509,47 +550,66 @@ export function ViewerPage() {
 																	<div className="font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{message.properties.messageId}
 																	</div>
-																	{currentViewer.requiresSession && message.properties.sessionId ? (
-																		<div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-																			Session: {message.properties.sessionId}
-																		</div>
-																	) : null}
+																</td>
+																{showPartitionKey && (
+																	<td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-200">
+																		{formatNullable(message.properties.partitionKey)}
+																	</td>
+																)}
+																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																	{formatNullable(message.properties.sessionId, 'No session')}
 																</td>
 																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{formatDateTimeShort(message.properties.enqueuedTimeUtc)}
-																</td>
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-																	{formatNullable(message.properties.contentType, 'not set')}
-																</td>
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-																	{formatNullable(message.properties.sessionId, 'No session')}
 																	<div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
 																		TTL: {formatNullable(message.properties.timeToLive)}
 																	</div>
 																</td>
-																<td className="px-4 py-3 text-right">
-																	<button
-																		type="button"
-																		className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:border-brand-200 hover:bg-brand-50 dark:border-slate-800 dark:bg-slate-900 dark:text-brand-300 dark:hover:border-brand-900/60 dark:hover:bg-brand-950/30"
-																		onClick={() => toggleExpandedRow(rowKey)}
-																	>
-																		<span>{isExpanded ? 'Collapse' : 'Expand'}</span>
-																	</button>
+																{showScheduledEnqueue && (
+																	<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																		{message.properties.scheduledEnqueueTime
+																			? formatDateTimeShort(message.properties.scheduledEnqueueTime)
+																			: 'n/a'}
+																	</td>
+																)}
+																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																	{formatNullable(message.properties.contentType, 'not set')}
+																</td>
+																<td className="px-4 py-3">
+																	<div className="flex items-center justify-end gap-2">
+																		<CopyFullMessageButton message={message} />
+																		<button
+																			type="button"
+																			className="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+																			onClick={() => toggleExpandedRow(rowKey)}
+																		>
+																			<span className="material-icons-round text-sm">
+																				{isExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+																			</span>
+																			<span className="w-14 text-center">{isExpanded ? 'Collapse' : 'Expand'}</span>
+																		</button>
+																	</div>
 																</td>
 															</tr>
 															{isExpanded ? (
 																<tr className="bg-slate-50/70 dark:bg-slate-950/50">
-																	<td colSpan={5} className="max-w-0 px-4 py-4">
+																	<td colSpan={peekedMessageColumnCount} className="max-w-0 px-4 py-4">
 																		<div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
 																			<div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
 																				<table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
+																					<thead className="bg-slate-50 text-slate-500 dark:bg-slate-950/40 dark:text-slate-400">
+																						<tr>
+																							<th className="px-4 py-2 text-left font-medium">Message Property</th>
+																							<th className="px-4 py-2 text-left font-medium">Value</th>
+																						</tr>
+																					</thead>
 																					<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
 																						{propertyRows.map(([label, value]) => (
 																							<tr key={`${rowKey}-${label}`}>
-																								<th className="w-40 bg-white px-4 py-3 text-left font-medium text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+																								<th className="w-44 whitespace-nowrap bg-white px-4 py-2 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
 																									{label}
 																								</th>
-																								<td className="px-4 py-3 text-slate-700 dark:text-slate-200">
+																								<td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
 																									{value}
 																								</td>
 																							</tr>
@@ -566,11 +626,7 @@ export function ViewerPage() {
 																			</div>
 																		</div>
 
-																		<JsonMessageBody
-																			body={message.body}
-																			fullMessage={message}
-																			className="mt-4"
-																		/>
+																		<JsonMessageBody body={message.body} className="mt-4" />
 																	</td>
 																</tr>
 															) : null}

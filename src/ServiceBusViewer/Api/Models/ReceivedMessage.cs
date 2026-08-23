@@ -29,7 +29,10 @@ public static class ReceivedMessageExtensions
 					message.Properties.ContentType,
 					message.Properties.EnqueuedTimeUtc.ToString("O", CultureInfo.InvariantCulture),
 					message.Properties.ScheduledEnqueueTime?.ToString("O", CultureInfo.InvariantCulture),
-					message.Properties.TimeToLive?.ToString("c", CultureInfo.InvariantCulture)),
+					message.Properties.TimeToLive?.ToString("c", CultureInfo.InvariantCulture),
+					message.Properties.To,
+					message.Properties.ReplyTo,
+					message.Properties.Subject),
 				message.ApplicationProperties.ToDictionary<KeyValuePair<string, object>, string, ReceivedMessageApplicationProperty>(
 					pair => pair.Key,
 					pair => new ReceivedMessageApplicationProperty(

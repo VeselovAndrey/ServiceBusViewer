@@ -241,14 +241,6 @@
     @apply text-slate-500 dark:text-slate-400;
   }
 
-  .js-json-toggle {
-    display: none;
-  }
-
-  .js-json-toggle.js-json-toggle-visible {
-    display: inline-flex;
-  }
-
   .send-form-transition {
     max-height: 220rem;
     opacity: 1;

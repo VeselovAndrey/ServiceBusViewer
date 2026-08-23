@@ -35,6 +35,10 @@ const supportedPropertyKeys = [
 	'contentType',
 	'scheduledEnqueueTime',
 	'timeToLive',
+	'to',
+	'replyTo',
+	'subject',
+	'partitionKey',
 ] as const satisfies readonly (keyof SendMessagePropertiesDto)[];
 
 export type SendWindowJsonImport = {
@@ -122,6 +126,10 @@ function parseApplicationProperties(
 
 	const rows: ApplicationPropertyInputDto[] = [];
 	for (const [key, entry] of Object.entries(raw)) {
+		if (key === 'Diagnostic-Id') {
+			continue;
+		}
+
 		if (!isRecord(entry) || !('value' in entry)) {
 			throw new Error(`Application property '${key}' must be an object with a value.`);
 		}
@@ -146,7 +154,7 @@ export function parseSendWindowJson(text: string): SendWindowJsonImportResult {
 	try {
 		parsed = JSON.parse(text);
 	} catch {
-		return { ok: false, error: 'The clipboard text is not valid JSON.' };
+		return { ok: false, error: '' };
 	}
 
 	if (!isRecord(parsed)) {
