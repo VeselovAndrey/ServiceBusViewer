@@ -19,6 +19,7 @@ export interface ReceivedMessagePropertiesDto {
 	sessionId: string | null;
 	correlationId: string | null;
 	contentType: string | null;
+	deliveryCount: number;
 	enqueuedTimeUtc: string;
 	scheduledEnqueueTime: string | null;
 	timeToLive: string | null;

@@ -1,5 +1,9 @@
 # Project Decisions
 
+## 2026-08-23: Aspire package versioning policy
+
+- The `SolidCode.Aspire.Hosting.ServiceBusViewer` package version is aligned with the Aspire version it is built against, and future releases will continue to carry the same version number as their target Aspire release.
+
 ## 2026-08-16: Empty receive timeout behavior
 
 - Receive operations treat an empty queue or subscription as a short-poll scenario and return after about one second instead of inheriting the Azure Service Bus default wait timeout.

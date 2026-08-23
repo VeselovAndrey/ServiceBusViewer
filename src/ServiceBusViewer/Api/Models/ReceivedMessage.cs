@@ -27,6 +27,7 @@ public static class ReceivedMessageExtensions
 					message.Properties.SessionId,
 					message.Properties.CorrelationId,
 					message.Properties.ContentType,
+					message.Properties.DeliveryCount,
 					message.Properties.EnqueuedTimeUtc.ToString("O", CultureInfo.InvariantCulture),
 					message.Properties.ScheduledEnqueueTime?.ToString("O", CultureInfo.InvariantCulture),
 					message.Properties.TimeToLive?.ToString("c", CultureInfo.InvariantCulture),
