@@ -171,7 +171,7 @@ export function ViewerPage() {
 	const showPartitionKey = currentViewer?.messages.some((message) =>
 		Boolean(message.properties.partitionKey),
 	) ?? false;
-	const peekedMessageColumnCount = 5 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0);
+	const peekedMessageColumnCount = 6 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0);
 
 	const handleDisconnect = async () => {
 		await runAction('disconnect', async () => {
@@ -421,7 +421,7 @@ export function ViewerPage() {
 								<div className="p-4 lg:p-6">
 									{currentViewer?.displayedMessage ? (
 										<>
-											<div className="grid gap-4 border-b border-dashed border-slate-200 pb-4 dark:border-slate-800 lg:grid-cols-2 xl:grid-cols-4">
+											<div className="grid gap-4 border-b border-dashed border-slate-200 pb-4 dark:border-slate-800 lg:grid-cols-2 xl:grid-cols-5">
 												<div>
 													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
 														Enqueued Time
@@ -452,6 +452,14 @@ export function ViewerPage() {
 													</div>
 													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
 														{formatNullable(currentViewer.displayedMessage.properties.sessionId)}
+													</div>
+												</div>
+												<div>
+													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+														Delivery Count
+													</div>
+													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
+														{currentViewer.displayedMessage.properties.deliveryCount}
 													</div>
 												</div>
 											</div>
@@ -525,6 +533,7 @@ export function ViewerPage() {
 													<th className="px-4 py-3 font-medium">Message ID</th>
 													{showPartitionKey && <th className="px-4 py-3 font-medium">Partition Key</th>}
 													<th className="px-4 py-3 font-medium">Session</th>
+													<th className="px-4 py-3 font-medium">Delivery Count</th>
 													<th className="px-4 py-3 font-medium">Enqueued Time / TTL</th>
 													{showScheduledEnqueue && <th className="px-4 py-3 font-medium">Scheduled Enqueue</th>}
 													<th className="px-4 py-3 font-medium">Content Type</th>
@@ -558,6 +567,9 @@ export function ViewerPage() {
 																)}
 																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{formatNullable(message.properties.sessionId, 'No session')}
+																</td>
+																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																	{message.properties.deliveryCount}
 																</td>
 																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{formatDateTimeShort(message.properties.enqueuedTimeUtc)}

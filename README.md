@@ -94,11 +94,14 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 0.47.0 (2026-08-23)
+## 0.48.0 (2026-08-23)
 
+- **Added:** Per-message Delivery Count based on SystemProperties.DeliveryCount as reported by Azure Service Bus, shown as a column in the Peeked Messages list and in the Last Received Message details.
 - **Added:** Optional To, Reply To, Subject, and Partition Key fields in the Send Message window, with the values sent on the outgoing message and displayed in received and expanded peeked message details.
 - **Added:** Advanced toggle in the Send Message header that shows or hides the new fields; the choice is saved in a browser cookie and defaults to off.
+- **Changed:** The delivery count is display-only: it does not affect receiving, completing, or dead-lettering messages and adds no badges, warnings, or color coding.
 - **Changed:** The Peeked Messages table shows the partition key as a sub-value under the entity name for partitioned queues and topics.
+- **Changed:** Renamed the Application Properties section in the send and receive views to Custom Properties.
 - **Changed:** The Aspire AppHost and the `SolidCode.Aspire.Hosting.ServiceBusViewer` support library are now built against Aspire 13.5.2.
 - **Changed:** The `SolidCode.Aspire.Hosting.ServiceBusViewer` package version is now aligned with the Aspire version it targets, and future releases will continue to carry the same version number as their target Aspire release.
 - **Changed:** Paste From Clipboard now skips the Diagnostic-Id application property when loading a copied message into the send window.

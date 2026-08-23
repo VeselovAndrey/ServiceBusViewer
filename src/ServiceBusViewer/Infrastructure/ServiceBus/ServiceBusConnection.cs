@@ -263,6 +263,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			message.SessionId,
 			message.CorrelationId,
 			message.ContentType,
+			message.DeliveryCount,
 			message.EnqueuedTime,
 			message.ScheduledEnqueueTime != DateTimeOffset.MinValue ? message.ScheduledEnqueueTime : null,
 			message.TimeToLive != TimeSpan.MaxValue ? message.TimeToLive : null,

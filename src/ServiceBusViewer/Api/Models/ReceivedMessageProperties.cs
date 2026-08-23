@@ -6,6 +6,7 @@ namespace ServiceBusViewer.Api.Models;
 /// <param name="SessionId">Session id if present.</param>
 /// <param name="CorrelationId">Correlation id if present.</param>
 /// <param name="ContentType">Content type if present.</param>
+/// <param name="DeliveryCount">Delivery count reported by Service Bus.</param>
 /// <param name="EnqueuedTimeUtc">Enqueued time in UTC (ISO-8601).</param>
 /// <param name="ScheduledEnqueueTime">Scheduled enqueue time (ISO-8601) or null.</param>
 /// <param name="TimeToLive">Time-to-live as string or null.</param>
@@ -18,6 +19,7 @@ public sealed record ReceivedMessageProperties(
 	string? SessionId,
 	string? CorrelationId,
 	string? ContentType,
+	int DeliveryCount,
 	string EnqueuedTimeUtc,
 	string? ScheduledEnqueueTime,
 	string? TimeToLive,
