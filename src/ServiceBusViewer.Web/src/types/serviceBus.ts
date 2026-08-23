@@ -22,6 +22,9 @@ export interface ReceivedMessagePropertiesDto {
 	enqueuedTimeUtc: string;
 	scheduledEnqueueTime: string | null;
 	timeToLive: string | null;
+	to: string | null;
+	replyTo: string | null;
+	subject: string | null;
 }
 
 export interface ReceivedMessageApplicationPropertyDto {
@@ -104,6 +107,10 @@ export interface SendMessagePropertiesDto {
 	contentType: string;
 	scheduledEnqueueTime: string | null;
 	timeToLive: string;
+	to: string;
+	replyTo: string;
+	subject: string;
+	partitionKey: string;
 }
 
 export interface SendMessageRequestDto {

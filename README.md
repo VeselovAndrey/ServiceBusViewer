@@ -11,7 +11,7 @@ The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Asp
 - Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
 - View message bodies, system properties, and application properties, with client-side JSON formatting.
 - Copy a received or peeked message body as plain text, or copy the full message as JSON including system and application properties.
-- Send messages to queues or topics with system and typed application properties.
+- Send messages to queues or topics with system properties and typed application properties.
 
 ## Run with Docker
 
@@ -61,7 +61,9 @@ docker run --name ServiceBusViewer -p 8080:8080 `
 ## Accessing the Service Bus Emulator
 
 - Use `localhost` when the viewer runs on the same host as the emulator.
-- Use `host.docker.internal` when a containerized viewer needs to reach an emulator running on the host.
+- Docker: use `host.docker.internal` to reach an emulator running on the Docker host.
+- Podman: use `host.docker.internal` or `host.containers.internal` to reach an emulator running on the Podman host. 
+  - IMPORTANT: The host emulator must listen on a non-loopback interface (not just `127.0.0.1`) to be reachable from Podman containers.
 - Use the emulator container or compose service name when both are running on the same container network.
 - For a real Azure Service Bus namespace, use an appropriate namespace connection string from the Azure portal.
 
@@ -92,6 +94,20 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
+## 0.47.0 (2026-08-23)
+
+- **Added:** Optional To, Reply To, Subject, and Partition Key fields in the Send Message window, with the values sent on the outgoing message and displayed in received and expanded peeked message details.
+- **Added:** Advanced toggle in the Send Message header that shows or hides the new fields; the choice is saved in a browser cookie and defaults to off.
+- **Changed:** The Peeked Messages table shows the partition key as a sub-value under the entity name for partitioned queues and topics.
+- **Changed:** The Aspire AppHost and the `SolidCode.Aspire.Hosting.ServiceBusViewer` support library are now built against Aspire 13.5.2.
+- **Changed:** The `SolidCode.Aspire.Hosting.ServiceBusViewer` package version is now aligned with the Aspire version it targets, and future releases will continue to carry the same version number as their target Aspire release.
+- **Changed:** Paste From Clipboard now skips the Diagnostic-Id application property when loading a copied message into the send window.
+- **Changed:** The duplicate-detection warning for the Message ID field is now always visible with its icon and text on entities with duplicate detection enabled, instead of appearing only after a paste.
+- **Fixed:** The "Duplicate detection enabled" indicator in the Send Message window no longer mixes information and warning semantics. It shows as a neutral info notice when duplicate detection is enabled, and the amber warning styling applies to the indicator and Message ID field only when the warning is armed with a non-empty Message ID.
+- **Fixed:** Sending a message with a Scheduled Enqueue Time or Time to Live that cannot be parsed now returns a validation error instead of silently dropping the property.
+- **Fixed:** The Partition Key in the Send Message window is now limited to 128 characters with client-side and API validation, matching the Azure Service Bus limit.
+- **Fixed:** A number of additional minor bugs, with small usability and display improvements.
+
 ## 0.45.0 (2026-08-20)
 
 - **Added:** Full-message JSON copy button for received and peeked messages that copies the message body, system properties, and application properties as valid JSON, alongside the existing body-only copy action.
@@ -110,15 +126,6 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
 - **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
 
-## 0.40.0 (2026-08-12)
-
-- **Breaking:** Renamed runtime configuration to `SERVICEBUSVIEWER_CONNECTION_STRING`, `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`, `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME`, and `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` with no legacy aliases.
-- **Added:** An entity sidebar filter with debounced input, immediate application on Enter, and state preserved between viewer and entity details pages.
-- **Changed:** Unified Azure connection handling so one Manage-capable connection string is used for entity discovery and message operations, with automatic fallback to direct entity access when management is unauthorized.
-- **Changed:** Reserved the optional second connection string for emulator management and renamed it to **Emulator Management Connection String** throughout the API and UI.
-- **Fixed:** Failed connection attempts during initial message peeking no longer leave the browser session marked as connected, allowing immediate retry with corrected credentials.
-- **Fixed:** A queue, topic, or subscription supplied with a management-capable connection is retained as the initial viewer selection.
-- **Fixed:** Long expanded message bodies increasing the width of the Peeked Messages table.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 
