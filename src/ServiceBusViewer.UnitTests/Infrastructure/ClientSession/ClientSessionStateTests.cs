@@ -10,7 +10,7 @@ using Xunit;
 public sealed class ClientSessionStateTests
 {
 	[Fact]
-	public void CancelActiveConnectionOperations_ActiveConnection_CancelsConnectionToken()
+	public void ClientSessionState_CancelActiveConnectionOperations_ActiveConnection_CancelsConnectionToken()
 	{
 		// Arrange
 		var state = new ClientSessionState(new ConnectionSettings("Endpoint=sb://test/", null, null, null));
@@ -24,7 +24,7 @@ public sealed class ClientSessionStateTests
 	}
 
 	[Fact]
-	public async Task ResetConnectionAsync_ConnectedState_ClearsStateAndDisposesConnection()
+	public async Task ClientSessionState_ResetConnectionAsync_ConnectedState_ClearsStateAndDisposesConnection()
 	{
 		// Arrange
 		var state = new ClientSessionState(new ConnectionSettings("Endpoint=sb://test/", null, null, null));
@@ -53,7 +53,7 @@ public sealed class ClientSessionStateTests
 	}
 
 	[Fact]
-	public async Task DisposeAsync_ConnectedState_CancelsOperationsAndDisposesConnection()
+	public async Task ClientSessionState_DisposeAsync_ConnectedState_CancelsOperationsAndDisposesConnection()
 	{
 		// Arrange
 		var state = new ClientSessionState(new ConnectionSettings("Endpoint=sb://test/", null, null, null));

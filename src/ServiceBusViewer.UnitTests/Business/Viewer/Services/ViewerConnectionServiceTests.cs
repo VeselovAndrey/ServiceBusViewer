@@ -12,7 +12,7 @@ using Xunit;
 public sealed class ViewerConnectionServiceTests
 {
 	[Fact]
-	public async Task ConnectAsync_ConfiguredQueueExists_SelectsQueueAndPeeksMessages()
+	public async Task ViewerConnectionService_ConnectAsync_ConfiguredQueueExists_SelectsQueueAndPeeksMessages()
 	{
 		// Arrange
 		const string queueName = "default-queue";
@@ -46,7 +46,7 @@ public sealed class ViewerConnectionServiceTests
 	}
 
 	[Fact]
-	public async Task GetCurrentStateAsync_DisconnectedSession_ThrowsViewerNotConnectedException()
+	public async Task ViewerConnectionService_GetCurrentStateAsync_DisconnectedSession_ThrowsViewerNotConnectedException()
 	{
 		// Arrange
 		var service = new ViewerConnectionService(null!);
@@ -61,7 +61,7 @@ public sealed class ViewerConnectionServiceTests
 	}
 
 	[Fact]
-	public async Task ConnectAsync_SessionIsAlreadyConnected_ThrowsViewerAlreadyConnectedException()
+	public async Task ViewerConnectionService_ConnectAsync_SessionIsAlreadyConnected_ThrowsViewerAlreadyConnectedException()
 	{
 		// Arrange
 		IServiceBusConnectionFactory factory = Substitute.For<IServiceBusConnectionFactory>();
@@ -82,7 +82,7 @@ public sealed class ViewerConnectionServiceTests
 	}
 
 	[Fact]
-	public async Task ConnectAsync_ConfiguredQueueIsMissing_DisposesConnectionAndThrowsArgumentException()
+	public async Task ViewerConnectionService_ConnectAsync_ConfiguredQueueIsMissing_DisposesConnectionAndThrowsArgumentException()
 	{
 		// Arrange
 		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
