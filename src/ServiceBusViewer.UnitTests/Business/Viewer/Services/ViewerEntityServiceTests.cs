@@ -12,7 +12,7 @@ using Xunit;
 public sealed class ViewerEntityServiceTests
 {
 	[Fact]
-	public async Task SelectEntityAsync_ConnectedSession_UpdatesSelectionAndClearsTransientState()
+	public async Task ViewerEntityService_SelectEntityAsync_ConnectedSession_UpdatesSelectionAndClearsTransientState()
 	{
 		// Arrange
 		const string queueName = "default-queue";
@@ -50,7 +50,7 @@ public sealed class ViewerEntityServiceTests
 	}
 
 	[Fact]
-	public async Task GetDetailsAsync_DisconnectedSession_ThrowsViewerNotConnectedException()
+	public async Task ViewerEntityService_GetDetailsAsync_DisconnectedSession_ThrowsViewerNotConnectedException()
 	{
 		// Arrange
 		const string queueName = "default-queue";
@@ -67,7 +67,7 @@ public sealed class ViewerEntityServiceTests
 	}
 
 	[Fact]
-	public async Task SelectEntityAsync_DisconnectedSession_ThrowsViewerNotConnectedException()
+	public async Task ViewerEntityService_SelectEntityAsync_DisconnectedSession_ThrowsViewerNotConnectedException()
 	{
 		// Arrange
 		var service = new ViewerEntityService();
@@ -82,7 +82,7 @@ public sealed class ViewerEntityServiceTests
 	}
 
 	[Fact]
-	public async Task GetDetailsAsync_SubscriptionIsSelected_ReturnsSubscriptionDetails()
+	public async Task ViewerEntityService_GetDetailsAsync_SubscriptionIsSelected_ReturnsSubscriptionDetails()
 	{
 		// Arrange
 		var entityId = new SubscriptionEntityId("processed", "orders");

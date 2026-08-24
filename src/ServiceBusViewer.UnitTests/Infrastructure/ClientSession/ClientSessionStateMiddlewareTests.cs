@@ -10,7 +10,7 @@ using Xunit;
 public sealed class ClientSessionStateMiddlewareTests
 {
 	[Fact]
-	public async Task InvokeAsync_ValidSessionCookie_ReusesSessionState()
+	public async Task ClientSessionStateMiddleware_InvokeAsync_ValidSessionCookie_ReusesSessionState()
 	{
 		// Arrange
 		IClientSessionSettings settings = Substitute.For<IClientSessionSettings>();
@@ -33,7 +33,7 @@ public sealed class ClientSessionStateMiddlewareTests
 	}
 
 	[Fact]
-	public async Task InvokeAsync_MissingSessionCookie_CreatesSessionAndSetsCookie()
+	public async Task ClientSessionStateMiddleware_InvokeAsync_MissingSessionCookie_CreatesSessionAndSetsCookie()
 	{
 		// Arrange
 		IClientSessionSettings settings = Substitute.For<IClientSessionSettings>();
@@ -51,7 +51,7 @@ public sealed class ClientSessionStateMiddlewareTests
 	}
 
 	[Fact]
-	public void GetClientSessionState_StateWasNotInitialized_ThrowsInvalidOperationException()
+	public void ClientSessionStateMiddleware_GetClientSessionState_StateWasNotInitialized_ThrowsInvalidOperationException()
 	{
 		// Arrange
 		var context = new DefaultHttpContext();
@@ -64,7 +64,7 @@ public sealed class ClientSessionStateMiddlewareTests
 	}
 
 	[Fact]
-	public async Task InvokeAsync_InvalidSessionCookie_ReplacesCookieWithNewSessionId()
+	public async Task ClientSessionStateMiddleware_InvokeAsync_InvalidSessionCookie_ReplacesCookieWithNewSessionId()
 	{
 		// Arrange
 		IClientSessionSettings settings = Substitute.For<IClientSessionSettings>();
@@ -83,7 +83,7 @@ public sealed class ClientSessionStateMiddlewareTests
 	}
 
 	[Fact]
-	public async Task InvokeAsync_HttpsRequest_SetsSecureCookie()
+	public async Task ClientSessionStateMiddleware_InvokeAsync_HttpsRequest_SetsSecureCookie()
 	{
 		// Arrange
 		IClientSessionSettings settings = Substitute.For<IClientSessionSettings>();

@@ -9,7 +9,7 @@ using Xunit;
 public sealed class ClientSessionStateRegistryTests
 {
 	[Fact]
-	public void GetOrCreate_SameSessionId_ReturnsSameStateWithConfiguredSettings()
+	public void ClientSessionStateRegistry_GetOrCreate_SameSessionId_ReturnsSameStateWithConfiguredSettings()
 	{
 		// Arrange
 		const string sessionId = "session-id";
@@ -32,7 +32,7 @@ public sealed class ClientSessionStateRegistryTests
 	}
 
 	[Fact]
-	public void GetOrCreate_DifferentSessionIds_ReturnsIsolatedStates()
+	public void ClientSessionStateRegistry_GetOrCreate_DifferentSessionIds_ReturnsIsolatedStates()
 	{
 		// Arrange
 		const string sessionId = "session-id";

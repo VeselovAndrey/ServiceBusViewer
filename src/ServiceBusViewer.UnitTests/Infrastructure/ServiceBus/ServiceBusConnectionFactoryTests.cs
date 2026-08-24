@@ -8,7 +8,7 @@ using Xunit;
 public sealed class ServiceBusConnectionFactoryTests
 {
 	[Fact]
-	public async Task OpenAsync_NullSettings_ThrowsArgumentNullException()
+	public async Task ServiceBusConnectionFactory_OpenAsync_NullSettings_ThrowsArgumentNullException()
 	{
 		// Arrange
 		var factory = new ServiceBusConnectionFactory();
@@ -21,7 +21,7 @@ public sealed class ServiceBusConnectionFactoryTests
 	}
 
 	[Fact]
-	public async Task OpenAsync_ManagementConnectionTargetsNonEmulator_ThrowsArgumentException()
+	public async Task ServiceBusConnectionFactory_OpenAsync_ManagementConnectionTargetsNonEmulator_ThrowsArgumentException()
 	{
 		// Arrange
 		var factory = new ServiceBusConnectionFactory();
@@ -39,7 +39,7 @@ public sealed class ServiceBusConnectionFactoryTests
 	}
 
 	[Fact]
-	public async Task OpenAsync_EmulatorWithoutEntityName_ThrowsArgumentException()
+	public async Task ServiceBusConnectionFactory_OpenAsync_EmulatorWithoutEntityName_ThrowsArgumentException()
 	{
 		// Arrange
 		var factory = new ServiceBusConnectionFactory();
@@ -57,7 +57,7 @@ public sealed class ServiceBusConnectionFactoryTests
 	}
 
 	[Fact]
-	public async Task OpenAsync_EmulatorManagementConnectionDoesNotUseDevelopmentEmulator_ThrowsArgumentException()
+	public async Task ServiceBusConnectionFactory_OpenAsync_EmulatorManagementConnectionDoesNotUseDevelopmentEmulator_ThrowsArgumentException()
 	{
 		// Arrange
 		var factory = new ServiceBusConnectionFactory();
@@ -75,7 +75,7 @@ public sealed class ServiceBusConnectionFactoryTests
 	}
 
 	[Fact]
-	public async Task OpenAsync_EmulatorWithoutManagementAndQueueName_ReturnsScopedQueueConnection()
+	public async Task ServiceBusConnectionFactory_OpenAsync_EmulatorWithoutManagementAndQueueName_ReturnsScopedQueueConnection()
 	{
 		// Arrange
 		var factory = new ServiceBusConnectionFactory();
@@ -94,7 +94,7 @@ public sealed class ServiceBusConnectionFactoryTests
 	}
 
 	[Fact]
-	public async Task OpenAsync_EmulatorWithoutManagementAndSubscription_ReturnsScopedTopicAndSubscriptionConnection()
+	public async Task ServiceBusConnectionFactory_OpenAsync_EmulatorWithoutManagementAndSubscription_ReturnsScopedTopicAndSubscriptionConnection()
 	{
 		// Arrange
 		var factory = new ServiceBusConnectionFactory();
