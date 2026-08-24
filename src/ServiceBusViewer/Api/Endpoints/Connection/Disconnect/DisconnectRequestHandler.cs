@@ -1,5 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Connection.Disconnect;
 
+using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Application.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts;
@@ -11,7 +12,8 @@ internal static class DisconnectRequestHandler
 	{
 		ViewerConnectionSnapshot viewerConnectionSnapshot = await service.DisconnectAsync(context.GetClientSessionState(), cancellationToken);
 
-		return TypedResults.Ok(new DisconnectResponse(
+		return TypedResults.Ok(
+			new DisconnectResponse(
 				applicationInfoProvider.ApplicationVersion,
 				viewerConnectionSnapshot.Connection.ToApiModel(),
 				viewerConnectionSnapshot.Viewer?.ToApiModel(),

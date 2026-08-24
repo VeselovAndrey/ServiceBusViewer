@@ -13,14 +13,3 @@ public sealed record ConnectionSettings(
 	string? EmulatorManagementConnectionString,
 	string? QueueOrTopicName,
 	string? SubscriptionName);
-
-
-internal static class ConnectionSettingsExtensions
-{
-	internal static ConnectionSettings ToApiModel(this Business.Viewer.Contracts.ConnectionSettings settings)
-		=> new ConnectionSettings(
-			settings.ConnectionString,
-			settings.EmulatorManagementConnectionString,
-			settings.QueueOrTopicName,
-			settings.SubscriptionName);
-}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { Alert } from '../common/Alert';
 import { serviceBusApi } from '../../api/serviceBusApi';
 import { useStoredBoolean } from '../../hooks/useStoredBoolean';
 import { cx } from '../../lib/cx';
@@ -47,6 +48,8 @@ interface SendMessageFormProps {
 	requiresSession: boolean;
 	entityName: string | null;
 	topicName: string | null;
+	sendResultMessage: string | null;
+	sendErrorMessages: string[];
 	onSubmit: (request: SendMessageRequestDto) => Promise<void>;
 	onValidationError: (messages: string[]) => void;
 }
@@ -58,6 +61,10 @@ const emptyProperties: SendMessagePropertiesDto = {
 	scheduledEnqueueTime: null,
 	sessionId: '',
 	timeToLive: '',
+	to: '',
+	replyTo: '',
+	subject: '',
+	partitionKey: '',
 };
 
 function createProperty(): ApplicationPropertyInputDto {
@@ -77,10 +84,13 @@ export function SendMessageForm({
 	requiresSession,
 	entityName,
 	topicName,
+	sendResultMessage,
+	sendErrorMessages,
 	onSubmit,
 	onValidationError,
 }: SendMessageFormProps) {
 	const [isOpen, setIsOpen] = useStoredBoolean('sendFormOpen', true);
+	const [showAdvanced, setShowAdvanced] = useStoredBoolean('sendFormAdvanced', false);
 	const [messageBody, setMessageBody] = useState('');
 	const [messageProperties, setMessageProperties] =
 		useState<SendMessagePropertiesDto>(emptyProperties);
@@ -99,6 +109,29 @@ export function SendMessageForm({
 	const loadJsonStatusTimerRef = useRef<number | null>(null);
 	const loadJsonFadeTimerRef = useRef<number | null>(null);
 	const [duplicateDetectionArmed, setDuplicateDetectionArmed] = useState(false);
+	const [pasteStatus, setPasteStatus] = useState<'idle' | 'success' | 'invalid'>('idle');
+	const pasteStatusTimerRef = useRef<number | null>(null);
+
+	const clearPasteStatusTimers = () => {
+		if (pasteStatusTimerRef.current !== null) {
+			window.clearTimeout(pasteStatusTimerRef.current);
+			pasteStatusTimerRef.current = null;
+		}
+	};
+
+	const clearPasteStatus = () => {
+		clearPasteStatusTimers();
+		setPasteStatus('idle');
+	};
+
+	const showPasteStatus = (status: 'success' | 'invalid') => {
+		clearPasteStatusTimers();
+		setPasteStatus(status);
+		pasteStatusTimerRef.current = window.setTimeout(() => {
+			pasteStatusTimerRef.current = null;
+			setPasteStatus('idle');
+		}, 3000);
+	};
 
 	const clearLoadJsonStatusTimers = () => {
 		if (loadJsonStatusTimerRef.current !== null) {
@@ -132,7 +165,12 @@ export function SendMessageForm({
 		}, 5000);
 	};
 
-	useEffect(() => clearLoadJsonStatusTimers, []);
+	useEffect(() => {
+		return () => {
+			clearLoadJsonStatusTimers();
+			clearPasteStatusTimers();
+		};
+	}, []);
 
 	const duplicateDetectionWarning = duplicateDetection === true && duplicateDetectionArmed;
 
@@ -246,6 +284,10 @@ export function SendMessageForm({
 			errors.push('The Correlation ID must be 128 characters or fewer.');
 		}
 
+		if (messageProperties.partitionKey.length > 128) {
+			errors.push('The Partition Key must be 128 characters or fewer.');
+		}
+
 		return errors;
 	};
 
@@ -256,6 +298,7 @@ export function SendMessageForm({
 		setIsContentTypeMenuOpen(false);
 		setContentTypeFilter('');
 		clearLoadJsonStatus();
+		clearPasteStatus();
 		// A successful send is the warning reset: do not re-arm here.
 	};
 
@@ -306,24 +349,28 @@ export function SendMessageForm({
 
 	const handleLoadJson = async () => {
 		clearLoadJsonStatus();
+		setPasteStatus('idle');
 		let pastedText: string;
 		try {
 			pastedText = await navigator.clipboard.readText();
 		} catch {
 			showLoadJsonError(
-				'Clipboard access was blocked. Allow clipboard access and try again, or paste the JSON into the payload manually.',
+				'Clipboard access was blocked. Allow clipboard access and try again.',
 			);
+			showPasteStatus('invalid');
 			return;
 		}
 
 		if (pastedText.length === 0) {
 			showLoadJsonError('The clipboard is empty. Copy a full message as JSON first.');
+			showPasteStatus('invalid');
 			return;
 		}
 
 		const result = parseSendWindowJson(pastedText);
 		if (!result.ok) {
 			showLoadJsonError(result.error);
+			showPasteStatus('invalid');
 			return;
 		}
 
@@ -345,6 +392,8 @@ export function SendMessageForm({
 		if (duplicateDetection === true && pastedMessageId !== undefined && pastedMessageId.length > 0) {
 			setDuplicateDetectionArmed(true);
 		}
+
+		showPasteStatus('success');
 	};
 
 	return (
@@ -369,24 +418,67 @@ export function SendMessageForm({
 						type="button"
 						disabled={!isOpen}
 						className={cx(
-							'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-white',
-							!isOpen && 'cursor-not-allowed opacity-40 hover:border-slate-200 hover:text-slate-500 dark:hover:border-slate-800 dark:hover:text-slate-300',
+							'inline-flex min-w-[10.5rem] items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+							!isOpen
+								? 'cursor-not-allowed border-slate-200 bg-white text-slate-500 opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'
+								: pasteStatus === 'success'
+									? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-400'
+									: pasteStatus === 'invalid'
+										? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-400'
+										: 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-white',
 						)}
 						onClick={() => void handleLoadJson()}
 						title="Paste the full message JSON from the clipboard into this form"
 					>
 						<span className="material-icons-round text-sm">content_paste</span>
-						Paste From Clipboard
+						{pasteStatus === 'success'
+							? 'Successful'
+							: pasteStatus === 'invalid'
+								? 'Not valid JSON'
+								: 'Paste From Clipboard'}
 					</button>
 					<button
 						type="button"
-						className="inline-flex w-20 items-center justify-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+						role="switch"
+						aria-checked={showAdvanced}
+						aria-label="Toggle advanced fields"
+						title="Show or hide advanced fields"
+						disabled={!isOpen}
+						className={cx(
+							'inline-flex h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-slate-800 dark:bg-slate-900',
+							showAdvanced
+								? 'text-slate-700 dark:text-slate-200'
+								: 'text-slate-500 dark:text-slate-300',
+							!isOpen &&
+							'cursor-not-allowed opacity-40 hover:border-slate-200 dark:hover:border-slate-800',
+						)}
+						onClick={() => setShowAdvanced((current) => !current)}
+					>
+						<span
+							aria-hidden="true"
+							className={cx(
+								'relative inline-flex h-4 w-7 items-center rounded-full transition-colors',
+								showAdvanced ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600',
+							)}
+						>
+							<span
+								className={cx(
+									'absolute h-3 w-3 rounded-full bg-white shadow transition-transform',
+									showAdvanced ? 'translate-x-3.5' : 'translate-x-0.5',
+								)}
+							/>
+						</span>
+						Advanced
+					</button>
+					<button
+						type="button"
+						className="inline-flex h-7 w-24 items-center justify-center gap-1 rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
 						onClick={() => setIsOpen((current) => !current)}
 					>
 						<span className="material-icons-round text-sm">
 							{isOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
 						</span>
-						<span className="text-center">{isOpen ? 'Hide' : 'Show'}</span>
+						<span className="w-14 text-center">{isOpen ? 'Collapse' : 'Expand'}</span>
 					</button>
 				</div>
 			</div>
@@ -394,12 +486,12 @@ export function SendMessageForm({
 			<div className={cx('send-form-transition', !isOpen && 'js-send-form-hidden')}>
 				<form className="p-4 lg:p-6" onSubmit={(event) => void handleSubmit(event)}>
 					<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
-						<div>
+						<div className="flex min-h-0 flex-col">
 							<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 								Payload
 							</label>
 							<textarea
-								className="block min-h-56 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:placeholder:text-slate-500 dark:focus:border-brand-400"
+								className="block min-h-56 w-full flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:placeholder:text-slate-500 dark:focus:border-brand-400"
 								rows={12}
 								value={messageBody}
 								onChange={(event) => setMessageBody(event.target.value)}
@@ -410,12 +502,19 @@ export function SendMessageForm({
 							<div>
 								<label className="mb-2 flex items-center justify-between pr-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									Message ID
-									{duplicateDetectionWarning ? (
+									{duplicateDetection === true ? (
 										<span
 											id="messageIdDuplicateDetectionWarning"
-											className="flex items-center gap-1 normal-case tracking-normal text-xs font-medium text-amber-700 dark:text-amber-400"
+											className={cx(
+												'flex items-center gap-1 normal-case tracking-normal text-xs font-medium',
+												duplicateDetectionWarning
+													? 'text-amber-700 dark:text-amber-400'
+													: 'text-slate-500 dark:text-slate-400',
+											)}
 										>
-											<span className="material-icons-round text-sm" aria-hidden="true">warning_amber</span>
+											<span className="material-icons-round text-sm" aria-hidden="true">
+												{duplicateDetectionWarning ? 'warning_amber' : 'info'}
+											</span>
 											<span>Duplicate detection enabled</span>
 										</span>
 									) : null}
@@ -424,17 +523,17 @@ export function SendMessageForm({
 									type="text"
 									maxLength={128}
 									aria-invalid={duplicateDetectionWarning || undefined}
-									aria-describedby={duplicateDetectionWarning ? 'messageIdDuplicateDetectionWarning' : undefined}
+									aria-describedby={duplicateDetection === true ? 'messageIdDuplicateDetectionWarning' : undefined}
 									className={cx(
 										messageIdFieldClasses,
 										duplicateDetectionWarning
 											? messageIdFieldWarningClasses
 											: messageIdFieldNormalClasses,
 									)}
-								value={messageProperties.messageId}
-								onChange={(event) => handlePropertiesChange('messageId', event)}
-							/>
-						</div>
+									value={messageProperties.messageId}
+									onChange={(event) => handlePropertiesChange('messageId', event)}
+								/>
+							</div>
 
 							<div>
 								<label className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
@@ -453,6 +552,22 @@ export function SendMessageForm({
 									onChange={(event) => handlePropertiesChange('sessionId', event)}
 								/>
 							</div>
+
+							{showAdvanced ? (
+								<div>
+									<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+										Partition Key
+									</label>
+									<input
+										type="text"
+										maxLength={128}
+										placeholder="Optional"
+										className="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
+										value={messageProperties.partitionKey}
+										onChange={(event) => handlePropertiesChange('partitionKey', event)}
+									/>
+								</div>
+							) : null}
 
 							<div>
 								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
@@ -574,11 +689,54 @@ export function SendMessageForm({
 						</div>
 					</div>
 
+					{showAdvanced ? (
+						<div className="mt-6 grid gap-4 sm:grid-cols-3">
+							<div>
+								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+									To
+								</label>
+								<input
+									type="text"
+									placeholder="Optional"
+									className="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
+									value={messageProperties.to}
+									onChange={(event) => handlePropertiesChange('to', event)}
+								/>
+							</div>
+
+							<div>
+								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+									Reply To
+								</label>
+								<input
+									type="text"
+									placeholder="Optional"
+									className="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
+									value={messageProperties.replyTo}
+									onChange={(event) => handlePropertiesChange('replyTo', event)}
+								/>
+							</div>
+
+							<div>
+								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+									Subject
+								</label>
+								<input
+									type="text"
+									placeholder="Optional"
+									className="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
+									value={messageProperties.subject}
+									onChange={(event) => handlePropertiesChange('subject', event)}
+								/>
+							</div>
+						</div>
+					) : null}
+
 					<div className="mt-6">
 						<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
 							<div>
 								<label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-									Application Properties
+									Custom Properties
 								</label>
 								<p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
 									Optional typed key-value metadata to attach to the outgoing message.
@@ -652,7 +810,20 @@ export function SendMessageForm({
 						</div>
 					</div>
 
-					<div className="mt-6 flex justify-end">
+					<div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+						{sendErrorMessages.length > 0 ? (
+							<Alert
+								className="min-w-0 flex-1 basis-full lg:basis-auto"
+								messages={sendErrorMessages}
+								tone="error"
+							/>
+						) : (
+							<Alert
+								className="min-w-0 flex-1 basis-full lg:basis-auto"
+								messages={sendResultMessage ? [sendResultMessage] : []}
+								tone="success"
+							/>
+						)}
 						<button
 							type="submit"
 							className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-950/20 transition hover:bg-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60"

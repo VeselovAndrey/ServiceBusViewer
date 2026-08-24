@@ -154,6 +154,7 @@ builder.AddServiceBusViewer("servicebusviewer")
 
 ## Notes
 
+- The package version is aligned with the Aspire version it targets, and future releases will continue to carry the same version number as their target Aspire release.
 - The package is container-focused.
 - `.WithServiceBusEmulatorReference(...)` defaults to endpoint names `emulator` and `emulatorhealth`, matching the current Aspire Azure Service Bus emulator integration.
 - You can override those endpoint names when your AppHost uses a custom emulator resource shape.

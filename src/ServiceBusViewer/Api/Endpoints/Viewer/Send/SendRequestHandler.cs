@@ -24,6 +24,7 @@ internal static class SendRequestHandler
 		}
 
 		MessageProperties messageProperties = CreateMessageProperties(request.SendMessageProperties, errors);
+
 		List<ApplicationProperty> applicationProperties = CreateApplicationProperties(request.SendMessageApplicationProperties, errors);
 		if (errors.Count > 0)
 			return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
@@ -36,23 +37,35 @@ internal static class SendRequestHandler
 		return TypedResults.NoContent();
 	}
 
-	private static MessageProperties CreateMessageProperties(SendMessagePropertiesRequest? request, IDictionary<string, string[]> errors)
+	private static MessageProperties CreateMessageProperties(SendMessagePropertiesRequest? request, Dictionary<string, string[]> errors)
 	{
 		DateTimeOffset? scheduled = null;
-		if (request?.ScheduledEnqueueTime is not null && DateTimeOffset.TryParse(request?.ScheduledEnqueueTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTimeOffset dto))
-			scheduled = dto;
+		if (!string.IsNullOrEmpty(request?.ScheduledEnqueueTime)) {
+			if (DateTimeOffset.TryParse(request.ScheduledEnqueueTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTimeOffset dto))
+				scheduled = dto;
+			else
+				errors[nameof(SendMessagePropertiesRequest.ScheduledEnqueueTime)] = ["Scheduled enqueue time must be a valid date/time value."];
+		}
 
 		TimeSpan? ttl = null;
-		if (request?.TimeToLive is not null && TimeSpan.TryParse(request?.TimeToLive, CultureInfo.InvariantCulture, out TimeSpan ts))
-			ttl = ts;
+		if (!string.IsNullOrEmpty(request?.TimeToLive)) {
+			if (TimeSpan.TryParse(request.TimeToLive, CultureInfo.InvariantCulture, out TimeSpan ts))
+				ttl = ts;
+			else
+				errors[nameof(SendMessagePropertiesRequest.TimeToLive)] = ["Time to live must be a valid time span value."];
+		}
 
 		return new MessageProperties {
 			MessageId = request?.MessageId,
 			SessionId = request?.SessionId,
+			PartitionKey = request?.PartitionKey,
 			CorrelationId = request?.CorrelationId,
 			ContentType = request?.ContentType,
 			ScheduledEnqueueTime = scheduled,
-			TimeToLive = ttl
+			TimeToLive = ttl,
+			To = request?.To,
+			ReplyTo = request?.ReplyTo,
+			Subject = request?.Subject
 		};
 	}
 

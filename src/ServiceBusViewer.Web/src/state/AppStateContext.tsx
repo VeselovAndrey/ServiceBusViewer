@@ -21,8 +21,10 @@ interface AppStateContextValue {
   refreshSessionState: () => Promise<SessionStateDto>;
   setAppliedEntityFilterText: (filterText: string) => void;
   setEntityFilterText: (filterText: string) => void;
-  setViewerState: (viewer: ViewerState | null) => void;
+  setViewerState: (viewer: SetViewerStateValue) => void;
 }
+
+type SetViewerStateValue = ViewerState | null | ((current: ViewerState | null) => ViewerState | null);
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
@@ -66,19 +68,26 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     });
   }, [refreshSessionState]);
 
-  const setViewerState = useCallback((viewer: ViewerState | null) => {
-    setSessionState((current) => {
-      if (!current) {
-        return current;
-      }
+  const setViewerState = useCallback(
+    (
+      viewer: SetViewerStateValue,
+    ) => {
+      setSessionState((current) => {
+        if (!current) {
+          return current;
+        }
 
-      return {
-        ...current,
-        isConnected: viewer !== null,
-        viewer,
-      };
-    });
-  }, []);
+        const nextViewer = typeof viewer === 'function' ? viewer(current.viewer) : viewer;
+
+        return {
+          ...current,
+          isConnected: nextViewer !== null,
+          viewer: nextViewer,
+        };
+      });
+    },
+    [],
+  );
 
   const value = useMemo<AppStateContextValue>(
     () => ({

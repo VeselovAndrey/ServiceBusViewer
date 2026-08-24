@@ -1,5 +1,23 @@
 # Service Bus Viewer Version History
 
+## 0.48.0 (2026-08-23)
+
+- **Added:** Per-message **Delivery Count** based on `SystemProperties.DeliveryCount` as reported by Azure Service Bus, shown as a column in the Peeked Messages list and in the Last Received Message details, so redelivered messages are visible without opening each one.
+- **Added:** Optional **To**, **Reply To**, **Subject**, and **Partition Key** fields in the Send Message window, with the values sent on the outgoing message and displayed in received and expanded peeked message details.
+- **Added:** **Advanced** toggle in the Send Message header that shows or hides the new fields; the choice is saved in a browser cookie and defaults to off.
+- **Changed:** The delivery count is display-only: it does not affect receiving, completing, or dead-lettering messages and adds no badges, warnings, or color coding.
+- **Changed:** The Peeked Messages table shows the partition key as a sub-value under the entity name for partitioned queues and topics.
+- **Changed:** Renamed the **Application Properties** section in the send and receive views to **Custom Properties**.
+- **Changed:** The Aspire AppHost and the `SolidCode.Aspire.Hosting.ServiceBusViewer` support library are now built against Aspire 13.5.2.
+- **Changed:** The `SolidCode.Aspire.Hosting.ServiceBusViewer` package version is now aligned with the Aspire version it targets, and future releases will continue to carry the same version number as their target Aspire release.
+- **Changed:** Paste From Clipboard now skips the **Diagnostic-Id** application property when loading a copied message into the send window.
+- **Fixed:** The duplicate-detection warning for the Message ID field is now always visible with its icon and text on entities with duplicate detection enabled, instead of appearing only after a paste.
+- **Fixed:** The "Duplicate detection enabled" indicator in the Send Message window no longer mixes information and warning semantics. It shows as a neutral info notice when duplicate detection is enabled, and the amber warning styling applies to the indicator and Message ID field only when the warning is armed with a non-empty Message ID.
+- **Fixed:** The Payload editor in the Send Message window now stretches to match the adjacent properties column.
+- **Fixed:** Sending a message with a Scheduled Enqueue Time or Time to Live that cannot be parsed now returns a validation error instead of silently dropping the property.
+- **Fixed:** The Partition Key in the Send Message window is now limited to 128 characters with client-side and API validation, matching the Azure Service Bus limit.
+- **Fixed:** A number of additional minor bugs, with small usability and display improvements.
+
 ## 0.45.0 (2026-08-20)
 
 - **Added:** Full-message JSON copy button for received and peeked messages that copies the message body, system properties, and application properties as valid JSON, alongside the existing body-only copy action.

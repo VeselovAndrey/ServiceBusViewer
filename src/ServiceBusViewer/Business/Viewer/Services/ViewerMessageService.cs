@@ -30,6 +30,8 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			if (!requiresSession)
 				session.ReceiveSessionId = null;
 
+			session.SendResultMessage = null;
+
 			return session.ToViewerState(connection);
 		}
 		finally {
@@ -86,11 +88,10 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			EntityId entityId = session.SelectedEntityId ?? throw new InvalidOperationException("No entity selected.");
 			EntityProperties entity = connection.GetEntityProperties(entityId);
 
-			ValidateRequiredSessionId(entity, command.MessageProperties);
+			if (entity.RequiresSession && string.IsNullOrWhiteSpace(command.MessageProperties.SessionId))
+				throw new SendMessageValidationException($"A Session ID is required when sending to '{entity.Name}' because the selected entity requires sessions.");
 
 			await connection.SendMessageAsync(entityId, command, operationCancellationToken);
-
-			session.SendResultMessage = BuildSendResultMessage(command.MessageProperties.ContentType, command.MessageProperties.MessageId);
 
 			if (!entity.RequiresSession)
 				session.ReceiveSessionId = null;
@@ -98,22 +99,5 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 		finally {
 			session.Gate.Release();
 		}
-	}
-
-	private static void ValidateRequiredSessionId(EntityProperties entity, MessageProperties messageProperties)
-	{
-		if (entity.RequiresSession && string.IsNullOrWhiteSpace(messageProperties.SessionId))
-			throw new SendMessageValidationException($"A Session ID is required when sending to '{entity.Name}' because the selected entity requires sessions.");
-	}
-
-	private static string BuildSendResultMessage(string? sentContentType, string? sentMessageId)
-	{
-		string contentTypeDescription = string.IsNullOrWhiteSpace(sentContentType)
-			? "without a content type"
-			: $"with content type '{sentContentType}'";
-
-		return string.IsNullOrWhiteSpace(sentMessageId)
-			? $"Message sent successfully {contentTypeDescription}."
-			: $"Message '{sentMessageId}' sent successfully {contentTypeDescription}.";
 	}
 }

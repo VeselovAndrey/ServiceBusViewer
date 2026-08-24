@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="../README.md" />
+    <File Path="../CHANGELOG.md" />
+    <File Path="../LICENSE" />
+    <File Path="../AGENTS.md" />    
+  </Folder>
+  <Project Path="ServiceBusViewer.AppHost/ServiceBusViewer.AppHost.csproj" />
+  <Project Path="ServiceBusViewer.ArchitecturalTests/ServiceBusViewer.ArchitecturalTests.csproj" />
+  <Project Path="ServiceBusViewer.UnitTests/ServiceBusViewer.UnitTests.csproj" />
+  <Project Path="ServiceBusViewer/ServiceBusViewer.csproj" />
+  <Project Path="SolidCode.Aspire.Hosting.ServiceBusViewer/SolidCode.Aspire.Hosting.ServiceBusViewer.csproj" />
+</Solution>

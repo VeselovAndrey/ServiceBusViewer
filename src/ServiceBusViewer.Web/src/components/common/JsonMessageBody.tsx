@@ -1,68 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { buildFullMessageJson } from '../../lib/messageJson';
 import { cx } from '../../lib/cx';
 import { tryFormatJsonBody } from '../../lib/jsonFormatting';
-import type { ReceivedMessageDto } from '../../types/serviceBus';
+import { CopyButton } from './CopyButton';
 
 interface JsonMessageBodyProps {
-  body: string;
-  fullMessage?: ReceivedMessageDto;
-  className?: string;
+	body: string;
+	className?: string;
 }
 
-type CopyStatus = 'idle' | 'copied' | 'copied-json' | 'failed';
 
-const iconButtonClassName =
-  'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800';
-
-export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBodyProps) {
+export function JsonMessageBody({ body, className }: JsonMessageBodyProps) {
   const formattedJson = useMemo(() => tryFormatJsonBody(body), [body]);
   const [isFormatted, setIsFormatted] = useState(Boolean(formattedJson));
-  const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
 
   useEffect(() => {
     setIsFormatted(Boolean(formattedJson));
   }, [formattedJson]);
-
-  useEffect(() => {
-    if (copyStatus === 'idle') {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setCopyStatus('idle');
-    }, 2000);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [copyStatus]);
-
-  const copyText = async (text: string, successStatus: 'copied' | 'copied-json'): Promise<void> => {
-    if (!navigator.clipboard?.writeText) {
-      setCopyStatus('failed');
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopyStatus(successStatus);
-    } catch {
-      setCopyStatus('failed');
-    }
-  };
-
-  const handleCopyClick = async () => {
-    await copyText(body, 'copied');
-  };
-
-  const handleFullCopyClick = async () => {
-    if (!fullMessage) {
-      return;
-    }
-
-    await copyText(buildFullMessageJson(fullMessage), 'copied-json');
-  };
 
   return (
     <div className={cx('js-message-container', className)}>
@@ -71,61 +24,33 @@ export function JsonMessageBody({ body, fullMessage, className }: JsonMessageBod
           Message Body
         </h3>
         <div className="flex items-center gap-2">
-          <span
-            aria-live="polite"
-            className={cx(
-              'text-[11px] font-medium',
-              (copyStatus === 'copied' || copyStatus === 'copied-json') &&
-                'text-emerald-600 dark:text-emerald-400',
-              copyStatus === 'failed' && 'text-rose-600 dark:text-rose-400',
-            )}
-          >
-            {copyStatus === 'copied'
-              ? 'Copied'
-              : copyStatus === 'copied-json'
-                ? 'Copied JSON'
-                : copyStatus === 'failed'
-                  ? 'Copy failed'
-                  : null}
-          </span>
-          {fullMessage ? (
-            <button
-              type="button"
-              className={iconButtonClassName}
-              onClick={handleFullCopyClick}
-              aria-label="Copy full message as JSON"
-              title="Copy full message as JSON"
-            >
-              <span className="material-icons-round text-sm" aria-hidden="true">
-                data_object
-              </span>
-            </button>
-          ) : null}
+          <CopyButton
+            text={body}
+            label="Copy body"
+            icon="content_copy"
+            className="min-w-[104px] px-3"
+          />
           <button
             type="button"
-            className={cx(iconButtonClassName, 'ml-2')}
-            onClick={handleCopyClick}
-            aria-label="Copy message body"
-            title="Copy message body"
-          >
-            <span className="material-icons-round text-sm" aria-hidden="true">
-              content_copy
-            </span>
-          </button>
-          <button
-            type="button"
+            disabled={!formattedJson}
             className={cx(
-              'js-json-toggle inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800',
-              formattedJson && 'js-json-toggle-visible',
+              'inline-flex min-w-[88px] items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-medium transition',
+              formattedJson
+                ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800'
+                : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-600',
             )}
-            aria-pressed={isFormatted}
+            aria-pressed={Boolean(formattedJson) && isFormatted}
+            title={formattedJson ? undefined : 'Body is not valid JSON'}
             onClick={() => {
               if (formattedJson) {
                 setIsFormatted((current) => !current);
               }
             }}
           >
-            {isFormatted ? 'Raw' : 'Formatted'}
+            <span className="material-icons-round text-sm" aria-hidden="true">
+              {isFormatted ? 'receipt_long' : 'code'}
+            </span>
+            {isFormatted ? 'Source' : 'Format'}
           </button>
         </div>
       </div>

@@ -9,6 +9,9 @@ public sealed record MessageProperties
 	/// <summary>Gets the Service Bus session identifier for the outgoing message.</summary>
 	public string? SessionId { get; init; }
 
+	/// <summary>Gets the partition key for the outgoing message.</summary>
+	public string? PartitionKey { get; init; }
+
 	/// <summary>Gets the correlation identifier for the outgoing message.</summary>
 	public string? CorrelationId { get; init; }
 
@@ -20,4 +23,13 @@ public sealed record MessageProperties
 
 	/// <summary>Gets the time-to-live value for the outgoing message.</summary>
 	public TimeSpan? TimeToLive { get; init; }
+
+	/// <summary>Gets the To property for the outgoing message.</summary>
+	public string? To { get; init; }
+
+	/// <summary>Gets the Reply-To property for the outgoing message.</summary>
+	public string? ReplyTo { get; init; }
+
+	/// <summary>Gets the subject for the outgoing message.</summary>
+	public string? Subject { get; init; }
 }

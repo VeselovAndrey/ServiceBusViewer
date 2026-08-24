@@ -1,7 +1,6 @@
 namespace ServiceBusViewer.Api.Models;
-/// <summary>
-/// Common viewer state returned by viewer-related endpoints.
-/// </summary>
+
+/// <summary>Common viewer state returned by viewer-related endpoints.</summary>
 /// <param name="ServiceBusHostName">Host name of the connected Service Bus namespace.</param>
 /// <param name="EntityName">Currently selected entity name (queue or subscription) or null.</param>
 /// <param name="TopicName">Topic name when a subscription is selected, otherwise null.</param>
@@ -25,26 +24,3 @@ public record ViewerState(
 	ReceivedMessage? DisplayedMessage,
 	string? SendResultMessage,
 	string? ReceiveSessionId);
-
-
-
-/// <summary>Extension methods for <see cref="ViewerState"/>.</summary>
-internal static class ViewerStateExtensions
-{
-	/// <summary>Converts a business model <see cref="Business.Viewer.Contracts.ViewerState"/> to an API model <see cref="ViewerState"/>.</summary>
-	/// <param name="state">The business model viewer state to convert.</param>
-	/// <returns>The converted API model viewer state.</returns>
-	internal static ViewerState ToApiModel(this Business.Viewer.Contracts.ViewerState state)
-		=> new ViewerState(
-			state.ServiceBusHostName,
-			state.EntityName,
-			state.TopicName,
-			state.RequiresSession,
-			state.IsManagementApiAvailable,
-			[.. state.AvailableEntities.Select(e => e.ToApiModel())],
-			[.. state.Messages.Select(m => m.ToApiModel())],
-			state.HasMoreMessages,
-			state.DisplayedMessage?.ToApiModel(),
-			state.SendResultMessage,
-			state.ReceiveSessionId);
-}

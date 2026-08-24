@@ -16,7 +16,7 @@ ServiceBusViewer/
 │  └─ design/                                <-- Design/reference images and HTML mockup assets
 │
 ├─ src/                                      <-- Application source
-│  ├─ ServiceBusViewer.sln                   <-- Solution containing the backend, frontend, and AppHost projects
+│  ├─ ServiceBusViewer.slnx                  <-- Solution containing the backend, frontend, and AppHost projects
 │  ├─ SolidCode.Aspire.Hosting.ServiceBusViewer/  <-- Reusable Aspire hosting integration package for running the published ServiceBusViewer container
 │  │  └─ README.md                           <-- Package-focused setup and configuration guide for AppHost consumers
 │  │

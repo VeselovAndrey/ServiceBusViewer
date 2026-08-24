@@ -6,12 +6,11 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<Product>ServiceBusViewer</Product>
-		<Version>0.45.0</Version>
+		<Version>0.48.0</Version>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
 		<Description>HTTP API for the Service Bus Viewer.</Description>
 
-		<AnalysisLevel>latest</AnalysisLevel>
 		<AnalysisLevel>10.0-recommended</AnalysisLevel>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 

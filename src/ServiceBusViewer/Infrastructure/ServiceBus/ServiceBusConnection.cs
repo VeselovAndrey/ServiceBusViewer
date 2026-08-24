@@ -81,27 +81,37 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		EntityProperties entity = GetEntityProperties(entityId);
 		await using ServiceBusSender sender = GetSender(entity);
 		ServiceBusMessage message = new(command.Body);
-		MessageProperties? messageProperties = command.MessageProperties;
+		MessageProperties messageProperties = command.MessageProperties;
 
-		if (messageProperties is not null) {
-			if (!string.IsNullOrWhiteSpace(messageProperties.MessageId))
-				message.MessageId = messageProperties.MessageId;
+		if (!string.IsNullOrWhiteSpace(messageProperties.MessageId))
+			message.MessageId = messageProperties.MessageId;
 
-			if (!string.IsNullOrWhiteSpace(messageProperties.ContentType))
-				message.ContentType = messageProperties.ContentType;
+		if (!string.IsNullOrWhiteSpace(messageProperties.ContentType))
+			message.ContentType = messageProperties.ContentType;
 
-			if (!string.IsNullOrWhiteSpace(messageProperties.SessionId))
-				message.SessionId = messageProperties.SessionId;
+		if (!string.IsNullOrWhiteSpace(messageProperties.SessionId))
+			message.SessionId = messageProperties.SessionId;
 
-			if (!string.IsNullOrWhiteSpace(messageProperties.CorrelationId))
-				message.CorrelationId = messageProperties.CorrelationId;
+		if (!string.IsNullOrWhiteSpace(messageProperties.PartitionKey))
+			message.PartitionKey = messageProperties.PartitionKey;
 
-			if (messageProperties.ScheduledEnqueueTime is not null)
-				message.ScheduledEnqueueTime = messageProperties.ScheduledEnqueueTime.Value;
+		if (!string.IsNullOrWhiteSpace(messageProperties.CorrelationId))
+			message.CorrelationId = messageProperties.CorrelationId;
 
-			if (messageProperties.TimeToLive is not null)
-				message.TimeToLive = messageProperties.TimeToLive.Value;
-		}
+		if (messageProperties.ScheduledEnqueueTime is not null)
+			message.ScheduledEnqueueTime = messageProperties.ScheduledEnqueueTime.Value;
+
+		if (messageProperties.TimeToLive is not null)
+			message.TimeToLive = messageProperties.TimeToLive.Value;
+
+		if (!string.IsNullOrWhiteSpace(messageProperties.To))
+			message.To = messageProperties.To;
+
+		if (!string.IsNullOrWhiteSpace(messageProperties.ReplyTo))
+			message.ReplyTo = messageProperties.ReplyTo;
+
+		if (!string.IsNullOrWhiteSpace(messageProperties.Subject))
+			message.Subject = messageProperties.Subject;
 
 		foreach (ApplicationProperty property in command.ApplicationProperties) {
 			if (!string.IsNullOrWhiteSpace(property.Key))
@@ -253,9 +263,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			message.SessionId,
 			message.CorrelationId,
 			message.ContentType,
+			message.DeliveryCount,
 			message.EnqueuedTime,
 			message.ScheduledEnqueueTime != DateTimeOffset.MinValue ? message.ScheduledEnqueueTime : null,
-			message.TimeToLive != TimeSpan.MaxValue ? message.TimeToLive : null);
+			message.TimeToLive != TimeSpan.MaxValue ? message.TimeToLive : null,
+			message.To,
+			message.ReplyTo,
+			message.Subject);
 
 		return new ReceivedMessage(
 			message.Body.ToString(),

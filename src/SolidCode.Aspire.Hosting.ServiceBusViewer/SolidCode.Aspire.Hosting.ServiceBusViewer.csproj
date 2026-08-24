@@ -9,8 +9,8 @@
 		<Product>ServiceBusViewer</Product>
 		<Description>A reusable .NET Aspire hosting integration for the Service Bus Viewer container.</Description>
 		<Authors>Andrey Veselov</Authors>
-		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
-		<Version>0.1.0</Version>
+		<Copyright>Copyright © 2026 Andrey Veselov</Copyright>
+		<Version>13.5.2</Version>
 
 		<PackageId>SolidCode.Aspire.Hosting.ServiceBusViewer</PackageId>
 		<Title>Aspire Hosting for Service Bus Viewer</Title>
@@ -44,7 +44,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Aspire.Hosting" Version="13.4.6" />
+		<PackageReference Include="Aspire.Hosting" Version="13.5.2" />
 	</ItemGroup>
 
 	<ItemGroup>

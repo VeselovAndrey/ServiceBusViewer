@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<OutputType>Exe</OutputType>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		
+		<Product>ServiceBusViewer</Product>
+		<Authors>Andrey Veselov</Authors>
+		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
+		<Description>Architectural tests for the Service Bus Viewer.</Description>
+
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+		
+		<AnalysisLevel>10.0-recommended</AnalysisLevel>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+		<!-- Disable warning CA1707: Identifiers should not contain underscores. -->
+		<NoWarn>$(NoWarn);CA1707</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="TngTech.ArchUnitNET" Version="0.13.4" />
+		<PackageReference Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.4" />
+		<PackageReference Include="xunit.v3.mtp-v2" Version="4.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\ServiceBusViewer\ServiceBusViewer.csproj" />
+	</ItemGroup>
+</Project>
