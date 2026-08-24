@@ -12,8 +12,9 @@
 		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
 
 		<AnalysisLevel>latest</AnalysisLevel>
-		<AnalysisLevel>10.0-recommended</AnalysisLevel>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+		<AspireUseCliBundle>true</AspireUseCliBundle>
 	</PropertyGroup>
 
 	<ItemGroup>

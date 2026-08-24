@@ -1,5 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Connection.Connect;
 
+using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Infrastructure.ClientSession;
 using ViewerConnectionSettings = ServiceBusViewer.Business.Viewer.Contracts.ConnectionSettings;

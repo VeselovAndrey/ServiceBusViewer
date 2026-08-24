@@ -7,6 +7,9 @@ on:
     paths:
       - 'src/SolidCode.Aspire.Hosting.ServiceBusViewer/**'
       - '!src/SolidCode.Aspire.Hosting.ServiceBusViewer/**/*.md'
+      - 'src/ServiceBusViewer.UnitTests/**'
+      - '!src/ServiceBusViewer.UnitTests/**/*.md'
+      - 'src/ServiceBusViewer.ArchitecturalTests/**'
 
 permissions:
   contents: read
@@ -27,6 +30,12 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
+
+      - name: Run unit tests
+        run: dotnet test --project ./src/ServiceBusViewer.UnitTests --configuration Debug
+
+      - name: Run architecture tests
+        run: dotnet test --project ./src/ServiceBusViewer.ArchitecturalTests --configuration Debug
 
       - name: Pack NuGet package
         run: dotnet pack "$PROJECT" --configuration Release --output "$PACKAGES"
