@@ -9,7 +9,6 @@ internal static class EntityIdFactory
 	/// <param name="entityType">The entity type to create.</param>
 	/// <param name="entityName">The name of the entity.</param>
 	/// <param name="topicName">The parent topic name for a subscription.</param>
-	/// <param name="topicNameField">The request field name used when reporting a missing topic name.</param>
 	/// <returns>The strongly typed entity identifier.</returns>
 	internal static EntityId Create(string entityType, string entityName, string? topicName)
 	{

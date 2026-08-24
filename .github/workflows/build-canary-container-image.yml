@@ -10,6 +10,8 @@ on:
     - '!src/ServiceBusViewer/**/*.md'
     - 'src/ServiceBusViewer.Web/**'
     - '!src/ServiceBusViewer.Web/**/*.md'
+    - 'src/ServiceBusViewer.UnitTests/**'
+    - 'src/ServiceBusViewer.ArchitecturalTests/**'
 
 jobs:
   build-and-push:
@@ -20,6 +22,17 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Run unit tests
+      run: dotnet test --project ./src/ServiceBusViewer.UnitTests --configuration Debug
+
+    - name: Run architecture tests
+      run: dotnet test --project ./src/ServiceBusViewer.ArchitecturalTests --configuration Debug
 
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v4

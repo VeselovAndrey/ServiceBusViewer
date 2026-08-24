@@ -1,5 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.SessionState.GetSessionState;
 
+using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Application.Contracts;
 using ServiceBusViewer.Business.Viewer.Contracts;

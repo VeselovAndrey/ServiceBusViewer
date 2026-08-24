@@ -203,7 +203,7 @@ See [the web project README](src/ServiceBusViewer.Web/README.md) for frontend-sp
 Build the .NET solution:
 
 ```powershell
-dotnet build src\ServiceBusViewer.sln
+dotnet build src\ServiceBusViewer.slnx
 ```
 
 Build the SPA bundle:

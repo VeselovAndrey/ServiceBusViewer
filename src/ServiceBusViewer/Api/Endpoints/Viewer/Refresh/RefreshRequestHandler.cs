@@ -1,5 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer.Refresh;
 
+using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Models;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
