@@ -75,6 +75,11 @@ export const serviceBusApi = {
 			method: 'POST',
 		});
 	},
+	refreshDeadLetterList() {
+		return requestJson<ViewerState>('/viewer/refresh-dlq', {
+			method: 'POST',
+		});
+	},
 	selectEntity(entity: EntityIdDto) {
 		return requestJson<ViewerState>('/viewer/select-entity', {
 			body: JSON.stringify({

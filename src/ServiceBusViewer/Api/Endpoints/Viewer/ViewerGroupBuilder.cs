@@ -1,5 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer;
 
+using ServiceBusViewer.Api.Endpoints.Viewer.DeadLetter;
 using ServiceBusViewer.Api.Endpoints.Viewer.GetViewer;
 using ServiceBusViewer.Api.Endpoints.Viewer.Receive;
 using ServiceBusViewer.Api.Endpoints.Viewer.Refresh;
@@ -14,6 +15,7 @@ internal static class ViewerGroupBuilder
 
 		viewerGroup.MapGet(string.Empty, GetViewerRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/refresh", RefreshRequestHandler.HandleAsync);
+		viewerGroup.MapPost("/refresh-dlq", RefreshDeadLetterRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/select-entity", SelectEntityRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/receive", ReceiveRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/send", SendRequestHandler.HandleAsync);

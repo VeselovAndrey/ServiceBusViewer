@@ -1,5 +1,12 @@
 # Service Bus Viewer Version History
 
+## 0.50.0 (2026-10-08)
+
+- **Added:** A **Dead Letter** toggle in the viewer header that switches the message list to the selected entity's dead-letter queue: the queue's own $DeadLetterQueue, or the subscription's dead-letter queue when a topic is selected through a subscription.
+- **Added:** The dead-letter view reuses the existing message inspection experience, with new **Dead Letter Reason** and **Dead Letter Source** columns in the list and the dead-letter reason, source, and error description in the expanded message details when available.
+- **Changed:** In dead-letter mode the message list is headed **Dead-Lettered Messages** with an updated empty-state message, the Refresh button reloads the dead-letter list, and switching entity selection exits dead-letter mode.
+- **Changed:** Upgraded dependencies to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
+
 ## 0.48.0 (2026-08-23)
 
 - **Added:** Per-message **Delivery Count** based on `SystemProperties.DeliveryCount` as reported by Azure Service Bus, shown as a column in the Peeked Messages list and in the Last Received Message details, so redelivered messages are visible without opening each one.
