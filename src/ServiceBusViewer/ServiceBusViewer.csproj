@@ -6,7 +6,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<Product>ServiceBusViewer</Product>
-		<Version>0.48.0</Version>
+		<Version>0.49.0</Version>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
 		<Description>HTTP API for the Service Bus Viewer.</Description>
@@ -21,7 +21,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.2" />
+		<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.21.0" />
 	</ItemGroup>
 
 	<ItemGroup>

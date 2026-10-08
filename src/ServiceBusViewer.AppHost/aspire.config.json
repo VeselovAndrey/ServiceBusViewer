@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "ServiceBusViewer.AppHost.csproj"
+  }
+}

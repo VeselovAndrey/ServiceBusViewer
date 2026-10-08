@@ -24,7 +24,7 @@
 	<ItemGroup>
 		<PackageReference Include="TngTech.ArchUnitNET" Version="0.13.4" />
 		<PackageReference Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.4" />
-		<PackageReference Include="xunit.v3.mtp-v2" Version="4.0.0" />
+		<PackageReference Include="xunit.v3.mtp-v2" Version="4.0.1" />
 	</ItemGroup>
 
 	<ItemGroup>
