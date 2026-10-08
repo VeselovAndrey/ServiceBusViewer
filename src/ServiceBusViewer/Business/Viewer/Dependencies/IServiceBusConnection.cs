@@ -39,6 +39,13 @@ public interface IServiceBusConnection : IAsyncDisposable
 	/// <returns>A task that completes with the list of peeked messages.</returns>
 	Task<ReceivedMessageList> PeekMessagesAsync(EntityId entityId, int maxMessages, CancellationToken cancellationToken);
 
+	/// <summary>Peeks up to <paramref name="maxMessages"/> messages from the requested entity's $DeadLetterQueue without removing them.</summary>
+	/// <param name="entityId">Identifier of the entity whose dead-letter queue is peeked (queue, or subscription with its parent topic).</param>
+	/// <param name="maxMessages">Maximum number of messages to peek. Defaults to 50.</param>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
+	/// <returns>A task that completes with the list of dead-lettered messages.</returns>
+	Task<ReceivedMessageList> PeekDeadLetterMessagesAsync(EntityId entityId, int maxMessages, CancellationToken cancellationToken);
+
 	/// <summary>Receives the next available message from the requested entity.</summary>
 	/// <param name="entityId">Identifier of the entity to receive from.</param>
 	/// <param name="sessionId">Session id to receive from, or <c>null</c> for non-session receive or next available session.</param>

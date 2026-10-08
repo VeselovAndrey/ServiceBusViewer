@@ -13,6 +13,9 @@ namespace ServiceBusViewer.Api.Models;
 /// <param name="To">To property or null.</param>
 /// <param name="ReplyTo">Reply To property or null.</param>
 /// <param name="Subject">Subject or null.</param>
+/// <param name="DeadLetterReason">Dead-letter reason as reported by Service Bus or null.</param>
+/// <param name="DeadLetterSource">Dead-letter source as reported by Service Bus or null.</param>
+/// <param name="DeadLetterErrorDescription">Dead-letter error description reported by Service Bus or null.</param>
 public sealed record ReceivedMessageProperties(
 	string MessageId,
 	string? PartitionKey,
@@ -25,4 +28,7 @@ public sealed record ReceivedMessageProperties(
 	string? TimeToLive,
 	string? To,
 	string? ReplyTo,
-	string? Subject);
+	string? Subject,
+	string? DeadLetterReason,
+	string? DeadLetterSource,
+	string? DeadLetterErrorDescription);

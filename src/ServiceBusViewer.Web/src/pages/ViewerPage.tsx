@@ -47,6 +47,8 @@ export function ViewerPage() {
 	const [selectionKey, setSelectionKey] = useState<string | null>(null);
 	const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 	const [receiveSessionId, setReceiveSessionId] = useState(viewer?.receiveSessionId ?? '');
+	const [deadLetterMode, setDeadLetterMode] = useState(false);
+	const [deadLetterViewer, setDeadLetterViewer] = useState<ViewerState | null>(null);
 
 	useEffect(() => {
 		if (!sessionState?.isConnected || viewer) {
@@ -162,16 +164,20 @@ export function ViewerPage() {
 			subtitle: 'Loading viewer state...',
 			typeLabel: 'Queue' as const,
 		};
-	const peekedMessageSummary = currentViewer
-		? buildPeekedMessageSummary(currentViewer.messages, currentViewer.hasMoreMessages)
-		: '0 total';
-	const showScheduledEnqueue = currentViewer?.messages.some((message) =>
+	const activeMessageSource = deadLetterMode ? deadLetterViewer : currentViewer;
+	const activeMessages = activeMessageSource?.messages ?? [];
+	const peekedMessageSummary = buildPeekedMessageSummary(
+		activeMessages,
+		activeMessageSource?.hasMoreMessages ?? false,
+	);
+	const showScheduledEnqueue = activeMessages.some((message) =>
 		Boolean(message.properties.scheduledEnqueueTime),
-	) ?? false;
-	const showPartitionKey = currentViewer?.messages.some((message) =>
+	);
+	const showPartitionKey = activeMessages.some((message) =>
 		Boolean(message.properties.partitionKey),
-	) ?? false;
-	const peekedMessageColumnCount = 6 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0);
+	);
+	const peekedMessageColumnCount =
+		6 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0) + (deadLetterMode ? 2 : 0);
 
 	const handleDisconnect = async () => {
 		await runAction('disconnect', async () => {
@@ -191,6 +197,8 @@ export function ViewerPage() {
 			const nextViewer = await syncViewer(await serviceBusApi.selectEntity(entity));
 			setExpandedRows(new Set());
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
+			setDeadLetterMode(false);
+			setDeadLetterViewer(null);
 			navigate('/viewer', { replace: true });
 		} catch (error: unknown) {
 			setErrorMessages(getErrorMessages(error));
@@ -201,10 +209,31 @@ export function ViewerPage() {
 
 	const handleRefresh = async () => {
 		await runAction('refresh', async () => {
+			if (deadLetterMode) {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setExpandedRows(new Set());
+				return;
+			}
+
 			const nextViewer = await syncViewer(await serviceBusApi.refreshViewer());
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setExpandedRows(new Set());
 		});
+	};
+
+	const handleToggleDeadLetter = async () => {
+		if (!deadLetterMode) {
+			await runAction('refresh', async () => {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setDeadLetterMode(true);
+				setExpandedRows(new Set());
+			});
+			return;
+		}
+
+		setDeadLetterMode(false);
+		setDeadLetterViewer(null);
+		setExpandedRows(new Set());
 	};
 
 	const handleReceive = async () => {
@@ -368,6 +397,24 @@ export function ViewerPage() {
 									Refresh
 								</button>
 
+								<button
+									type="button"
+									className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+										deadLetterMode
+											? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300'
+											: 'border-slate-200 bg-white hover:bg-slate-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+									}`}
+									aria-pressed={deadLetterMode}
+									aria-busy={deadLetterMode && pendingAction === 'refresh'}
+									disabled={Boolean(currentViewer) && pendingAction !== null}
+									onClick={() => {
+										void handleToggleDeadLetter();
+									}}
+								>
+									<span className="material-icons-round text-sm">inventory_2</span>
+									Dead Letter
+								</button>
+
 								<div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
 									<input
 										type="text"
@@ -517,7 +564,7 @@ export function ViewerPage() {
 								<div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 md:flex-row md:items-center md:justify-between">
 									<div className="flex items-center gap-2">
 										<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-											Peeked Messages
+											{deadLetterMode ? 'Dead-Lettered Messages' : 'Peeked Messages'}
 										</h2>
 										<span className="rounded-xl bg-slate-100 px-2 py-1 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
 											{peekedMessageSummary}
@@ -525,7 +572,7 @@ export function ViewerPage() {
 									</div>
 								</div>
 
-								{currentViewer?.messages.length ? (
+								{activeMessages.length ? (
 									<div className="overflow-x-auto">
 										<table className="min-w-full text-left text-sm">
 											<thead className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
@@ -537,14 +584,27 @@ export function ViewerPage() {
 													<th className="px-4 py-3 font-medium">Enqueued Time / TTL</th>
 													{showScheduledEnqueue && <th className="px-4 py-3 font-medium">Scheduled Enqueue</th>}
 													<th className="px-4 py-3 font-medium">Content Type</th>
+													{deadLetterMode && <th className="px-4 py-3 font-medium">Dead Letter Reason</th>}
+													{deadLetterMode && <th className="px-4 py-3 font-medium">Dead Letter Source</th>}
 													<th className="px-4 py-3 text-center font-medium">Actions</th>
 												</tr>
 											</thead>
 											<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-												{currentViewer.messages.map((message, index) => {
+												{activeMessages.map((message, index) => {
 													const rowKey = createMessageRowKey(message, index);
 													const isExpanded = expandedRows.has(rowKey);
+													const deadLetterPropertyRows: Array<[string, string]> = deadLetterMode
+														? [
+															['Dead Letter Reason', formatNullable(message.properties.deadLetterReason)],
+															['Dead Letter Source', formatNullable(message.properties.deadLetterSource)],
+															[
+																	'Dead Letter Error Description',
+																	formatNullable(message.properties.deadLetterErrorDescription),
+																],
+														]
+														: [];
 													const propertyRows: Array<[string, string]> = [
+														...deadLetterPropertyRows,
 														['Scheduled Enqueue', formatDateTime(message.properties.scheduledEnqueueTime)],
 														['Correlation ID', formatNullable(message.properties.correlationId)],
 														['Subject', formatNullable(message.properties.subject)],
@@ -587,6 +647,16 @@ export function ViewerPage() {
 																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{formatNullable(message.properties.contentType, 'not set')}
 																</td>
+																{deadLetterMode && (
+																	<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																		{formatNullable(message.properties.deadLetterReason)}
+																	</td>
+																)}
+																{deadLetterMode && (
+																	<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																		{formatNullable(message.properties.deadLetterSource)}
+																	</td>
+																)}
 																<td className="px-4 py-3">
 																	<div className="flex items-center justify-end gap-2">
 																		<CopyFullMessageButton message={message} />
@@ -651,7 +721,9 @@ export function ViewerPage() {
 								) : (
 									<div className="p-6">
 										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
-											No messages found.
+											{deadLetterMode
+												? 'No dead-lettered messages found.'
+												: 'No messages found.'}
 										</div>
 									</div>
 								)}

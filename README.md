@@ -9,6 +9,7 @@ The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Asp
 - Automatically browse an Azure namespace when the primary connection has Manage permission, or connect directly to a queue or subscription.
 - Browse queues, topics, subscriptions, entity properties, and subscription filters.
 - Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
+- View the selected entity's dead-lettered messages with their dead-letter reason and source, and refresh the dead-letter list as the queue's contents change.
 - View message bodies, system properties, and application properties, with client-side JSON formatting.
 - Copy a received or peeked message body as plain text, or copy the full message as JSON including system and application properties.
 - Send messages to queues or topics with system properties and typed application properties.
@@ -94,6 +95,13 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
+## 0.50.0 (2026-10-08)
+
+- **Added:** A Dead Letter toggle in the viewer header that switches the message list to the selected entity's dead-letter queue: the queue's own $DeadLetterQueue, or the subscription's dead-letter queue when a topic is selected through a subscription.
+- **Added:** The dead-letter view reuses the existing message inspection experience, with new Dead Letter Reason and Dead Letter Source columns in the list and the dead-letter reason, source, and error description in the expanded message details when available.
+- **Changed:** In dead-letter mode the message list is headed Dead-Lettered Messages with an updated empty-state message, the Refresh button reloads the dead-letter list, and switching entity selection exits dead-letter mode.
+- **Changed:** Upgraded dependencies to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
+
 ## 0.48.0 (2026-08-23)
 
 - **Added:** Per-message Delivery Count based on SystemProperties.DeliveryCount as reported by Azure Service Bus, shown as a column in the Peeked Messages list and in the Last Received Message details.
@@ -118,17 +126,6 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Added:** Warning indicator on the Message ID field when the selected queue or topic (the parent topic of a selected subscription) has duplicate detection enabled and the pasted JSON carries a non-empty message ID; the warning resets when the message ID is edited or after a successful send, and a failed send keeps it.
 - **Added:** Copy button for received and peeked message bodies that copies the original message body text as plain text.
 - **Added:** Received and peeked message details now display each application property's type alongside its name and value.
-
-## 0.40.5 (2026-08-17)
-
-- **Added:** Introduced the `SolidCode.Aspire.Hosting.ServiceBusViewer` hosting library for running the published Service Bus Viewer container from Aspire AppHosts.
-- **Changed:** Reduced the combined Docker image size by using the .NET 10 Ubuntu Chiseled composite runtime with globalization support.
-- **Fixed:** Sending a message no longer clears the last received message details.
-- **Fixed:** Empty receives from queues and subscriptions now return after about one second instead of waiting for the Azure Service Bus default timeout, including session-enabled entities with no active messages.
-- **Fixed:** Aborted requests and disconnects now cancel in-flight Service Bus operations so they do not block the browser session.
-- **Fixed:** A failed message peek while selecting an entity no longer changes the browser session's selected entity or messages.
-- **Fixed:** Successful sends and receives are no longer reported as failures when the following message-list refresh fails.
-
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 

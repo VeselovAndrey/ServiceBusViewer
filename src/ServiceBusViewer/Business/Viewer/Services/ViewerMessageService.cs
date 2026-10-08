@@ -40,6 +40,35 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 	}
 
 	/// <inheritdoc/>
+	public async Task<ViewerState> RefreshDeadLetterMessagesAsync(IViewerSessionState session, CancellationToken cancellationToken)
+	{
+		await session.Gate.WaitAsync(cancellationToken);
+
+		try {
+			using var operationCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.ConnectionCancellationToken);
+			CancellationToken operationCancellationToken = operationCancellationSource.Token;
+			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
+			EntityId? entityId = session.SelectedEntityId;
+
+			session.CurrentMessages = entityId is not null
+				? await connection.PeekDeadLetterMessagesAsync(entityId, 50, operationCancellationToken)
+				: ReceivedMessageList.Empty;
+
+			bool requiresSession = entityId is not null && connection.GetEntityProperties(entityId).RequiresSession;
+
+			if (!requiresSession)
+				session.ReceiveSessionId = null;
+
+			session.SendResultMessage = null;
+
+			return session.ToViewerState(connection);
+		}
+		finally {
+			session.Gate.Release();
+		}
+	}
+
+	/// <inheritdoc/>
 	public async Task<ViewerState> ReceiveAsync(IViewerSessionState session, string? sessionId, CancellationToken cancellationToken)
 	{
 		await session.Gate.WaitAsync(cancellationToken);

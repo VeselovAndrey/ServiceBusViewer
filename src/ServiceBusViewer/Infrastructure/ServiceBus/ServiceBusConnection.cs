@@ -63,6 +63,22 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		return new ReceivedMessageList([.. messagesToReturn.Select(ConvertToReceivedMessage)], hasMore);
 	}
 
+	public async Task<ReceivedMessageList> PeekDeadLetterMessagesAsync(EntityId entityId, int maxMessages, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		EntityProperties entity = GetEntityProperties(entityId);
+
+		if (entity is TopicEntityProperties)
+			return ReceivedMessageList.Empty;
+
+		await using ServiceBusReceiver receiver = GetDeadLetterReceiver(entity);
+		IReadOnlyList<ServiceBusReceivedMessage> messages = await receiver.PeekMessagesAsync(maxMessages + 1, cancellationToken: cancellationToken);
+		bool hasMore = messages.Count > maxMessages;
+		IEnumerable<ServiceBusReceivedMessage> messagesToReturn = hasMore ? messages.Take(maxMessages) : messages;
+		return new ReceivedMessageList([.. messagesToReturn.Select(ConvertToReceivedMessage)], hasMore);
+	}
+
 	public async Task<ReceivedMessage?> ReceiveMessageAsync(EntityId entityId, string? sessionId, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
@@ -183,6 +199,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			_ => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
 		};
 
+	private ServiceBusReceiver GetDeadLetterReceiver(EntityProperties entity)
+		=> entity switch {
+			SubscriptionEntityProperties subscription => _client.CreateReceiver(subscription.TopicName, subscription.Name, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock, SubQueue = SubQueue.DeadLetter }),
+			QueueEntityProperties queue => _client.CreateReceiver(queue.Name, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock, SubQueue = SubQueue.DeadLetter }),
+			_ => throw new InvalidOperationException("Topics do not support dead-letter peeks. Please select a queue or a subscription.")
+		};
+
 	private async Task<ReceivedMessage?> ReceiveNonSessionMessageAsync(EntityProperties entity, CancellationToken cancellationToken)
 	{
 		await using ServiceBusReceiver receiver = GetReceiver(entity);
@@ -269,7 +292,10 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			message.TimeToLive != TimeSpan.MaxValue ? message.TimeToLive : null,
 			message.To,
 			message.ReplyTo,
-			message.Subject);
+			message.Subject,
+			message.DeadLetterReason,
+			message.DeadLetterSource,
+			message.DeadLetterErrorDescription);
 
 		return new ReceivedMessage(
 			message.Body.ToString(),

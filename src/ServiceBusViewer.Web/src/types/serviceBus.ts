@@ -26,6 +26,9 @@ export interface ReceivedMessagePropertiesDto {
 	to: string | null;
 	replyTo: string | null;
 	subject: string | null;
+	deadLetterReason: string | null;
+	deadLetterSource: string | null;
+	deadLetterErrorDescription: string | null;
 }
 
 export interface ReceivedMessageApplicationPropertyDto {

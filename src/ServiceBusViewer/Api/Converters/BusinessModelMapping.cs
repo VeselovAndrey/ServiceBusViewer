@@ -31,10 +31,22 @@ internal static class BusinessModelMapping
 		=> new(
 			message.Body,
 			new ReceivedMessageProperties(
-				message.Properties.MessageId, message.Properties.PartitionKey, message.Properties.SessionId, message.Properties.CorrelationId,
-				message.Properties.ContentType, message.Properties.DeliveryCount, message.Properties.EnqueuedTimeUtc.ToString("O", CultureInfo.InvariantCulture),
-				message.Properties.ScheduledEnqueueTime?.ToString("O", CultureInfo.InvariantCulture), message.Properties.TimeToLive?.ToString("c", CultureInfo.InvariantCulture),
-				message.Properties.To, message.Properties.ReplyTo, message.Properties.Subject),
+				message.Properties.MessageId,
+				message.Properties.PartitionKey,
+				message.Properties.SessionId,
+				message.Properties.CorrelationId,
+				message.Properties.ContentType,
+				message.Properties.DeliveryCount,
+				message.Properties.EnqueuedTimeUtc.ToString("O", CultureInfo.InvariantCulture),
+				message.Properties.ScheduledEnqueueTime?.ToString("O", CultureInfo.InvariantCulture),
+				message.Properties.TimeToLive?.ToString("c", CultureInfo.InvariantCulture),
+				message.Properties.To,
+				message.Properties.ReplyTo,
+				message.Properties.Subject,
+				message.Properties.DeadLetterReason,
+				message.Properties.DeadLetterSource,
+				message.Properties.DeadLetterErrorDescription),
+
 			message.ApplicationProperties.ToDictionary(
 				pair => pair.Key,
 				pair => new ReceivedMessageApplicationProperty(ResponseMapping.NormalizeObjectValue(pair.Value) ?? string.Empty, ResponseMapping.GetApplicationPropertyType(pair.Value))));

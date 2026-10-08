@@ -13,6 +13,9 @@ namespace ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 /// <param name="To">The To property, if any.</param>
 /// <param name="ReplyTo">The Reply To property, if any.</param>
 /// <param name="Subject">The subject, if any.</param>
+/// <param name="DeadLetterReason">The dead-letter reason reported by Service Bus, if any.</param>
+/// <param name="DeadLetterSource">The dead-letter source reported by Service Bus, if any.</param>
+/// <param name="DeadLetterErrorDescription">The dead-letter error description reported by Service Bus, if any.</param>
 public sealed record ReceivedMessageProperties(
 	string MessageId,
 	string? PartitionKey,
@@ -25,4 +28,7 @@ public sealed record ReceivedMessageProperties(
 	TimeSpan? TimeToLive,
 	string? To,
 	string? ReplyTo,
-	string? Subject);
+	string? Subject,
+	string? DeadLetterReason,
+	string? DeadLetterSource,
+	string? DeadLetterErrorDescription);
