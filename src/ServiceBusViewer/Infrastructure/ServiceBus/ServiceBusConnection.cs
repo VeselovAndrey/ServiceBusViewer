@@ -1,6 +1,7 @@
 namespace ServiceBusViewer.Infrastructure.ServiceBus;
 
 using System.Globalization;
+using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using ServiceBusViewer.Business.Viewer.Contracts;
@@ -11,6 +12,9 @@ using ServiceBusViewer.Business.Viewer.Dependencies;
 internal sealed class ServiceBusConnection : IServiceBusConnection
 {
 	private static readonly TimeSpan _emptyReceiveWaitTime = TimeSpan.FromSeconds(1);
+
+	// ReceiveMessagesAsync requires a positive wait, so the republish loop polls the dead-letter queue with a short positive wait instead of an immediate return.
+	private static readonly TimeSpan _republishPollWaitTime = TimeSpan.FromMilliseconds(100);
 
 	private readonly ServiceBusClient _client;
 	private readonly ServiceBusAdministrationClient? _adminClient;
@@ -77,6 +81,66 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		bool hasMore = messages.Count > maxMessages;
 		IEnumerable<ServiceBusReceivedMessage> messagesToReturn = hasMore ? messages.Take(maxMessages) : messages;
 		return new ReceivedMessageList([.. messagesToReturn.Select(ConvertToReceivedMessage)], hasMore);
+	}
+
+	public async Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(
+		EntityId entityId,
+		IReadOnlyCollection<string>? messageIds,
+		RepublishMessageIdStrategy strategy,
+		string? manualMessageId,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		EntityProperties entity = GetEntityProperties(entityId);
+		bool isBulk = messageIds is null;
+		HashSet<string> requestedMessageIds = [];
+
+		if (messageIds is not null)
+			requestedMessageIds = [.. messageIds.Distinct(StringComparer.Ordinal)];
+		HashSet<string> seenMessageIds = [];
+		List<string> failureDetails = [];
+		int affectedCount = 0;
+		int failedCount = 0;
+
+		await using ServiceBusReceiver receiver = GetDeadLetterReceiver(entity);
+		await using ServiceBusSender sender = GetSender(entity);
+
+		while (true) {
+			IReadOnlyList<ServiceBusReceivedMessage> batch = await receiver.ReceiveMessagesAsync(10, maxWaitTime: _republishPollWaitTime, cancellationToken: cancellationToken);
+			int unseenRequestedCount = 0;
+
+			foreach (ServiceBusReceivedMessage message in batch) {
+				bool isUnseen = seenMessageIds.Add(message.MessageId);
+				bool isRequested = isBulk || requestedMessageIds.Contains(message.MessageId);
+
+				if (isRequested && isUnseen) {
+					unseenRequestedCount++;
+					(bool succeeded, string? failureDetail) = await RepublishMessageAsync(receiver, sender, message, strategy, manualMessageId, cancellationToken);
+
+					if (succeeded) {
+						affectedCount++;
+					}
+					else {
+						failedCount++;
+
+						if (failureDetail is not null)
+							failureDetails.Add(failureDetail);
+					}
+				}
+				else {
+					// A message this operation does not republish, or one already attempted in this operation: return it to visible state in the dead-letter queue.
+					await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
+				}
+			}
+
+			if (batch.Count == 0 || unseenRequestedCount == 0)
+				break;
+		}
+
+		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, requestedMessageIds, affectedCount, failedCount, failureDetails);
+
+		return result;
 	}
 
 	public async Task<ReceivedMessage?> ReceiveMessageAsync(EntityId entityId, string? sessionId, CancellationToken cancellationToken)
@@ -205,6 +269,101 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			QueueEntityProperties queue => _client.CreateReceiver(queue.Name, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock, SubQueue = SubQueue.DeadLetter }),
 			_ => throw new InvalidOperationException("Topics do not support dead-letter peeks. Please select a queue or a subscription.")
 		};
+
+	private static async Task<(bool Succeeded, string? FailureDetail)> RepublishMessageAsync(
+		ServiceBusReceiver receiver,
+		ServiceBusSender sender,
+		ServiceBusReceivedMessage source,
+		RepublishMessageIdStrategy strategy,
+		string? manualMessageId,
+		CancellationToken cancellationToken)
+	{
+		string messageIdLabel = source.MessageId ?? "(no message id)";
+
+		try {
+			// The copy is built inside the per-message guard so a construction failure fails only this message and keeps bulk operations going.
+			ServiceBusMessage copy = BuildRepublishedMessage(source, strategy, manualMessageId);
+			await sender.SendMessageAsync(copy, cancellationToken);
+			await receiver.CompleteMessageAsync(source, cancellationToken);
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+			throw;
+		}
+		catch (Exception exception) {
+			// The copy was not delivered and completed: return the message to visible state in the dead-letter queue.
+			await receiver.AbandonMessageAsync(source, propertiesToModify: null, cancellationToken);
+			return (false, $"Message '{messageIdLabel}': {exception.Message}");
+		}
+
+		return (true, null);
+	}
+
+	private static DeadLetterOperationResult BuildDeadLetterOperationResult(
+		bool isBulk,
+		HashSet<string> requestedMessageIds,
+		int affectedCount,
+		int failedCount,
+		List<string> failureDetails)
+	{
+		if (failedCount is 0 && (isBulk || affectedCount == requestedMessageIds.Count))
+			return new DeadLetterOperationResult(true, affectedCount, failedCount, null);
+
+		StringBuilder detail = new();
+
+		if (failedCount > 0) {
+			detail.Append(CultureInfo.InvariantCulture, $"{failedCount} of the requested message(s) could not be republished and remain in the dead-letter queue.");
+
+			if (failureDetails.Count > 0)
+				detail.Append(CultureInfo.InvariantCulture, $" First failure: {failureDetails[0]}");
+		}
+
+		if (!isBulk && affectedCount < requestedMessageIds.Count) {
+			if (detail.Length > 0)
+				detail.Append(' ');
+
+			detail.Append(CultureInfo.InvariantCulture, $"Message id(s) were not found in the dead-letter queue: {string.Join(", ", requestedMessageIds)}.");
+		}
+
+		return new DeadLetterOperationResult(false, affectedCount, failedCount, detail.Length > 0 ? detail.ToString() : null);
+	}
+
+	private static ServiceBusMessage BuildRepublishedMessage(
+		ServiceBusReceivedMessage source,
+		RepublishMessageIdStrategy strategy,
+		string? manualMessageId)
+	{
+		ServiceBusMessage copy = new(source.Body.ToArray());
+
+		// AutoGenerate leaves the message id unset: the Service Bus client rejects a null or empty id and assigns a fresh one at send time.
+		if (strategy is not RepublishMessageIdStrategy.AutoGenerate) {
+			copy.MessageId = strategy switch {
+				RepublishMessageIdStrategy.KeepOriginal => source.MessageId,
+				RepublishMessageIdStrategy.Guid => Guid.NewGuid().ToString(),
+				RepublishMessageIdStrategy.GuidV7 => Guid.CreateVersion7().ToString(),
+				_ => manualMessageId
+			};
+		}
+
+		copy.ContentType = source.ContentType;
+		copy.Subject = source.Subject;
+		copy.To = source.To;
+		copy.ReplyTo = source.ReplyTo;
+		copy.ReplyToSessionId = source.ReplyToSessionId;
+		copy.SessionId = source.SessionId;
+		copy.PartitionKey = source.PartitionKey;
+		copy.CorrelationId = source.CorrelationId;
+
+		if (source.TimeToLive != TimeSpan.MaxValue)
+			copy.TimeToLive = source.TimeToLive;
+
+		if (source.ScheduledEnqueueTime != DateTimeOffset.MinValue)
+			copy.ScheduledEnqueueTime = source.ScheduledEnqueueTime;
+
+		foreach (KeyValuePair<string, object> applicationProperty in source.ApplicationProperties)
+			copy.ApplicationProperties[applicationProperty.Key] = applicationProperty.Value;
+
+		return copy;
+	}
 
 	private async Task<ReceivedMessage?> ReceiveNonSessionMessageAsync(EntityProperties entity, CancellationToken cancellationToken)
 	{

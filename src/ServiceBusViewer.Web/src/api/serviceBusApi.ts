@@ -3,6 +3,8 @@ import type {
 	EntityDetailsDto,
 	EntityIdDto,
 	ReceiveRequestDto,
+	RepublishDeadLetterRequestDto,
+	RepublishDeadLetterResponseDto,
 	SessionStateDto,
 	SendMessageRequestDto,
 	ViewerState,
@@ -78,6 +80,12 @@ export const serviceBusApi = {
 	refreshDeadLetterList() {
 		return requestJson<ViewerState>('/viewer/refresh-dlq', {
 			method: 'POST',
+		});
+	},
+	republishDeadLetter(request: RepublishDeadLetterRequestDto) {
+		return requestJson<RepublishDeadLetterResponseDto>('/viewer/republish-dlq', {
+			method: 'POST',
+			body: JSON.stringify(request),
 		});
 	},
 	selectEntity(entity: EntityIdDto) {

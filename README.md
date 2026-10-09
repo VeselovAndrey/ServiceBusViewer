@@ -10,6 +10,7 @@ The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Asp
 - Browse queues, topics, subscriptions, entity properties, and subscription filters.
 - Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
 - View the selected entity's dead-lettered messages with their dead-letter reason and source, and refresh the dead-letter list as the queue's contents change.
+- Republish dead-lettered messages to the original entity, one at a time or in bulk, choosing how the republished copy's message id is assigned.
 - View message bodies, system properties, and application properties, with client-side JSON formatting.
 - Copy a received or peeked message body as plain text, or copy the full message as JSON including system and application properties.
 - Send messages to queues or topics with system properties and typed application properties.
@@ -95,11 +96,13 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 0.50.0 (2026-10-08)
+## 0.51.0 (2026-10-09)
 
-- **Added:** A Dead Letter toggle in the viewer header that switches the message list to the selected entity's dead-letter queue: the queue's own $DeadLetterQueue, or the subscription's dead-letter queue when a topic is selected through a subscription.
-- **Added:** The dead-letter view reuses the existing message inspection experience, with new Dead Letter Reason and Dead Letter Source columns in the list and the dead-letter reason, source, and error description in the expanded message details when available.
-- **Changed:** In dead-letter mode the message list is headed Dead-Lettered Messages with an updated empty-state message, the Refresh button reloads the dead-letter list, and switching entity selection exits dead-letter mode.
+- **Added:** Republish dead-lettered messages to the original entity, per message, or the entire queue with Republish All.
+- **Added:** A dropdown on both buttons for how the republished copy's message id is assigned: keep the original (hidden when the target has duplicate detection), Service Bus auto-generate, a new GUID or GUID v7, or a manual id for a single message.
+- **Added:** Republish results show the affected and failed counts plus the first failure detail; failed messages remain in the dead-letter queue.
+- **Added:** A Dead Letter toggle that displays the selected entity's dead-letter queue (the queue's $DeadLetterQueue, or the subscription's queue); the list adds Dead Letter Reason and Dead Letter Source columns, and the expanded message shows the reason, source, and error description.
+- **Changed:** Dead letter mode: its own heading and empty state, Refresh reloads the dead-letter list, and selecting another entity exits the mode.
 - **Changed:** Upgraded dependencies to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
 
 ## 0.48.0 (2026-08-23)
