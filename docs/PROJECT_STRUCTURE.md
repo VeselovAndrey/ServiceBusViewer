@@ -27,7 +27,7 @@ ServiceBusViewer/
 │  │  │  │  ├─ SessionState/                 <-- Initial session-state payload for the current browser session
 │  │  │  │  ├─ Connection/                   <-- Connect/disconnect endpoints
 │  │  │  │  ├─ Entities/                     <-- Queue/topic/subscription details endpoints
-│  │  │  │  └─ Viewer/                       <-- Viewer state, receive, refresh, dead-letter refresh, select, and send endpoints
+│  │  │  │  └─ Viewer/                       <-- Viewer state, receive, refresh, dead-letter refresh, dead-letter republish, select, and send endpoints
 │  │  │  └─ Models/                          <-- API-facing models used at the HTTP boundary
 │  │  ├─ Configuration/                      <-- Application-owned configuration adapters used by backend consumers
 │  │  │  ├─ ApplicationContainerConfiguration.cs <-- Backend service registration composition

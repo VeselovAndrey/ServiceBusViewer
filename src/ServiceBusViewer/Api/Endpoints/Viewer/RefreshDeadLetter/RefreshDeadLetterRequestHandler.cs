@@ -1,4 +1,4 @@
-namespace ServiceBusViewer.Api.Endpoints.Viewer.DeadLetter;
+namespace ServiceBusViewer.Api.Endpoints.Viewer.RefreshDeadLetter;
 
 using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Business.Viewer.Contracts;

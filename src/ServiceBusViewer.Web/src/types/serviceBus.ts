@@ -210,3 +210,18 @@ export type EntityPropertiesDto =
 	| TopicEntityPropertiesDto
 	| SubscriptionEntityPropertiesDto
 	| Record<string, unknown>;
+
+export type RepublishMessageIdStrategy = 'KeepOriginal' | 'AutoGenerate' | 'Guid' | 'GuidV7' | 'Manual';
+
+export interface RepublishDeadLetterRequestDto {
+	messageId: string | null;
+	strategy: RepublishMessageIdStrategy;
+	manualMessageId: string | null;
+}
+
+export interface RepublishDeadLetterResponseDto {
+	succeeded: boolean;
+	affectedCount: number;
+	failedCount: number;
+	detail: string | null;
+}

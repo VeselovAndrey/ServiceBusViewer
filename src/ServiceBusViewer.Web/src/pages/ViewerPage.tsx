@@ -6,6 +6,11 @@ import { CopyFullMessageButton } from '../components/common/CopyFullMessageButto
 import { JsonMessageBody } from '../components/common/JsonMessageBody';
 import { EntitySidebar } from '../components/entities/EntitySidebar';
 import { AppLayout } from '../components/layout/AppLayout';
+import { RepublishManualIdPrompt } from '../components/viewer/RepublishPrompts';
+import {
+	RepublishStrategyMenu,
+	republishStrategyOptions,
+} from '../components/viewer/RepublishStrategyMenu';
 import { SendMessageForm } from '../components/viewer/SendMessageForm';
 import {
 	buildPeekedMessageSummary,
@@ -22,11 +27,14 @@ import { useAppState } from '../state/AppStateContext';
 import type {
 	EntityIdDto,
 	ReceivedMessageApplicationPropertyDto,
+	RepublishDeadLetterRequestDto,
+	RepublishDeadLetterResponseDto,
+	RepublishMessageIdStrategy,
 	SendMessageRequestDto,
 	ViewerState,
 } from '../types/serviceBus';
 
-type ViewerAction = 'disconnect' | 'receive' | 'refresh' | 'send';
+type ViewerAction = 'disconnect' | 'receive' | 'refresh' | 'republish' | 'send';
 
 function buildSendResultMessage(request: SendMessageRequestDto) {
 	const { messageId } = request.sendMessageProperties;
@@ -34,6 +42,16 @@ function buildSendResultMessage(request: SendMessageRequestDto) {
 	return messageId.trim()
 		? `Message '${messageId}' sent successfully.`
 		: 'Message sent successfully.';
+}
+
+function buildRepublishOutcomeMessages(outcome: RepublishDeadLetterResponseDto) {
+	const messages = [
+		`${outcome.succeeded ? 'Republish succeeded.' : 'Republish finished with failures.'} ${outcome.affectedCount} republished, ${outcome.failedCount} failed.`,
+	];
+	if (outcome.detail) {
+		messages.push(outcome.detail);
+	}
+	return messages;
 }
 
 export function ViewerPage() {
@@ -49,6 +67,16 @@ export function ViewerPage() {
 	const [receiveSessionId, setReceiveSessionId] = useState(viewer?.receiveSessionId ?? '');
 	const [deadLetterMode, setDeadLetterMode] = useState(false);
 	const [deadLetterViewer, setDeadLetterViewer] = useState<ViewerState | null>(null);
+	const [republishOutcome, setRepublishOutcome] = useState<RepublishDeadLetterResponseDto | null>(
+		null,
+	);
+	const [republishErrorMessages, setRepublishErrorMessages] = useState<string[]>([]);
+	const [republishPrompt, setRepublishPrompt] = useState<{
+		kind: 'manual';
+		messageId: string;
+	} | null>(null);
+	const [republishTargetRequiresDuplicateDetection, setRepublishTargetRequiresDuplicateDetection] =
+		useState<boolean | null>(null);
 
 	useEffect(() => {
 		if (!sessionState?.isConnected || viewer) {
@@ -100,6 +128,44 @@ export function ViewerPage() {
 
 		return () => window.clearTimeout(timerId);
 	}, [sendResultMessage, sendErrorMessages.length, setViewerState]);
+
+	useEffect(() => {
+		setRepublishTargetRequiresDuplicateDetection(null);
+
+		if (!deadLetterMode) {
+			return;
+		}
+
+		const detailsType = currentViewer?.topicName ? 'Topic' : 'Queue';
+		const detailsName = currentViewer?.topicName ?? currentViewer?.entityName;
+		if (!detailsName) {
+			return;
+		}
+
+		let isDisposed = false;
+		void serviceBusApi
+			.getEntityDetails(detailsType, detailsName, null)
+			.then((details) => {
+				if (isDisposed || details.properties === null) {
+					return;
+				}
+
+				const requiresDuplicateDetection =
+					'requiresDuplicateDetection' in details.properties
+						? Boolean(details.properties.requiresDuplicateDetection)
+						: false;
+				setRepublishTargetRequiresDuplicateDetection(requiresDuplicateDetection);
+			})
+			.catch(() => {
+				if (!isDisposed) {
+					setRepublishTargetRequiresDuplicateDetection(null);
+				}
+			});
+
+		return () => {
+			isDisposed = true;
+		};
+	}, [deadLetterMode, currentViewer?.topicName, currentViewer?.entityName]);
 
 	const syncViewer = useCallback(
 		async (nextViewer: ViewerState) => {
@@ -199,6 +265,9 @@ export function ViewerPage() {
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setDeadLetterMode(false);
 			setDeadLetterViewer(null);
+			setRepublishPrompt(null);
+			setRepublishOutcome(null);
+			setRepublishErrorMessages([]);
 			navigate('/viewer', { replace: true });
 		} catch (error: unknown) {
 			setErrorMessages(getErrorMessages(error));
@@ -277,6 +346,74 @@ export function ViewerPage() {
 		if (!succeeded) {
 			throw new Error('The message was not sent.');
 		}
+	};
+
+	const runRepublish = async (request: RepublishDeadLetterRequestDto) => {
+		setPendingAction('republish');
+		setRepublishOutcome(null);
+		setRepublishErrorMessages([]);
+
+		try {
+			const outcome = await serviceBusApi.republishDeadLetter(request);
+			setRepublishOutcome(outcome);
+
+			try {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setExpandedRows(new Set());
+			} catch {
+				setRepublishErrorMessages([
+					'The republish completed, but the dead-letter list could not be refreshed. Use Refresh to try again.',
+				]);
+			}
+		} catch (error: unknown) {
+			setRepublishErrorMessages(getErrorMessages(error));
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const startSingleRepublish = (
+		messageId: string,
+		strategy: RepublishMessageIdStrategy,
+		manualMessageId: string | null = null,
+	) => {
+		void runRepublish({ messageId, strategy, manualMessageId });
+	};
+
+	const singleRepublishStrategyOptions =
+		republishTargetRequiresDuplicateDetection === false
+			? republishStrategyOptions
+			: republishStrategyOptions.filter((option) => option.value !== 'KeepOriginal');
+
+	const bulkRepublishStrategyOptions = singleRepublishStrategyOptions.filter(
+		(option) => option.value !== 'Manual',
+	);
+
+	const handleSingleStrategyPick = (messageId: string, strategy: RepublishMessageIdStrategy) => {
+		if (strategy === 'Manual') {
+			setRepublishPrompt({ kind: 'manual', messageId });
+			return;
+		}
+
+		startSingleRepublish(messageId, strategy);
+	};
+
+	const handleBulkStrategyPick = (strategy: RepublishMessageIdStrategy) => {
+		void runRepublish({ messageId: null, strategy, manualMessageId: null });
+	};
+
+	const handleRepublishPromptCancel = () => {
+		setRepublishPrompt(null);
+	};
+
+	const handleManualPromptConfirm = (manualMessageId: string) => {
+		const prompt = republishPrompt;
+		if (prompt === null) {
+			return;
+		}
+
+		setRepublishPrompt(null);
+		startSingleRepublish(prompt.messageId, 'Manual', manualMessageId);
 	};
 
 	const renderApplicationPropertiesTable = (
@@ -570,7 +707,40 @@ export function ViewerPage() {
 											{peekedMessageSummary}
 										</span>
 									</div>
+
+									{deadLetterMode ? (
+										<RepublishStrategyMenu
+											align="right"
+											ariaBusy={pendingAction === 'republish'}
+											buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 shadow-sm transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300 dark:hover:bg-brand-950/50"
+											buttonContent={
+												<>
+													<span className="material-icons-round text-sm">upload</span>
+													{pendingAction === 'republish' ? 'Republishing...' : 'Republish All'}
+													<span className="material-icons-round text-sm">arrow_drop_down</span>
+												</>
+											}
+											disabled={pendingAction !== null || activeMessages.length === 0}
+											options={bulkRepublishStrategyOptions}
+											onPick={handleBulkStrategyPick}
+										/>
+									) : null}
 								</div>
+
+								{deadLetterMode &&
+								(republishOutcome !== null || republishErrorMessages.length > 0) ? (
+									<div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/30">
+										{republishOutcome ? (
+											<Alert
+												messages={buildRepublishOutcomeMessages(republishOutcome)}
+												tone={republishOutcome.succeeded ? 'success' : 'error'}
+											/>
+										) : null}
+										{republishErrorMessages.length > 0 ? (
+											<Alert messages={republishErrorMessages} tone="error" />
+										) : null}
+									</div>
+								) : null}
 
 								{activeMessages.length ? (
 									<div className="overflow-x-auto">
@@ -660,6 +830,32 @@ export function ViewerPage() {
 																<td className="px-4 py-3">
 																	<div className="flex items-center justify-end gap-2">
 																		<CopyFullMessageButton message={message} />
+																		{deadLetterMode ? (
+																			<RepublishStrategyMenu
+																				align="right"
+																				ariaBusy={pendingAction === 'republish'}
+																				buttonClassName="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+																				buttonContent={
+																					<>
+																						<span className="material-icons-round text-sm">
+																									upload
+																						</span>
+																						<span className="w-14 text-center">Republish</span>
+																						<span className="material-icons-round text-sm">
+																							arrow_drop_down
+																						</span>
+																					</>
+																				}
+																				disabled={pendingAction !== null}
+																				options={singleRepublishStrategyOptions}
+																				onPick={(strategy) =>
+																					handleSingleStrategyPick(
+																						message.properties.messageId,
+																						strategy,
+																					)
+																				}
+																			/>
+																		) : null}
 																		<button
 																			type="button"
 																			className="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
@@ -731,6 +927,14 @@ export function ViewerPage() {
 						</div>
 					</main>
 				</div>
+
+				{republishPrompt ? (
+					<RepublishManualIdPrompt
+						messageId={republishPrompt.messageId}
+						onCancel={handleRepublishPromptCancel}
+						onConfirm={handleManualPromptConfirm}
+					/>
+				) : null}
 			</div>
 		</AppLayout>
 	);
