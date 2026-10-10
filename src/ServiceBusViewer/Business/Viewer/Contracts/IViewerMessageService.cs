@@ -27,6 +27,13 @@ public interface IViewerMessageService
 	/// <returns>The outcome summary of the republish operation.</returns>
 	Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(IViewerSessionState session, string? messageId, RepublishMessageIdStrategy strategy, string? manualMessageId, CancellationToken cancellationToken);
 
+	/// <summary>Permanently deletes the selected entity's dead-lettered messages without re-delivering them.</summary>
+	/// <param name="session">The viewer session state to use.</param>
+	/// <param name="messageId">Message id of the dead-lettered message to drop, or <c>null</c> to drop every message currently in the dead-letter queue.</param>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
+	/// <returns>The outcome summary of the drop operation.</returns>
+	Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(IViewerSessionState session, string? messageId, CancellationToken cancellationToken);
+
 	/// <summary>Receives the next message from the currently selected entity.</summary>
 	/// <param name="session">The viewer session state to update.</param>
 	/// <param name="sessionId">Optional Service Bus session identifier used when the selected entity is session-enabled.</param>

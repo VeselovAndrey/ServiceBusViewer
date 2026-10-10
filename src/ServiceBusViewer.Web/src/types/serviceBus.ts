@@ -225,3 +225,14 @@ export interface RepublishDeadLetterResponseDto {
 	failedCount: number;
 	detail: string | null;
 }
+
+export interface DropDeadLettersRequestDto {
+	messageId: string | null;
+}
+
+export interface DropDeadLettersResponseDto {
+	succeeded: boolean;
+	affectedCount: number;
+	failedCount: number;
+	detail: string | null;
+}

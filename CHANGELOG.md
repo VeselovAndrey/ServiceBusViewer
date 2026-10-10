@@ -1,8 +1,8 @@
 # Service Bus Viewer Version History
 
-## 0.51.0 (2026-10-09)
+## 0.60.0 (2026-10-10)
 
-- **Added:** Republish dead-lettered messages to the original entity, per message, or the entire queue with **Republish All**.
+- **Added:** Republish dead-lettered messages to the original entity or permanently drop them — per message, or the entire dead-letter queue with **Republish All** / **Drop All** (with a confirmation dialog).
 - **Added:** A dropdown on both buttons for how the republished copy's message id is assigned: keep the original (hidden when the target has duplicate detection), Service Bus auto-generate, a new GUID or GUID v7, or a manual id for a single message.
 - **Added:** Republish results show the affected and failed counts plus the first failure detail; failed messages remain in the dead-letter queue.
 - **Added:** A **Dead Letter** toggle that displays the selected entity's dead-letter queue (the queue's **$DeadLetterQueue**, or the subscription's queue); the list adds **Dead Letter Reason** and **Dead Letter Source** columns, and the expanded message shows the reason, source, and error description.
