@@ -60,6 +60,15 @@ public interface IServiceBusConnection : IAsyncDisposable
 	/// <returns>A task that completes with the outcome summary reporting how many messages were moved and how many failed and remain in the dead-letter queue.</returns>
 	Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(EntityId entityId, IReadOnlyCollection<string>? messageIds, RepublishMessageIdStrategy strategy, string? manualMessageId, CancellationToken cancellationToken);
 
+	/// <summary>
+	/// Permanently deletes dead-lettered messages from the requested entity's $DeadLetterQueue without re-delivering them.
+	/// </summary>
+	/// <param name="entityId">Identifier of the entity whose dead-letter queue is dropped from.</param>
+	/// <param name="messageIds">Message ids of the dead-lettered messages to drop, or <c>null</c> to drop every message currently in the dead-letter queue.</param>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
+	/// <returns>A task that completes with the outcome summary reporting how many messages were dropped and how many failed and remain in the dead-letter queue.</returns>
+	Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(EntityId entityId, IReadOnlyCollection<string>? messageIds, CancellationToken cancellationToken);
+
 	/// <summary>Receives the next available message from the requested entity.</summary>
 	/// <param name="entityId">Identifier of the entity to receive from.</param>
 	/// <param name="sessionId">Session id to receive from, or <c>null</c> for non-session receive or next available session.</param>

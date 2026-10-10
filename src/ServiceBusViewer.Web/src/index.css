@@ -256,3 +256,81 @@
     pointer-events: none;
   }
 }
+
+/* Peeked/dead-letter message table: progressively hide secondary columns when the
+   table's own width gets tight. Message ID, Dead Letter Reason, and Actions always stay. */
+.message-table-container {
+  container-type: inline-size;
+}
+
+@container (max-width: 1279px) {
+  .message-table-container .col-partition-key,
+  .message-table-container .col-scheduled-enqueue {
+    display: none;
+  }
+}
+
+@container (max-width: 1079px) {
+  .message-table-container .col-session,
+  .message-table-container .col-content-type {
+    display: none;
+  }
+}
+
+@container (max-width: 919px) {
+  .message-table-container .col-delivery-count,
+  .message-table-container .col-enqueued-time {
+    display: none;
+  }
+}
+
+/* Expanded message property rows mirroring responsively hidden columns:
+   hidden while the column is visible, shown once the column is hidden. */
+.message-table-container .prop-partition-key,
+.message-table-container .prop-session,
+.message-table-container .prop-delivery-count,
+.message-table-container .prop-enqueued-time,
+.message-table-container .prop-content-type {
+  display: none;
+}
+
+@container (max-width: 1279px) {
+  .message-table-container .prop-partition-key {
+    display: table-row;
+  }
+}
+
+@container (max-width: 1079px) {
+  .message-table-container .prop-session,
+  .message-table-container .prop-content-type {
+    display: table-row;
+  }
+}
+
+@container (max-width: 919px) {
+  .message-table-container .prop-delivery-count,
+  .message-table-container .prop-enqueued-time {
+    display: table-row;
+  }
+}
+
+/* Dead-letter mode hides secondary columns earlier; mirrored property rows follow. */
+@container (max-width: 1279px) {
+  .message-table-container.dead-letter .col-session {
+    display: none;
+  }
+  .message-table-container.dead-letter .prop-session {
+    display: table-row;
+  }
+}
+
+@container (max-width: 1079px) {
+  .message-table-container.dead-letter .col-delivery-count,
+  .message-table-container.dead-letter .col-enqueued-time {
+    display: none;
+  }
+  .message-table-container.dead-letter .prop-delivery-count,
+  .message-table-container.dead-letter .prop-enqueued-time {
+    display: table-row;
+  }
+}

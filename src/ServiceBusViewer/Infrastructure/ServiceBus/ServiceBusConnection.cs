@@ -138,7 +138,64 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				break;
 		}
 
-		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, requestedMessageIds, affectedCount, failedCount, failureDetails);
+		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, "republished", requestedMessageIds, affectedCount, failedCount, failureDetails);
+
+		return result;
+	}
+
+	public async Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(
+		EntityId entityId,
+		IReadOnlyCollection<string>? messageIds,
+		CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		EntityProperties entity = GetEntityProperties(entityId);
+		bool isBulk = messageIds is null;
+		HashSet<string> requestedMessageIds = [];
+
+		if (messageIds is not null)
+			requestedMessageIds = [.. messageIds.Distinct(StringComparer.Ordinal)];
+		HashSet<string> seenMessageIds = [];
+		List<string> failureDetails = [];
+		int affectedCount = 0;
+		int failedCount = 0;
+
+		await using ServiceBusReceiver receiver = GetDeadLetterReceiver(entity);
+
+		while (true) {
+			IReadOnlyList<ServiceBusReceivedMessage> batch = await receiver.ReceiveMessagesAsync(10, maxWaitTime: _republishPollWaitTime, cancellationToken: cancellationToken);
+			int unseenRequestedCount = 0;
+
+			foreach (ServiceBusReceivedMessage message in batch) {
+				bool isUnseen = seenMessageIds.Add(message.MessageId);
+				bool isRequested = isBulk || requestedMessageIds.Contains(message.MessageId);
+
+				if (isRequested && isUnseen) {
+					unseenRequestedCount++;
+					(bool succeeded, string? failureDetail) = await DropDeadLetterMessageAsync(receiver, message, cancellationToken);
+
+					if (succeeded) {
+						affectedCount++;
+					}
+					else {
+						failedCount++;
+
+						if (failureDetail is not null)
+							failureDetails.Add(failureDetail);
+					}
+				}
+				else {
+					// A message this operation does not drop, or one already attempted in this operation: return it to visible state in the dead-letter queue.
+					await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
+				}
+			}
+
+			if (batch.Count == 0 || unseenRequestedCount == 0)
+				break;
+		}
+
+		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, "dropped", requestedMessageIds, affectedCount, failedCount, failureDetails);
 
 		return result;
 	}
@@ -298,8 +355,32 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		return (true, null);
 	}
 
+	private static async Task<(bool Succeeded, string? FailureDetail)> DropDeadLetterMessageAsync(
+		ServiceBusReceiver receiver,
+		ServiceBusReceivedMessage message,
+		CancellationToken cancellationToken)
+	{
+		string messageIdLabel = message.MessageId ?? "(no message id)";
+
+		try {
+			// Completing a message on the dead-letter receiver permanently deletes it from the $DeadLetterQueue without re-delivering it.
+			await receiver.CompleteMessageAsync(message, cancellationToken);
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+			throw;
+		}
+		catch (Exception exception) {
+			// The permanent delete failed: return the message to visible state in the dead-letter queue.
+			await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
+			return (false, $"Message '{messageIdLabel}': {exception.Message}");
+		}
+
+		return (true, null);
+	}
+
 	private static DeadLetterOperationResult BuildDeadLetterOperationResult(
 		bool isBulk,
+		string operationVerb,
 		HashSet<string> requestedMessageIds,
 		int affectedCount,
 		int failedCount,
@@ -311,7 +392,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		StringBuilder detail = new();
 
 		if (failedCount > 0) {
-			detail.Append(CultureInfo.InvariantCulture, $"{failedCount} of the requested message(s) could not be republished and remain in the dead-letter queue.");
+			detail.Append(CultureInfo.InvariantCulture, $"{failedCount} of the requested message(s) could not be {operationVerb} and remain in the dead-letter queue.");
 
 			if (failureDetails.Count > 0)
 				detail.Append(CultureInfo.InvariantCulture, $" First failure: {failureDetails[0]}");

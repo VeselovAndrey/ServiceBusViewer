@@ -6,6 +6,7 @@ import { CopyFullMessageButton } from '../components/common/CopyFullMessageButto
 import { JsonMessageBody } from '../components/common/JsonMessageBody';
 import { EntitySidebar } from '../components/entities/EntitySidebar';
 import { AppLayout } from '../components/layout/AppLayout';
+import { DropAllConfirmPrompt, DropSingleConfirmPrompt } from '../components/viewer/DropPrompts';
 import { RepublishManualIdPrompt } from '../components/viewer/RepublishPrompts';
 import {
 	RepublishStrategyMenu,
@@ -25,6 +26,7 @@ import {
 import { getErrorMessages } from '../lib/problemDetails';
 import { useAppState } from '../state/AppStateContext';
 import type {
+	DropDeadLettersResponseDto,
 	EntityIdDto,
 	ReceivedMessageApplicationPropertyDto,
 	RepublishDeadLetterRequestDto,
@@ -34,7 +36,7 @@ import type {
 	ViewerState,
 } from '../types/serviceBus';
 
-type ViewerAction = 'disconnect' | 'receive' | 'refresh' | 'republish' | 'send';
+type ViewerAction = 'disconnect' | 'drop' | 'receive' | 'refresh' | 'republish' | 'send';
 
 function buildSendResultMessage(request: SendMessageRequestDto) {
 	const { messageId } = request.sendMessageProperties;
@@ -47,6 +49,16 @@ function buildSendResultMessage(request: SendMessageRequestDto) {
 function buildRepublishOutcomeMessages(outcome: RepublishDeadLetterResponseDto) {
 	const messages = [
 		`${outcome.succeeded ? 'Republish succeeded.' : 'Republish finished with failures.'} ${outcome.affectedCount} republished, ${outcome.failedCount} failed.`,
+	];
+	if (outcome.detail) {
+		messages.push(outcome.detail);
+	}
+	return messages;
+}
+
+function buildDropOutcomeMessages(outcome: DropDeadLettersResponseDto) {
+	const messages = [
+		`${outcome.succeeded ? 'Drop succeeded.' : 'Drop finished with failures.'} ${outcome.affectedCount} dropped, ${outcome.failedCount} failed.`,
 	];
 	if (outcome.detail) {
 		messages.push(outcome.detail);
@@ -77,6 +89,10 @@ export function ViewerPage() {
 	} | null>(null);
 	const [republishTargetRequiresDuplicateDetection, setRepublishTargetRequiresDuplicateDetection] =
 		useState<boolean | null>(null);
+	const [dropOutcome, setDropOutcome] = useState<DropDeadLettersResponseDto | null>(null);
+	const [dropErrorMessages, setDropErrorMessages] = useState<string[]>([]);
+	const [dropConfirmOpen, setDropConfirmOpen] = useState(false);
+	const [dropSingleTarget, setDropSingleTarget] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (!sessionState?.isConnected || viewer) {
@@ -242,8 +258,9 @@ export function ViewerPage() {
 	const showPartitionKey = activeMessages.some((message) =>
 		Boolean(message.properties.partitionKey),
 	);
+	// Content Type shows only for peeked messages and Dead Letter Reason only in dead-letter mode, so they cancel out.
 	const peekedMessageColumnCount =
-		6 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0) + (deadLetterMode ? 2 : 0);
+		6 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0);
 
 	const handleDisconnect = async () => {
 		await runAction('disconnect', async () => {
@@ -268,6 +285,10 @@ export function ViewerPage() {
 			setRepublishPrompt(null);
 			setRepublishOutcome(null);
 			setRepublishErrorMessages([]);
+			setDropConfirmOpen(false);
+			setDropSingleTarget(null);
+			setDropOutcome(null);
+			setDropErrorMessages([]);
 			navigate('/viewer', { replace: true });
 		} catch (error: unknown) {
 			setErrorMessages(getErrorMessages(error));
@@ -416,6 +437,56 @@ export function ViewerPage() {
 		startSingleRepublish(prompt.messageId, 'Manual', manualMessageId);
 	};
 
+	const runDrop = async (messageId: string | null) => {
+		setPendingAction('drop');
+		setDropOutcome(null);
+		setDropErrorMessages([]);
+
+		try {
+			const outcome = await serviceBusApi.dropDeadLetters({ messageId });
+			setDropOutcome(outcome);
+
+			try {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setExpandedRows(new Set());
+			} catch {
+				setDropErrorMessages([
+					'The drop completed, but the dead-letter list could not be refreshed. Use Refresh to try again.',
+				]);
+			}
+		} catch (error: unknown) {
+			setDropErrorMessages(getErrorMessages(error));
+		} finally {
+			setPendingAction(null);
+		}
+	};
+
+	const handleDropSingle = (messageId: string) => {
+		setDropSingleTarget(messageId);
+	};
+
+	const handleDropSingleConfirm = () => {
+		const messageId = dropSingleTarget;
+		setDropSingleTarget(null);
+
+		if (messageId !== null) {
+			void runDrop(messageId);
+		}
+	};
+
+	const handleDropSingleCancel = () => {
+		setDropSingleTarget(null);
+	};
+
+	const handleDropAllConfirm = () => {
+		setDropConfirmOpen(false);
+		void runDrop(null);
+	};
+
+	const handleDropAllCancel = () => {
+		setDropConfirmOpen(false);
+	};
+
 	const renderApplicationPropertiesTable = (
 		applicationProperties: Record<string, ReceivedMessageApplicationPropertyDto> | null,
 		emptyClassName: string,
@@ -432,7 +503,9 @@ export function ViewerPage() {
 							</tr>
 						</thead>
 						<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-							{Object.entries(applicationProperties).map(([key, property]) => (
+							{Object.entries(applicationProperties)
+								.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+								.map(([key, property]) => (
 								<tr key={key}>
 									<td className="px-4 py-2 font-mono text-xs text-slate-700 dark:text-slate-200">
 										{key}
@@ -709,26 +782,51 @@ export function ViewerPage() {
 									</div>
 
 									{deadLetterMode ? (
-										<RepublishStrategyMenu
-											align="right"
-											ariaBusy={pendingAction === 'republish'}
-											buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 shadow-sm transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300 dark:hover:bg-brand-950/50"
-											buttonContent={
-												<>
-													<span className="material-icons-round text-sm">upload</span>
-													{pendingAction === 'republish' ? 'Republishing...' : 'Republish All'}
-													<span className="material-icons-round text-sm">arrow_drop_down</span>
-												</>
-											}
-											disabled={pendingAction !== null || activeMessages.length === 0}
-											options={bulkRepublishStrategyOptions}
-											onPick={handleBulkStrategyPick}
-										/>
+										<div className="flex items-center gap-2">
+											<RepublishStrategyMenu
+												align="right"
+												ariaBusy={pendingAction === 'republish'}
+												buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 shadow-sm transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300 dark:hover:bg-brand-950/50"
+												buttonContent={
+													<>
+														<span className="material-icons-round text-sm">upload</span>
+														{pendingAction === 'republish' ? 'Republishing...' : 'Republish All'}
+														<span className="material-icons-round text-sm">arrow_drop_down</span>
+													</>
+												}
+												disabled={pendingAction !== null || activeMessages.length === 0}
+												menuTitle="Republish"
+												options={bulkRepublishStrategyOptions}
+												onPick={handleBulkStrategyPick}
+											/>
+											<button
+												type="button"
+												className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+												aria-busy={pendingAction === 'drop'}
+												disabled={
+													pendingAction !== null ||
+													activeMessages.length === 0
+												}
+												onClick={() => {
+													setDropConfirmOpen(true);
+												}}
+											>
+												<span
+													className={`material-icons-round inline-block rotate-180 text-sm${pendingAction === 'drop' ? ' animate-spin' : ''}`}
+												>
+													upload
+												</span>
+												{pendingAction === 'drop' ? 'Dropping...' : 'Drop All'}
+											</button>
+										</div>
 									) : null}
 								</div>
 
 								{deadLetterMode &&
-								(republishOutcome !== null || republishErrorMessages.length > 0) ? (
+								(republishOutcome !== null ||
+									republishErrorMessages.length > 0 ||
+									dropOutcome !== null ||
+									dropErrorMessages.length > 0) ? (
 									<div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/30">
 										{republishOutcome ? (
 											<Alert
@@ -739,23 +837,31 @@ export function ViewerPage() {
 										{republishErrorMessages.length > 0 ? (
 											<Alert messages={republishErrorMessages} tone="error" />
 										) : null}
+										{dropOutcome ? (
+											<Alert
+												messages={buildDropOutcomeMessages(dropOutcome)}
+												tone={dropOutcome.succeeded ? 'success' : 'error'}
+											/>
+										) : null}
+										{dropErrorMessages.length > 0 ? (
+											<Alert messages={dropErrorMessages} tone="error" />
+										) : null}
 									</div>
 								) : null}
 
 								{activeMessages.length ? (
-									<div className="overflow-x-auto">
+									<div className={`message-table-container overflow-x-auto${deadLetterMode ? ' dead-letter' : ''}`}>
 										<table className="min-w-full text-left text-sm">
 											<thead className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
 												<tr>
 													<th className="px-4 py-3 font-medium">Message ID</th>
-													{showPartitionKey && <th className="px-4 py-3 font-medium">Partition Key</th>}
-													<th className="px-4 py-3 font-medium">Session</th>
-													<th className="px-4 py-3 font-medium">Delivery Count</th>
-													<th className="px-4 py-3 font-medium">Enqueued Time / TTL</th>
-													{showScheduledEnqueue && <th className="px-4 py-3 font-medium">Scheduled Enqueue</th>}
-													<th className="px-4 py-3 font-medium">Content Type</th>
+													{showPartitionKey && <th className="col-partition-key px-4 py-3 font-medium">Partition Key</th>}
+													<th className="col-session px-4 py-3 font-medium">Session</th>
+													<th className="col-delivery-count px-4 py-3 font-medium">Delivery Count</th>
+													<th className="col-enqueued-time px-4 py-3 font-medium">Enqueued Time / TTL</th>
+													{showScheduledEnqueue && <th className="col-scheduled-enqueue px-4 py-3 font-medium">Scheduled Enqueue</th>}
+													{!deadLetterMode && <th className="col-content-type px-4 py-3 font-medium">Content Type</th>}
 													{deadLetterMode && <th className="px-4 py-3 font-medium">Dead Letter Reason</th>}
-													{deadLetterMode && <th className="px-4 py-3 font-medium">Dead Letter Source</th>}
 													<th className="px-4 py-3 text-center font-medium">Actions</th>
 												</tr>
 											</thead>
@@ -773,13 +879,32 @@ export function ViewerPage() {
 																],
 														]
 														: [];
-													const propertyRows: Array<[string, string]> = [
+													const propertyRows: Array<[string, string, string?]> = [
 														...deadLetterPropertyRows,
 														['Scheduled Enqueue', formatDateTime(message.properties.scheduledEnqueueTime)],
 														['Correlation ID', formatNullable(message.properties.correlationId)],
+														[
+															'Content Type',
+															formatNullable(message.properties.contentType, 'not set'),
+															deadLetterMode ? undefined : 'prop-content-type',
+														],
 														['Subject', formatNullable(message.properties.subject)],
 														['To', formatNullable(message.properties.to)],
 														['Reply To', formatNullable(message.properties.replyTo)],
+														...(showPartitionKey
+															? ([[
+																'Partition Key',
+																formatNullable(message.properties.partitionKey),
+																'prop-partition-key',
+															]] as Array<[string, string, string?]>)
+															: []),
+														['Session', formatNullable(message.properties.sessionId, 'No session'), 'prop-session'],
+														['Delivery Count', String(message.properties.deliveryCount), 'prop-delivery-count'],
+														[
+															'Enqueued Time / TTL',
+															`${formatDateTime(message.properties.enqueuedTimeUtc)} (TTL: ${formatNullable(message.properties.timeToLive)})`,
+															'prop-enqueued-time',
+														],
 													];
 
 													return (
@@ -791,40 +916,37 @@ export function ViewerPage() {
 																	</div>
 																</td>
 																{showPartitionKey && (
-																	<td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-200">
+																	<td className="col-partition-key px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{formatNullable(message.properties.partitionKey)}
 																	</td>
 																)}
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																<td className="col-session px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{formatNullable(message.properties.sessionId, 'No session')}
 																</td>
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																<td className="col-delivery-count px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{message.properties.deliveryCount}
 																</td>
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																<td className="col-enqueued-time px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{formatDateTimeShort(message.properties.enqueuedTimeUtc)}
 																	<div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
 																		TTL: {formatNullable(message.properties.timeToLive)}
 																	</div>
 																</td>
 																{showScheduledEnqueue && (
-																	<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																	<td className="col-scheduled-enqueue px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																		{message.properties.scheduledEnqueueTime
 																			? formatDateTimeShort(message.properties.scheduledEnqueueTime)
 																			: 'n/a'}
 																	</td>
 																)}
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-																	{formatNullable(message.properties.contentType, 'not set')}
-																</td>
-																{deadLetterMode && (
-																	<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-																		{formatNullable(message.properties.deadLetterReason)}
+																{!deadLetterMode && (
+																	<td className="col-content-type px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																		{formatNullable(message.properties.contentType, 'not set')}
 																	</td>
 																)}
 																{deadLetterMode && (
 																	<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-																		{formatNullable(message.properties.deadLetterSource)}
+																		{formatNullable(message.properties.deadLetterReason)}
 																	</td>
 																)}
 																<td className="px-4 py-3">
@@ -840,13 +962,14 @@ export function ViewerPage() {
 																						<span className="material-icons-round text-sm">
 																									upload
 																						</span>
-																						<span className="w-14 text-center">Republish</span>
 																						<span className="material-icons-round text-sm">
 																							arrow_drop_down
 																						</span>
 																					</>
 																				}
+																				buttonTitle="Republish"
 																				disabled={pendingAction !== null}
+																				menuTitle="Republish"
 																				options={singleRepublishStrategyOptions}
 																				onPick={(strategy) =>
 																					handleSingleStrategyPick(
@@ -856,15 +979,34 @@ export function ViewerPage() {
 																				}
 																			/>
 																		) : null}
+																		{deadLetterMode ? (
+																			<button
+																				type="button"
+																				aria-label="Drop"
+																				className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-rose-100 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+																				disabled={pendingAction !== null}
+																				title="Drop"
+																				onClick={() =>
+																					handleDropSingle(
+																						message.properties.messageId,
+																						)
+																				}
+																			>
+																				<span className="material-icons-round inline-block rotate-180 text-sm">
+																					upload
+																				</span>
+																			</button>
+																		) : null}
 																		<button
 																			type="button"
-																			className="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+																			aria-label={isExpanded ? 'Collapse message details' : 'Expand message details'}
+																			title={isExpanded ? 'Collapse' : 'Expand'}
+																			className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
 																			onClick={() => toggleExpandedRow(rowKey)}
 																		>
 																			<span className="material-icons-round text-sm">
 																				{isExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
 																			</span>
-																			<span className="w-14 text-center">{isExpanded ? 'Collapse' : 'Expand'}</span>
 																		</button>
 																	</div>
 																</td>
@@ -882,8 +1024,10 @@ export function ViewerPage() {
 																						</tr>
 																					</thead>
 																					<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-																						{propertyRows.map(([label, value]) => (
-																							<tr key={`${rowKey}-${label}`}>
+																						{[...propertyRows]
+																					.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+																					.map(([label, value, rowClassName]) => (
+																							<tr key={`${rowKey}-${label}`} className={rowClassName}>
 																								<th className="w-44 whitespace-nowrap bg-white px-4 py-2 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
 																									{label}
 																								</th>
@@ -933,6 +1077,22 @@ export function ViewerPage() {
 						messageId={republishPrompt.messageId}
 						onCancel={handleRepublishPromptCancel}
 						onConfirm={handleManualPromptConfirm}
+					/>
+				) : null}
+
+				{dropConfirmOpen ? (
+					<DropAllConfirmPrompt
+						onCancel={handleDropAllCancel}
+						onConfirm={handleDropAllConfirm}
+						visibleCount={deadLetterViewer?.messages.length ?? 0}
+					/>
+				) : null}
+
+				{dropSingleTarget !== null ? (
+					<DropSingleConfirmPrompt
+						messageId={dropSingleTarget}
+						onCancel={handleDropSingleCancel}
+						onConfirm={handleDropSingleConfirm}
 					/>
 				) : null}
 			</div>

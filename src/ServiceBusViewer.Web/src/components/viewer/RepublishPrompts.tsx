@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
 interface PromptDialogShellProps {
+	confirmClassName?: string;
 	confirmDisabled?: boolean;
 	confirmLabel?: string;
 	description?: string | null;
@@ -10,8 +11,9 @@ interface PromptDialogShellProps {
 	children: ReactNode;
 }
 
-function PromptDialogShell({
+export function PromptDialogShell({
 	children,
+	confirmClassName = 'rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60',
 	confirmDisabled = false,
 	confirmLabel = 'Republish',
 	description = null,
@@ -62,7 +64,7 @@ function PromptDialogShell({
 					</button>
 					<button
 						type="button"
-						className="rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
+						className={confirmClassName}
 						disabled={confirmDisabled}
 						onClick={onConfirm}
 					>

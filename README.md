@@ -11,6 +11,7 @@ The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Asp
 - Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
 - View the selected entity's dead-lettered messages with their dead-letter reason and source, and refresh the dead-letter list as the queue's contents change.
 - Republish dead-lettered messages to the original entity, one at a time or in bulk, choosing how the republished copy's message id is assigned.
+- Drop dead-lettered messages, one at a time or the entire dead-letter queue with a confirmation, with the affected and failed counts reported for the operation.
 - View message bodies, system properties, and application properties, with client-side JSON formatting.
 - Copy a received or peeked message body as plain text, or copy the full message as JSON including system and application properties.
 - Send messages to queues or topics with system properties and typed application properties.
@@ -96,9 +97,9 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 0.51.0 (2026-10-09)
+## 0.60.0 (2026-10-10)
 
-- **Added:** Republish dead-lettered messages to the original entity, per message, or the entire queue with Republish All.
+- **Added:** Republish dead-lettered messages to the original entity or permanently drop them — per message, or the entire dead-letter queue with Republish All / Drop All (with a confirmation dialog).
 - **Added:** A dropdown on both buttons for how the republished copy's message id is assigned: keep the original (hidden when the target has duplicate detection), Service Bus auto-generate, a new GUID or GUID v7, or a manual id for a single message.
 - **Added:** Republish results show the affected and failed counts plus the first failure detail; failed messages remain in the dead-letter queue.
 - **Added:** A Dead Letter toggle that displays the selected entity's dead-letter queue (the queue's $DeadLetterQueue, or the subscription's queue); the list adds Dead Letter Reason and Dead Letter Source columns, and the expanded message shows the reason, source, and error description.

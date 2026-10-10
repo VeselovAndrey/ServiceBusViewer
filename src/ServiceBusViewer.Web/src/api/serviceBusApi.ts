@@ -1,5 +1,7 @@
 import type {
 	ConnectRequestDto,
+	DropDeadLettersRequestDto,
+	DropDeadLettersResponseDto,
 	EntityDetailsDto,
 	EntityIdDto,
 	ReceiveRequestDto,
@@ -84,6 +86,12 @@ export const serviceBusApi = {
 	},
 	republishDeadLetter(request: RepublishDeadLetterRequestDto) {
 		return requestJson<RepublishDeadLetterResponseDto>('/viewer/republish-dlq', {
+			method: 'POST',
+			body: JSON.stringify(request),
+		});
+	},
+	dropDeadLetters(request: DropDeadLettersRequestDto) {
+		return requestJson<DropDeadLettersResponseDto>('/viewer/drop-dlq', {
 			method: 'POST',
 			body: JSON.stringify(request),
 		});

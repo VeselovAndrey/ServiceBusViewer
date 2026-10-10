@@ -110,6 +110,29 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 		}
 	}
 
+	/// <inheritdoc/>
+	public async Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(
+		IViewerSessionState session,
+		string? messageId,
+		CancellationToken cancellationToken)
+	{
+		await session.Gate.WaitAsync(cancellationToken);
+
+		try {
+			using var operationCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.ConnectionCancellationToken);
+			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
+			EntityId entityId = session.SelectedEntityId ?? throw new InvalidOperationException("No entity selected.");
+
+			return await connection.DropDeadLetterMessagesAsync(
+				entityId,
+				messageId is null ? null : [messageId],
+				operationCancellationSource.Token);
+		}
+		finally {
+			session.Gate.Release();
+		}
+	}
+
 	/// <summary>
 	/// Resolves the original entity that a dead-lettered message is republished to: the entity's own queue or the parent topic when the entity is a
 	/// subscription. Topic-level dead-letter messages have no original entity and are not supported.
