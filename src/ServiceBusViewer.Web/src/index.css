@@ -243,16 +243,23 @@
   .send-form-transition {
     max-height: 220rem;
     opacity: 1;
+    visibility: visible;
     overflow: hidden;
     transition:
       max-height 0.3s ease,
-      opacity 0.3s ease;
+      opacity 0.3s ease,
+      visibility 0s linear 0s;
   }
 
   .send-form-transition.js-send-form-hidden {
     max-height: 0;
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
+    transition:
+      max-height 0.3s ease,
+      opacity 0.3s ease,
+      visibility 0s linear 0.3s;
   }
 }
 
