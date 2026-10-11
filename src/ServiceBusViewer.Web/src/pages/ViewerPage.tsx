@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { serviceBusApi } from '../api/serviceBusApi';
 import { Alert } from '../components/common/Alert';
@@ -38,6 +38,15 @@ import type {
 
 type ViewerAction = 'disconnect' | 'drop' | 'receive' | 'refresh' | 'republish' | 'send';
 
+// Number of dead-letter messages each bounded bulk step processes per request (decided in Task 25-01).
+const BULK_STEP_SIZE = 100;
+
+interface BulkOperationProgress {
+	operation: 'drop' | 'republish';
+	processed: number;
+	failed: number;
+}
+
 function buildSendResultMessage(request: SendMessageRequestDto) {
 	const { messageId } = request.sendMessageProperties;
 
@@ -46,9 +55,9 @@ function buildSendResultMessage(request: SendMessageRequestDto) {
 		: 'Message sent successfully.';
 }
 
-function buildRepublishOutcomeMessages(outcome: RepublishDeadLetterResponseDto) {
+function buildRepublishOutcomeMessages(outcome: RepublishDeadLetterResponseDto, cancelled: boolean) {
 	const messages = [
-		`${outcome.succeeded ? 'Republish succeeded.' : 'Republish finished with failures.'} ${outcome.affectedCount} republished, ${outcome.failedCount} failed.`,
+		`${cancelled ? 'Republish cancelled.' : outcome.succeeded ? 'Republish succeeded.' : 'Republish finished with failures.'} ${outcome.affectedCount} republished, ${outcome.failedCount} failed.`,
 	];
 	if (outcome.detail) {
 		messages.push(outcome.detail);
@@ -56,9 +65,9 @@ function buildRepublishOutcomeMessages(outcome: RepublishDeadLetterResponseDto) 
 	return messages;
 }
 
-function buildDropOutcomeMessages(outcome: DropDeadLettersResponseDto) {
+function buildDropOutcomeMessages(outcome: DropDeadLettersResponseDto, cancelled: boolean) {
 	const messages = [
-		`${outcome.succeeded ? 'Drop succeeded.' : 'Drop finished with failures.'} ${outcome.affectedCount} dropped, ${outcome.failedCount} failed.`,
+		`${cancelled ? 'Drop cancelled.' : outcome.succeeded ? 'Drop succeeded.' : 'Drop finished with failures.'} ${outcome.affectedCount} dropped, ${outcome.failedCount} failed.`,
 	];
 	if (outcome.detail) {
 		messages.push(outcome.detail);
@@ -82,6 +91,7 @@ export function ViewerPage() {
 	const [republishOutcome, setRepublishOutcome] = useState<RepublishDeadLetterResponseDto | null>(
 		null,
 	);
+	const [republishCancelled, setRepublishCancelled] = useState(false);
 	const [republishErrorMessages, setRepublishErrorMessages] = useState<string[]>([]);
 	const [republishPrompt, setRepublishPrompt] = useState<{
 		kind: 'manual';
@@ -90,9 +100,14 @@ export function ViewerPage() {
 	const [republishTargetRequiresDuplicateDetection, setRepublishTargetRequiresDuplicateDetection] =
 		useState<boolean | null>(null);
 	const [dropOutcome, setDropOutcome] = useState<DropDeadLettersResponseDto | null>(null);
+	const [dropCancelled, setDropCancelled] = useState(false);
 	const [dropErrorMessages, setDropErrorMessages] = useState<string[]>([]);
 	const [dropConfirmOpen, setDropConfirmOpen] = useState(false);
 	const [dropSingleTarget, setDropSingleTarget] = useState<string | null>(null);
+	const [bulkProgress, setBulkProgress] = useState<BulkOperationProgress | null>(null);
+	const bulkCancelRequestedRef = useRef(false);
+	const [removingMessageIds, setRemovingMessageIds] = useState<Map<string, 'drop' | 'republish'>>(new Map());
+	const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (!sessionState?.isConnected || viewer) {
@@ -248,10 +263,18 @@ export function ViewerPage() {
 		};
 	const activeMessageSource = deadLetterMode ? deadLetterViewer : currentViewer;
 	const activeMessages = activeMessageSource?.messages ?? [];
-	const peekedMessageSummary = buildPeekedMessageSummary(
-		activeMessages,
-		activeMessageSource?.hasMoreMessages ?? false,
-	);
+	// Drop/republish buttons stay disabled while any operation runs, including the row-removal
+	// animation window after a single republish succeeds (pendingAction already cleared by then).
+	const deadLetterOperationInProgress = pendingAction !== null || removingMessageIds.size > 0;
+	// With management access, the total count comes from runtime properties, so no full read is needed; it covers the live list and the dead-letter list alike.
+	const totalMessageCount = activeMessageSource?.totalMessageCount ?? null;
+	const peekedMessageSummary =
+		totalMessageCount !== null && (activeMessageSource?.hasMoreMessages ?? false)
+			? `Showing first ${activeMessages.length} of ${totalMessageCount}${deadLetterMode ? ' dead-lettered' : ''}`
+			: buildPeekedMessageSummary(
+				activeMessages,
+				activeMessageSource?.hasMoreMessages ?? false,
+			);
 	const showScheduledEnqueue = activeMessages.some((message) =>
 		Boolean(message.properties.scheduledEnqueueTime),
 	);
@@ -284,11 +307,14 @@ export function ViewerPage() {
 			setDeadLetterViewer(null);
 			setRepublishPrompt(null);
 			setRepublishOutcome(null);
+			setRepublishCancelled(false);
 			setRepublishErrorMessages([]);
 			setDropConfirmOpen(false);
 			setDropSingleTarget(null);
 			setDropOutcome(null);
+			setDropCancelled(false);
 			setDropErrorMessages([]);
+			setBulkSuccessMessage(null);
 			navigate('/viewer', { replace: true });
 		} catch (error: unknown) {
 			setErrorMessages(getErrorMessages(error));
@@ -298,6 +324,7 @@ export function ViewerPage() {
 	};
 
 	const handleRefresh = async () => {
+		setBulkSuccessMessage(null);
 		await runAction('refresh', async () => {
 			if (deadLetterMode) {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
@@ -312,6 +339,7 @@ export function ViewerPage() {
 	};
 
 	const handleToggleDeadLetter = async () => {
+		setBulkSuccessMessage(null);
 		if (!deadLetterMode) {
 			await runAction('refresh', async () => {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
@@ -370,13 +398,69 @@ export function ViewerPage() {
 	};
 
 	const runRepublish = async (request: RepublishDeadLetterRequestDto) => {
+		const isBulk = request.messageId === null;
 		setPendingAction('republish');
 		setRepublishOutcome(null);
+		setRepublishCancelled(false);
 		setRepublishErrorMessages([]);
+		bulkCancelRequestedRef.current = false;
+
+		if (isBulk) {
+			setBulkProgress({ operation: 'republish', processed: 0, failed: 0 });
+		}
+
+		let totalAffected = 0;
+		let totalFailed = 0;
+		let detail: string | null = null;
+		let allStepsSucceeded = true;
+		let cancelled = false;
 
 		try {
-			const outcome = await serviceBusApi.republishDeadLetter(request);
-			setRepublishOutcome(outcome);
+			// A bulk republish runs as a sequence of bounded requests; the loop stops when a step processes
+			// zero messages or the user cancels. Single-message republish stays one unbounded request.
+			while (true) {
+				const step = await serviceBusApi.republishDeadLetter(
+					isBulk ? { ...request, maxCount: BULK_STEP_SIZE } : request,
+				);
+				totalAffected += step.affectedCount;
+				totalFailed += step.failedCount;
+				allStepsSucceeded = allStepsSucceeded && step.succeeded;
+				detail = step.detail ?? detail;
+
+				if (!isBulk) {
+					break;
+				}
+
+				setBulkProgress({ operation: 'republish', processed: totalAffected + totalFailed, failed: totalFailed });
+
+				if (bulkCancelRequestedRef.current) {
+					cancelled = true;
+					break;
+				}
+
+				if (step.affectedCount + step.failedCount === 0) {
+					break;
+				}
+			}
+
+			const republishSucceeded = !cancelled && allStepsSucceeded;
+
+			if (!isBulk && republishSucceeded) {
+				animateAndRemoveMessage(request.messageId!, 'republish');
+				return;
+			}
+
+			if (isBulk && republishSucceeded) {
+				setBulkSuccessMessage('All dead-lettered messages republished.');
+			} else {
+				setRepublishCancelled(cancelled);
+				setRepublishOutcome({
+					succeeded: republishSucceeded,
+					affectedCount: totalAffected,
+					failedCount: totalFailed,
+					detail,
+				});
+			}
 
 			try {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
@@ -387,8 +471,17 @@ export function ViewerPage() {
 				]);
 			}
 		} catch (error: unknown) {
+			if (isBulk && totalAffected + totalFailed > 0) {
+				setRepublishOutcome({
+					succeeded: false,
+					affectedCount: totalAffected,
+					failedCount: totalFailed,
+					detail,
+				});
+			}
 			setRepublishErrorMessages(getErrorMessages(error));
 		} finally {
+			setBulkProgress(null);
 			setPendingAction(null);
 		}
 	};
@@ -438,13 +531,69 @@ export function ViewerPage() {
 	};
 
 	const runDrop = async (messageId: string | null) => {
+		const isBulk = messageId === null;
 		setPendingAction('drop');
 		setDropOutcome(null);
+		setDropCancelled(false);
 		setDropErrorMessages([]);
+		bulkCancelRequestedRef.current = false;
+
+		if (isBulk) {
+			setBulkProgress({ operation: 'drop', processed: 0, failed: 0 });
+		}
+
+		let totalAffected = 0;
+		let totalFailed = 0;
+		let detail: string | null = null;
+		let allStepsSucceeded = true;
+		let cancelled = false;
 
 		try {
-			const outcome = await serviceBusApi.dropDeadLetters({ messageId });
-			setDropOutcome(outcome);
+			// A bulk drop runs as a sequence of bounded requests; the loop stops when a step processes
+			// zero messages or the user cancels. Single-message drop stays one unbounded request.
+			while (true) {
+				const step = await serviceBusApi.dropDeadLetters(
+					isBulk ? { messageId, maxCount: BULK_STEP_SIZE } : { messageId },
+				);
+				totalAffected += step.affectedCount;
+				totalFailed += step.failedCount;
+				allStepsSucceeded = allStepsSucceeded && step.succeeded;
+				detail = step.detail ?? detail;
+
+				if (!isBulk) {
+					break;
+				}
+
+				setBulkProgress({ operation: 'drop', processed: totalAffected + totalFailed, failed: totalFailed });
+
+				if (bulkCancelRequestedRef.current) {
+					cancelled = true;
+					break;
+				}
+
+				if (step.affectedCount + step.failedCount === 0) {
+					break;
+				}
+			}
+
+			const dropSucceeded = !cancelled && allStepsSucceeded;
+
+			if (!isBulk && dropSucceeded) {
+				animateAndRemoveMessage(messageId!, 'drop');
+				return;
+			}
+
+			if (isBulk && dropSucceeded) {
+				setBulkSuccessMessage('All dead-lettered messages dropped.');
+			} else {
+				setDropCancelled(cancelled);
+				setDropOutcome({
+					succeeded: dropSucceeded,
+					affectedCount: totalAffected,
+					failedCount: totalFailed,
+					detail,
+				});
+			}
 
 			try {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
@@ -455,10 +604,66 @@ export function ViewerPage() {
 				]);
 			}
 		} catch (error: unknown) {
+			if (isBulk && totalAffected + totalFailed > 0) {
+				setDropOutcome({
+					succeeded: false,
+					affectedCount: totalAffected,
+					failedCount: totalFailed,
+					detail,
+				});
+			}
 			setDropErrorMessages(getErrorMessages(error));
 		} finally {
+			setBulkProgress(null);
 			setPendingAction(null);
 		}
+	};
+
+	const handleBulkCancel = () => {
+		bulkCancelRequestedRef.current = true;
+	};
+
+	const removeMessageFromList = (messageId: string) => {
+		setDeadLetterViewer((current) => {
+			if (!current) {
+				return current;
+			}
+
+			return {
+				...current,
+				messages: current.messages.filter(
+					(message) => message.properties.messageId !== messageId,
+				),
+				totalMessageCount:
+					current.totalMessageCount !== null ? current.totalMessageCount - 1 : null,
+			};
+		});
+	};
+
+	// A successfully dropped or republished single message animates out of the list instead of a full
+	// refresh: drop turns the row gray and soft before shrinking it to zero; republish shrinks directly.
+	const animateAndRemoveMessage = (messageId: string, variant: 'drop' | 'republish') => {
+		setRemovingMessageIds((current) => new Map(current).set(messageId, variant));
+		window.setTimeout(() => {
+			removeMessageFromList(messageId);
+			setRemovingMessageIds((current) => {
+				const next = new Map(current);
+				next.delete(messageId);
+				return next;
+			});
+		}, 300);
+	};
+
+	const dismissRepublishFeedback = () => {
+		setRepublishOutcome(null);
+		setRepublishCancelled(false);
+		setRepublishErrorMessages([]);
+	};
+
+	const dismissDropFeedback = () => {
+		setDropOutcome(null);
+		setDropCancelled(false);
+		setDropErrorMessages([]);
 	};
 
 	const handleDropSingle = (messageId: string) => {
@@ -794,7 +999,7 @@ export function ViewerPage() {
 														<span className="material-icons-round text-sm">arrow_drop_down</span>
 													</>
 												}
-												disabled={pendingAction !== null || activeMessages.length === 0}
+												disabled={deadLetterOperationInProgress || activeMessages.length === 0}
 												menuTitle="Republish"
 												options={bulkRepublishStrategyOptions}
 												onPick={handleBulkStrategyPick}
@@ -804,16 +1009,14 @@ export function ViewerPage() {
 												className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
 												aria-busy={pendingAction === 'drop'}
 												disabled={
-													pendingAction !== null ||
+													deadLetterOperationInProgress ||
 													activeMessages.length === 0
 												}
 												onClick={() => {
 													setDropConfirmOpen(true);
 												}}
 											>
-												<span
-													className={`material-icons-round inline-block rotate-180 text-sm${pendingAction === 'drop' ? ' animate-spin' : ''}`}
-												>
+												<span className="material-icons-round inline-block rotate-180 text-sm">
 													upload
 												</span>
 												{pendingAction === 'drop' ? 'Dropping...' : 'Drop All'}
@@ -823,33 +1026,58 @@ export function ViewerPage() {
 								</div>
 
 								{deadLetterMode &&
-								(republishOutcome !== null ||
+								((republishOutcome !== null && !republishOutcome.succeeded) ||
 									republishErrorMessages.length > 0 ||
-									dropOutcome !== null ||
+									(dropOutcome !== null && !dropOutcome.succeeded) ||
 									dropErrorMessages.length > 0) ? (
 									<div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/30">
-										{republishOutcome ? (
+										{republishOutcome && !republishOutcome.succeeded ? (
 											<Alert
-												messages={buildRepublishOutcomeMessages(republishOutcome)}
-												tone={republishOutcome.succeeded ? 'success' : 'error'}
+												messages={buildRepublishOutcomeMessages(republishOutcome, republishCancelled)}
+												tone="error"
+												onDismiss={dismissRepublishFeedback}
 											/>
 										) : null}
 										{republishErrorMessages.length > 0 ? (
-											<Alert messages={republishErrorMessages} tone="error" />
+											<Alert messages={republishErrorMessages} tone="error" onDismiss={dismissRepublishFeedback} />
 										) : null}
-										{dropOutcome ? (
+										{dropOutcome && !dropOutcome.succeeded ? (
 											<Alert
-												messages={buildDropOutcomeMessages(dropOutcome)}
-												tone={dropOutcome.succeeded ? 'success' : 'error'}
+												messages={buildDropOutcomeMessages(dropOutcome, dropCancelled)}
+												tone="error"
+												onDismiss={dismissDropFeedback}
 											/>
 										) : null}
 										{dropErrorMessages.length > 0 ? (
-											<Alert messages={dropErrorMessages} tone="error" />
+											<Alert messages={dropErrorMessages} tone="error" onDismiss={dismissDropFeedback} />
 										) : null}
 									</div>
 								) : null}
 
-								{activeMessages.length ? (
+								{deadLetterMode && bulkProgress ? (
+								<div
+									aria-live="polite"
+									className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-brand-50/60 px-4 py-3 dark:border-slate-800 dark:bg-brand-950/20"
+								>
+									<div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+										<span className="material-icons-round animate-spin text-sm text-brand-500">
+											refresh
+										</span>
+										{bulkProgress.operation === 'republish' ? 'Republishing' : 'Dropping'} dead-lettered
+										messages: {bulkProgress.processed} processed, {bulkProgress.failed} failed
+									</div>
+									<button
+										type="button"
+										className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+										onClick={handleBulkCancel}
+									>
+										<span className="material-icons-round text-sm">close</span>
+										Cancel
+									</button>
+								</div>
+							) : null}
+
+							{activeMessages.length ? (
 									<div className={`message-table-container overflow-x-auto${deadLetterMode ? ' dead-letter' : ''}`}>
 										<table className="min-w-full text-left text-sm">
 											<thead className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
@@ -909,7 +1137,7 @@ export function ViewerPage() {
 
 													return (
 														<Fragment key={rowKey}>
-															<tr className="align-top transition hover:bg-slate-50 dark:hover:bg-slate-950/40">
+															<tr className={`align-top transition hover:bg-slate-50 dark:hover:bg-slate-950/40${removingMessageIds.get(message.properties.messageId) === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId) ? ' message-row-removing' : ''}`}>
 																<td className="px-4 py-3">
 																	<div className="font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{message.properties.messageId}
@@ -968,7 +1196,7 @@ export function ViewerPage() {
 																					</>
 																				}
 																				buttonTitle="Republish"
-																				disabled={pendingAction !== null}
+																				disabled={deadLetterOperationInProgress}
 																				menuTitle="Republish"
 																				options={singleRepublishStrategyOptions}
 																				onPick={(strategy) =>
@@ -984,7 +1212,7 @@ export function ViewerPage() {
 																				type="button"
 																				aria-label="Drop"
 																				className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-rose-100 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
-																				disabled={pendingAction !== null}
+																				disabled={deadLetterOperationInProgress}
 																				title="Drop"
 																				onClick={() =>
 																					handleDropSingle(
@@ -1061,9 +1289,9 @@ export function ViewerPage() {
 								) : (
 									<div className="p-6">
 										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
-											{deadLetterMode
+											{bulkSuccessMessage ?? (deadLetterMode
 												? 'No dead-lettered messages found.'
-												: 'No messages found.'}
+												: 'No messages found.')}
 										</div>
 									</div>
 								)}

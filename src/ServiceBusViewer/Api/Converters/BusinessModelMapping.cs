@@ -53,8 +53,17 @@ internal static class BusinessModelMapping
 
 	/// <summary>Maps business-contract viewer state to an API response model.</summary>
 	internal static ViewerState ToApiModel(this BusinessViewerState state)
-		=> new(
-			state.ServiceBusHostName, state.EntityName, state.TopicName, state.RequiresSession, state.IsManagementApiAvailable,
-			[.. state.AvailableEntities.Select(entity => entity.ToApiModel())], [.. state.Messages.Select(message => message.ToApiModel())], state.HasMoreMessages,
-			state.DisplayedMessage?.ToApiModel(), state.SendResultMessage, state.ReceiveSessionId);
+		=> new ViewerState(
+			state.ServiceBusHostName,
+			state.EntityName,
+			state.TopicName,
+			state.RequiresSession,
+			state.IsManagementApiAvailable,
+			[.. state.AvailableEntities.Select(entity => entity.ToApiModel())],
+			[.. state.Messages.Select(message => message.ToApiModel())],
+			state.HasMoreMessages,
+			state.DisplayedMessage?.ToApiModel(),
+			state.SendResultMessage,
+			state.ReceiveSessionId,
+			state.TotalMessageCount);
 }

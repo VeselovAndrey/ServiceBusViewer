@@ -16,6 +16,7 @@ internal static class DropDeadLettersRequestHandler
 		DeadLetterOperationResult result = await service.DropDeadLetterMessagesAsync(
 			context.GetClientSessionState(),
 			request.MessageId,
+			request.MaxCount,
 			cancellationToken);
 
 		return TypedResults.Ok(new DropDeadLettersResponse(result.Succeeded, result.AffectedCount, result.FailedCount, result.Detail));

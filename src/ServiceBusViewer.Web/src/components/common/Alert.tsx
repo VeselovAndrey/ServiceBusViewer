@@ -4,6 +4,7 @@ interface AlertProps {
   className?: string;
   messages: string[];
   tone: 'error' | 'success';
+  onDismiss?: () => void;
 }
 
 const toneClasses = {
@@ -46,7 +47,7 @@ const iconMarkup = {
   ),
 } as const;
 
-export function Alert({ className, messages, tone }: AlertProps) {
+export function Alert({ className, messages, tone, onDismiss }: AlertProps) {
   if (messages.length === 0) {
     return null;
   }
@@ -57,11 +58,25 @@ export function Alert({ className, messages, tone }: AlertProps) {
     <div className={cx('rounded-2xl border px-4 py-3 text-sm', toneClasses[tone], className)}>
       <div className={cx('flex gap-3', layoutClassName)}>
         {iconMarkup[tone]}
-        <div className="space-y-1">
+        <div className="flex-1 space-y-1">
           {messages.map((message, index) => (
             <div key={`${tone}-${index}`}>{message}</div>
           ))}
         </div>
+        {onDismiss ? (
+          <button
+            type="button"
+            aria-label="Dismiss"
+            title="Dismiss"
+            className={cx(
+              'ml-auto inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current dark:hover:bg-white/10',
+              messages.length === 1 ? '' : '-mt-0.5',
+            )}
+            onClick={onDismiss}
+          >
+            <span className="material-icons-round text-base">close</span>
+          </button>
+        ) : null}
       </div>
     </div>
   );

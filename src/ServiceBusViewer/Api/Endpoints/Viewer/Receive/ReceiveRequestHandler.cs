@@ -38,6 +38,7 @@ internal static class ReceiveRequestHandler
 			response.HasMoreMessages,
 			response.DisplayedMessage,
 			response.SendResultMessage,
-			response.ReceiveSessionId);
+			response.ReceiveSessionId,
+			response.TotalMessageCount);
 	}
 }

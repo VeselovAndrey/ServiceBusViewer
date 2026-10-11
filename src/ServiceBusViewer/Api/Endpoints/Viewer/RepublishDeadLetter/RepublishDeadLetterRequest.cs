@@ -9,10 +9,13 @@ using System.Diagnostics.CodeAnalysis;
 /// <param name="MessageId">Id of the single dead-lettered message to republish, or null to republish every dead-lettered message.</param>
 /// <param name="Strategy">Message id strategy (KeepOriginal, AutoGenerate, Guid, GuidV7, or Manual), bound case-insensitively from its JSON string value.</param>
 /// <param name="ManualMessageId">The manually provided message id when the strategy is Manual.</param>
+/// <param name="MaxCount">Maximum number of messages a bulk republish processes in this request, or null for an unbounded bulk republish; must be a
+/// positive integer when set. Meaningful only for bulk requests (MessageId null).</param>
 public sealed record RepublishDeadLetterRequest(
 	string? MessageId,
 	RepublishMessageIdStrategy? Strategy,
-	string? ManualMessageId);
+	string? ManualMessageId,
+	int? MaxCount);
 
 /// <summary>Message id strategy for republishing dead-lettered messages; API-bound copy of the business contract enum with identical members.</summary>
 public enum RepublishMessageIdStrategy
@@ -57,6 +60,10 @@ internal static class RepublishDeadLetterRequestValidator
 			if (string.IsNullOrWhiteSpace(request.ManualMessageId))
 				local[nameof(request.ManualMessageId)] = ["A manual message id is required when the strategy is Manual."];
 		}
+
+		// MaxCount is either null (unbounded, current behavior) or a positive integer; zero and negative values are rejected.
+		if (request.MaxCount <= 0)
+			local[nameof(request.MaxCount)] = ["MaxCount must be a positive integer, or null for an unbounded bulk republish."];
 
 		errors = local.Count > 0
 			? local

@@ -54,6 +54,7 @@ export interface ViewerState {
 	displayedMessage: ReceivedMessageDto | null;
 	sendResultMessage: string | null;
 	receiveSessionId: string | null;
+	totalMessageCount: number | null;
 }
 
 export interface SessionStateDto {
@@ -217,6 +218,7 @@ export interface RepublishDeadLetterRequestDto {
 	messageId: string | null;
 	strategy: RepublishMessageIdStrategy;
 	manualMessageId: string | null;
+	maxCount?: number | null;
 }
 
 export interface RepublishDeadLetterResponseDto {
@@ -228,6 +230,7 @@ export interface RepublishDeadLetterResponseDto {
 
 export interface DropDeadLettersRequestDto {
 	messageId: string | null;
+	maxCount?: number | null;
 }
 
 export interface DropDeadLettersResponseDto {

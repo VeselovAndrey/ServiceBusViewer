@@ -54,6 +54,7 @@ internal static class SelectEntityRequestHandler
 			response.HasMoreMessages,
 			response.DisplayedMessage,
 			response.SendResultMessage,
-			response.ReceiveSessionId);
+			response.ReceiveSessionId,
+			response.TotalMessageCount);
 	}
 }
