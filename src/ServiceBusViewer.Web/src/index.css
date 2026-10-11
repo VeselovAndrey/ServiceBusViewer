@@ -31,6 +31,14 @@
   animation-timing-function: ease;
 }
 
+@media (prefers-reduced-motion: reduce) {
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
 @font-face {
   font-family: "Inter";
   font-style: normal;
@@ -328,6 +336,13 @@
   .message-table-container tr.message-row-dropping>td {
     animation: none;
     opacity: 0;
+  }
+
+  /* Collapse/expand is instant for reduced-motion users; without transition
+     the delayed visibility swap is unnecessary. */
+  .send-form-transition,
+  .send-form-transition.js-send-form-hidden {
+    transition: none;
   }
 }
 

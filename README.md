@@ -97,7 +97,7 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 1.0.0 (2026-10-11)
+## 1.0.0-rc1 (2026-10-11)
 
 - **Added:** Republish dead-lettered messages to the original entity or permanently drop them — per message, or the entire dead-letter queue with Republish All / Drop All (with a confirmation dialog).
 - **Added:** A dropdown on both buttons for how the republished copy's message id is assigned: keep the original (hidden when the target has duplicate detection), Service Bus auto-generate, a new GUID or GUID v7, or a manual id for a single message.
