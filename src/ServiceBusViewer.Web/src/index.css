@@ -68,8 +68,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: block;
-  src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-400-normal.woff2")
-    format("woff2");
+  src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-400-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -77,8 +76,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: block;
-  src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-500-normal.woff2")
-    format("woff2");
+  src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-500-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -115,6 +113,7 @@
 }
 
 @layer components {
+
   button,
   a[href],
   [role="button"],
@@ -257,6 +256,74 @@
   }
 }
 
+/* Single dead-letter removal: the row shrinks and fades before the message leaves the list. */
+.message-table-container tr.message-row-removing>td {
+  transition: padding 300ms ease, opacity 300ms ease;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  line-height: 0;
+}
+
+.message-table-container tr.message-row-removing>td>* {
+  overflow: hidden;
+  animation: message-row-content-collapse 300ms ease forwards;
+}
+
+/* Single dead-letter drop: the row first turns gray and soft, then shrinks to zero height. */
+.message-table-container tr.message-row-dropping>td {
+  animation: message-row-drop-out 300ms ease forwards;
+}
+
+.message-table-container tr.message-row-dropping>td>* {
+  overflow: hidden;
+  animation: message-row-content-collapse 300ms ease forwards;
+}
+
+/* Cell content keeps its own height (e.g. the 28px action buttons) even when cell padding and
+   line-height collapse, so the content itself must shrink to zero for the row to reach zero. */
+@keyframes message-row-content-collapse {
+  0%,
+  35% {
+    max-height: 3rem;
+  }
+
+  100% {
+    max-height: 0;
+  }
+}
+
+@keyframes message-row-drop-out {
+  0% {
+    opacity: 1;
+    background-color: transparent;
+  }
+
+  35% {
+    opacity: 0.45;
+    background-color: rgb(148 163 184 / 0.25);
+  }
+
+  100% {
+    opacity: 0;
+    background-color: rgb(148 163 184 / 0.25);
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-table-container tr.message-row-removing>td {
+    transition: none;
+  }
+
+  .message-table-container tr.message-row-dropping>td {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* Peeked/dead-letter message table: progressively hide secondary columns when the
    table's own width gets tight. Message ID, Dead Letter Reason, and Actions always stay. */
 .message-table-container {
@@ -264,6 +331,7 @@
 }
 
 @container (max-width: 1279px) {
+
   .message-table-container .col-partition-key,
   .message-table-container .col-scheduled-enqueue {
     display: none;
@@ -271,6 +339,7 @@
 }
 
 @container (max-width: 1079px) {
+
   .message-table-container .col-session,
   .message-table-container .col-content-type {
     display: none;
@@ -278,6 +347,7 @@
 }
 
 @container (max-width: 919px) {
+
   .message-table-container .col-delivery-count,
   .message-table-container .col-enqueued-time {
     display: none;
@@ -301,6 +371,7 @@
 }
 
 @container (max-width: 1079px) {
+
   .message-table-container .prop-session,
   .message-table-container .prop-content-type {
     display: table-row;
@@ -308,6 +379,7 @@
 }
 
 @container (max-width: 919px) {
+
   .message-table-container .prop-delivery-count,
   .message-table-container .prop-enqueued-time {
     display: table-row;
@@ -319,16 +391,19 @@
   .message-table-container.dead-letter .col-session {
     display: none;
   }
+
   .message-table-container.dead-letter .prop-session {
     display: table-row;
   }
 }
 
 @container (max-width: 1079px) {
+
   .message-table-container.dead-letter .col-delivery-count,
   .message-table-container.dead-letter .col-enqueued-time {
     display: none;
   }
+
   .message-table-container.dead-letter .prop-delivery-count,
   .message-table-container.dead-letter .prop-enqueued-time {
     display: table-row;

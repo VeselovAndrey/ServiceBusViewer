@@ -64,7 +64,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		IReadOnlyList<ServiceBusReceivedMessage> messages = await receiver.PeekMessagesAsync(maxMessages + 1, cancellationToken: cancellationToken);
 		bool hasMore = messages.Count > maxMessages;
 		IEnumerable<ServiceBusReceivedMessage> messagesToReturn = hasMore ? messages.Take(maxMessages) : messages;
-		return new ReceivedMessageList([.. messagesToReturn.Select(ConvertToReceivedMessage)], hasMore);
+		long? totalCount = await GetRuntimeMessageCountAsync(entity, deadLetter: false, cancellationToken);
+
+		// Sanity fallback: a reported total below the number of messages actually peeked is unreliable (the emulator always reports zero counts).
+		if (totalCount < messages.Count)
+			totalCount = null;
+
+		return new ReceivedMessageList([.. messagesToReturn.Select(ConvertToReceivedMessage)], hasMore, totalCount);
 	}
 
 	public async Task<ReceivedMessageList> PeekDeadLetterMessagesAsync(EntityId entityId, int maxMessages, CancellationToken cancellationToken)
@@ -80,7 +86,50 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		IReadOnlyList<ServiceBusReceivedMessage> messages = await receiver.PeekMessagesAsync(maxMessages + 1, cancellationToken: cancellationToken);
 		bool hasMore = messages.Count > maxMessages;
 		IEnumerable<ServiceBusReceivedMessage> messagesToReturn = hasMore ? messages.Take(maxMessages) : messages;
-		return new ReceivedMessageList([.. messagesToReturn.Select(ConvertToReceivedMessage)], hasMore);
+		long? totalCount = await GetRuntimeMessageCountAsync(entity, deadLetter: true, cancellationToken);
+
+		// Sanity fallback: a reported total below the number of messages actually peeked is unreliable (the emulator always reports zero counts).
+		if (totalCount < messages.Count)
+			totalCount = null;
+
+		return new ReceivedMessageList([.. messagesToReturn.Select(ConvertToReceivedMessage)], hasMore, totalCount);
+	}
+
+	// The message count comes from the management runtime properties when management access is available; any failure falls back to an unknown count.
+	private async Task<long?> GetRuntimeMessageCountAsync(EntityProperties entity, bool deadLetter, CancellationToken cancellationToken)
+	{
+		if (_adminClient is null)
+			return null;
+
+		try {
+			long? count = entity switch {
+				QueueEntityProperties queue => await GetQueueCountAsync(queue.Name),
+				SubscriptionEntityProperties subscription => await GetSubscriptionCountAsync(subscription.TopicName, subscription.Name),
+				_ => null
+			};
+
+			return count;
+
+			async Task<long> GetQueueCountAsync(string queueName)
+			{
+				QueueRuntimeProperties properties = await _adminClient.GetQueueRuntimePropertiesAsync(queueName, cancellationToken);
+
+				return deadLetter ? properties.DeadLetterMessageCount : properties.ActiveMessageCount;
+			}
+
+			async Task<long> GetSubscriptionCountAsync(string topicName, string subscriptionName)
+			{
+				SubscriptionRuntimeProperties properties = await _adminClient.GetSubscriptionRuntimePropertiesAsync(topicName, subscriptionName, cancellationToken);
+
+				return deadLetter ? properties.DeadLetterMessageCount : properties.ActiveMessageCount;
+			}
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+			throw;
+		}
+		catch (Exception) {
+			return null;
+		}
 	}
 
 	public async Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(
@@ -88,9 +137,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		IReadOnlyCollection<string>? messageIds,
 		RepublishMessageIdStrategy strategy,
 		string? manualMessageId,
+		int? maxMessages,
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		if (maxMessages <= 0)
+			throw new ArgumentOutOfRangeException(nameof(maxMessages), maxMessages, "The message bound must be a positive integer when set.");
 
 		EntityProperties entity = GetEntityProperties(entityId);
 		bool isBulk = messageIds is null;
@@ -114,7 +167,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				bool isUnseen = seenMessageIds.Add(message.MessageId);
 				bool isRequested = isBulk || requestedMessageIds.Contains(message.MessageId);
 
-				if (isRequested && isUnseen) {
+				if (isRequested && isUnseen && !IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount)) {
 					unseenRequestedCount++;
 					(bool succeeded, string? failureDetail) = await RepublishMessageAsync(receiver, sender, message, strategy, manualMessageId, cancellationToken);
 
@@ -129,12 +182,12 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 					}
 				}
 				else {
-					// A message this operation does not republish, or one already attempted in this operation: return it to visible state in the dead-letter queue.
+					// A message this operation does not republish, one already attempted in this operation, or one beyond the bound: return it to visible state in the dead-letter queue.
 					await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
 				}
 			}
 
-			if (batch.Count == 0 || unseenRequestedCount == 0)
+			if (batch.Count == 0 || unseenRequestedCount == 0 || IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount))
 				break;
 		}
 
@@ -146,9 +199,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 	public async Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(
 		EntityId entityId,
 		IReadOnlyCollection<string>? messageIds,
+		int? maxMessages,
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		if (maxMessages <= 0)
+			throw new ArgumentOutOfRangeException(nameof(maxMessages), maxMessages, "The message bound must be a positive integer when set.");
 
 		EntityProperties entity = GetEntityProperties(entityId);
 		bool isBulk = messageIds is null;
@@ -171,7 +228,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				bool isUnseen = seenMessageIds.Add(message.MessageId);
 				bool isRequested = isBulk || requestedMessageIds.Contains(message.MessageId);
 
-				if (isRequested && isUnseen) {
+				if (isRequested && isUnseen && !IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount)) {
 					unseenRequestedCount++;
 					(bool succeeded, string? failureDetail) = await DropDeadLetterMessageAsync(receiver, message, cancellationToken);
 
@@ -186,12 +243,12 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 					}
 				}
 				else {
-					// A message this operation does not drop, or one already attempted in this operation: return it to visible state in the dead-letter queue.
+					// A message this operation does not drop, one already attempted in this operation, or one beyond the bound: return it to visible state in the dead-letter queue.
 					await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
 				}
 			}
 
-			if (batch.Count == 0 || unseenRequestedCount == 0)
+			if (batch.Count == 0 || unseenRequestedCount == 0 || IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount))
 				break;
 		}
 
@@ -377,6 +434,10 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 		return (true, null);
 	}
+
+	// The bound applies to bulk operations only and counts every processed message, whether it succeeded or failed.
+	private static bool IsBulkBoundReached(bool isBulk, int? maxMessages, int affectedCount, int failedCount)
+		=> isBulk && maxMessages is not null && affectedCount + failedCount >= maxMessages.Value;
 
 	private static DeadLetterOperationResult BuildDeadLetterOperationResult(
 		bool isBulk,

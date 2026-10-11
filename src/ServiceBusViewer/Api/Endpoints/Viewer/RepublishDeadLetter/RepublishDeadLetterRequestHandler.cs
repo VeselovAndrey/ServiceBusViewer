@@ -21,6 +21,7 @@ internal static class RepublishDeadLetterRequestHandler
 			request.MessageId,
 			strategy,
 			request.ManualMessageId,
+			request.MaxCount,
 			cancellationToken);
 
 		return TypedResults.Ok(new RepublishDeadLetterResponse(result.Succeeded, result.AffectedCount, result.FailedCount, result.Detail));

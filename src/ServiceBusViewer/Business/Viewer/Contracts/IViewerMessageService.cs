@@ -23,16 +23,24 @@ public interface IViewerMessageService
 	/// <param name="messageId">Message id of the dead-lettered message to republish, or <c>null</c> to republish every message currently in the dead-letter queue.</param>
 	/// <param name="strategy">Message id strategy as resolved by the viewer strategy prompt.</param>
 	/// <param name="manualMessageId">The manually provided message id when the strategy is Manual.</param>
+	/// <param name="maxMessages">
+	/// Maximum number of messages a bulk republish processes in this call, returning the partial outcome; <c>null</c> keeps the unbounded behavior.
+	/// Applies only to bulk republishes (<paramref name="messageId"/> is <c>null</c>).
+	/// </param>
 	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>The outcome summary of the republish operation.</returns>
-	Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(IViewerSessionState session, string? messageId, RepublishMessageIdStrategy strategy, string? manualMessageId, CancellationToken cancellationToken);
+	Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(IViewerSessionState session, string? messageId, RepublishMessageIdStrategy strategy, string? manualMessageId, int? maxMessages, CancellationToken cancellationToken);
 
 	/// <summary>Permanently deletes the selected entity's dead-lettered messages without re-delivering them.</summary>
 	/// <param name="session">The viewer session state to use.</param>
 	/// <param name="messageId">Message id of the dead-lettered message to drop, or <c>null</c> to drop every message currently in the dead-letter queue.</param>
+	/// <param name="maxMessages">
+	/// Maximum number of messages a bulk drop processes in this call, returning the partial outcome; <c>null</c> keeps the unbounded behavior.
+	/// Applies only to bulk drops (<paramref name="messageId"/> is <c>null</c>).
+	/// </param>
 	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>The outcome summary of the drop operation.</returns>
-	Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(IViewerSessionState session, string? messageId, CancellationToken cancellationToken);
+	Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(IViewerSessionState session, string? messageId, int? maxMessages, CancellationToken cancellationToken);
 
 	/// <summary>Receives the next message from the currently selected entity.</summary>
 	/// <param name="session">The viewer session state to update.</param>

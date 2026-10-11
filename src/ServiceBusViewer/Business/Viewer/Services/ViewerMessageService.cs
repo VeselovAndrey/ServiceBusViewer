@@ -74,6 +74,7 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 		string? messageId,
 		RepublishMessageIdStrategy strategy,
 		string? manualMessageId,
+		int? maxMessages,
 		CancellationToken cancellationToken)
 	{
 		await session.Gate.WaitAsync(cancellationToken);
@@ -103,6 +104,7 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 				messageId is null ? null : [messageId],
 				strategy,
 				manualMessageId,
+				maxMessages,
 				operationCancellationSource.Token);
 		}
 		finally {
@@ -114,6 +116,7 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 	public async Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(
 		IViewerSessionState session,
 		string? messageId,
+		int? maxMessages,
 		CancellationToken cancellationToken)
 	{
 		await session.Gate.WaitAsync(cancellationToken);
@@ -126,6 +129,7 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			return await connection.DropDeadLetterMessagesAsync(
 				entityId,
 				messageId is null ? null : [messageId],
+				maxMessages,
 				operationCancellationSource.Token);
 		}
 		finally {

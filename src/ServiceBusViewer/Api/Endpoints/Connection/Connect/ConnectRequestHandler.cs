@@ -52,6 +52,7 @@ internal static class ConnectRequestHandler
 			viewerState.HasMoreMessages,
 			viewerState.DisplayedMessage,
 			viewerState.SendResultMessage,
-			viewerState.ReceiveSessionId);
+			viewerState.ReceiveSessionId,
+			viewerState.TotalMessageCount);
 	}
 }
