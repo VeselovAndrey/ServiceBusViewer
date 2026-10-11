@@ -21,6 +21,13 @@
   --color-brand-900: #1e3a5f;
 }
 
+/* Progressive enhancement: enables transitions between fixed lengths and intrinsic
+   sizing keywords (e.g. height: 0 -> auto) for the send-form collapse. Browsers
+   without support ignore this and toggle the size instantly. */
+:root {
+  interpolate-size: allow-keywords;
+}
+
 @view-transition {
   navigation: auto;
 }
@@ -248,24 +255,27 @@
     @apply text-slate-500 dark:text-slate-400;
   }
 
+  /* Animate the true intrinsic content height (0 <-> auto via interpolate-size)
+     instead of a fixed max-height ceiling, so the visible motion matches the
+     stated duration and no oversized clipping ceiling remains. */
   .send-form-transition {
-    max-height: 220rem;
+    height: auto;
     opacity: 1;
     visibility: visible;
     overflow: hidden;
     transition:
-      max-height 0.3s ease,
+      height 0.3s ease,
       opacity 0.3s ease,
       visibility 0s linear 0s;
   }
 
   .send-form-transition.js-send-form-hidden {
-    max-height: 0;
+    height: 0;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transition:
-      max-height 0.3s ease,
+      height 0.3s ease,
       opacity 0.3s ease,
       visibility 0s linear 0.3s;
   }
