@@ -2,7 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useLayoutEffect,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -15,75 +15,94 @@ interface TooltipState {
   text: string;
 }
 
-interface PointerPosition {
-  x: number;
-  y: number;
-}
-
 interface TooltipContextValue {
   bindTooltip: (text: string) => HTMLAttributes<HTMLElement>;
 }
 
 const TooltipContext = createContext<TooltipContextValue | null>(null);
 const tooltipDelayMs = 3000;
+const tooltipHideDelayMs = 150;
+const tooltipAnchorName = '--entity-tooltip';
+
+// The popover polyfill cannot match :popover-open, so guard toggle calls instead.
+function safeShowPopover(element: HTMLElement) {
+  try {
+    element.showPopover();
+  } catch {
+    // Already open.
+  }
+}
+
+function safeHidePopover(element: HTMLElement) {
+  try {
+    element.hidePopover();
+  } catch {
+    // Already closed.
+  }
+}
 
 export function EntityTooltipProvider({ children }: { children: ReactNode }) {
   const [tooltipState, setTooltipState] = useState<TooltipState | null>(null);
-  const [tooltipStyle, setTooltipStyle] = useState<{
-    left: number;
-    top: number;
-  } | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
-  const pointerRef = useRef<PointerPosition | null>(null);
-  const timerRef = useRef<number | null>(null);
+  const showTimerRef = useRef<number | null>(null);
+  const hideTimerRef = useRef<number | null>(null);
 
-  const clearTimer = () => {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
+  const clearShowTimer = () => {
+    if (showTimerRef.current !== null) {
+      window.clearTimeout(showTimerRef.current);
+      showTimerRef.current = null;
+    }
+  };
+
+  const clearHideTimer = () => {
+    if (hideTimerRef.current !== null) {
+      window.clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
     }
   };
 
   const hideTooltip = useCallback(() => {
-    clearTimer();
+    clearShowTimer();
+    clearHideTimer();
     setTooltipState(null);
-    setTooltipStyle(null);
   }, []);
 
-  const showTooltip = useCallback((text: string, target: HTMLElement) => {
-    setTooltipState({ target, text });
+  const scheduleHideTooltip = useCallback(() => {
+    clearShowTimer();
+    clearHideTimer();
+    hideTimerRef.current = window.setTimeout(() => {
+      hideTooltip();
+    }, tooltipHideDelayMs);
+  }, [hideTooltip]);
+
+  const scheduleTooltip = useCallback((text: string, target: HTMLElement) => {
+    clearShowTimer();
+    clearHideTimer();
+    showTimerRef.current = window.setTimeout(() => {
+      setTooltipState({ target, text });
+    }, tooltipDelayMs);
   }, []);
 
-  const scheduleTooltip = useCallback(
-    (text: string, target: HTMLElement) => {
-      clearTimer();
-      timerRef.current = window.setTimeout(() => {
-        showTooltip(text, target);
-      }, tooltipDelayMs);
-    },
-    [showTooltip],
-  );
-
-  useLayoutEffect(() => {
-    if (!tooltipState || !tooltipRef.current) {
+  // Show/hide the popover and bind the CSS anchor name to the current target.
+  useEffect(() => {
+    const tooltip = tooltipRef.current;
+    if (!tooltip) {
       return;
     }
 
-    const tooltipRect = tooltipRef.current.getBoundingClientRect();
-    const targetRect = tooltipState.target.getBoundingClientRect();
-    const anchorX = pointerRef.current?.x ?? targetRect.left + targetRect.width / 2;
-    const anchorY = pointerRef.current?.y ?? targetRect.top;
-    const left = Math.min(
-      window.innerWidth - tooltipRect.width - 12,
-      Math.max(12, anchorX - tooltipRect.width / 2),
-    );
-    const preferredTop = anchorY - tooltipRect.height - 16;
-    const top =
-      preferredTop >= 12
-        ? preferredTop
-        : Math.min(window.innerHeight - tooltipRect.height - 12, targetRect.bottom + 12);
+    if (!tooltipState) {
+      safeHidePopover(tooltip);
+      return;
+    }
 
-    setTooltipStyle({ left, top });
+    const { target } = tooltipState;
+    target.style.anchorName = tooltipAnchorName;
+    safeShowPopover(tooltip);
+
+    return () => {
+      safeHidePopover(tooltip);
+      target.style.removeProperty('anchor-name');
+    };
   }, [tooltipState]);
 
   const bindTooltip = useCallback(
@@ -91,16 +110,13 @@ export function EntityTooltipProvider({ children }: { children: ReactNode }) {
       onBlur: () => hideTooltip(),
       onFocus: (event) => scheduleTooltip(text, event.currentTarget),
       onMouseEnter: (event) => scheduleTooltip(text, event.currentTarget),
-      onMouseLeave: () => hideTooltip(),
-      onMouseMove: (event) => {
-        pointerRef.current = { x: event.clientX, y: event.clientY };
-      },
+      onMouseLeave: () => scheduleHideTooltip(),
       onTouchCancel: () => hideTooltip(),
       onTouchEnd: () => hideTooltip(),
       onTouchMove: () => hideTooltip(),
       onTouchStart: (event) => scheduleTooltip(text, event.currentTarget),
     }),
-    [hideTooltip, scheduleTooltip],
+    [hideTooltip, scheduleHideTooltip, scheduleTooltip],
   );
 
   const value = useMemo<TooltipContextValue>(() => ({ bindTooltip }), [bindTooltip]);
@@ -111,8 +127,15 @@ export function EntityTooltipProvider({ children }: { children: ReactNode }) {
       <div
         ref={tooltipRef}
         className="entity-name-tooltip"
-        hidden={!tooltipState}
-        style={tooltipStyle ? { left: `${tooltipStyle.left}px`, top: `${tooltipStyle.top}px` } : undefined}
+        popover=""
+        onMouseEnter={clearHideTimer}
+        onMouseLeave={hideTooltip}
+        onToggle={(event) => {
+          // Keep React state in sync when the popover is light-dismissed (e.g. Escape).
+          if ((event.nativeEvent as ToggleEvent).newState === 'closed') {
+            setTooltipState(null);
+          }
+        }}
       >
         {tooltipState?.text}
       </div>
