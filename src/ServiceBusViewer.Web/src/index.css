@@ -3,7 +3,26 @@
 @plugin "@tailwindcss/typography";
 @source "./**/*.{ts,tsx}";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* Dark branching without JS: an explicit override lives in the
+   <meta name="color-scheme"> content ("light"/"dark"); with no override
+   ("light dark") the system media query decides. */
+@custom-variant dark {
+  &:where(
+    :root:has(> head > meta[name="color-scheme"][content="dark"]),
+    :root:has(> head > meta[name="color-scheme"][content="dark"]) *
+  ) {
+    @slot;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    &:where(
+      :root:has(> head > meta[name="color-scheme"][content="light dark"]),
+      :root:has(> head > meta[name="color-scheme"][content="light dark"]) *
+    ) {
+      @slot;
+    }
+  }
+}
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -107,11 +126,15 @@
 @layer base {
   html {
     @apply bg-slate-100 dark:bg-slate-950;
-    color-scheme: light;
-  }
+    color-scheme: light dark;
 
-  html.dark {
-    color-scheme: dark;
+    &:has(> head > meta[name="color-scheme"][content="dark"]) {
+      color-scheme: dark;
+    }
+
+    &:has(> head > meta[name="color-scheme"][content="light"]) {
+      color-scheme: light;
+    }
   }
 
   body {
@@ -145,13 +168,7 @@
 
   input::placeholder,
   textarea::placeholder {
-    color: rgb(148 163 184 / 0.5) !important;
-    opacity: 1 !important;
-  }
-
-  .dark input::placeholder,
-  .dark textarea::placeholder {
-    color: rgb(100 116 139 / 0.6) !important;
+    color: light-dark(rgb(148 163 184 / 0.5), rgb(100 116 139 / 0.6)) !important;
     opacity: 1 !important;
   }
 
@@ -199,7 +216,9 @@
 
   .custom-scrollbar {
     scrollbar-width: auto;
-    scrollbar-color: rgb(100 116 139 / 0.9) rgb(226 232 240 / 0.85);
+    scrollbar-color:
+      light-dark(rgb(100 116 139 / 0.9), rgb(100 116 139 / 0.95))
+      light-dark(rgb(226 232 240 / 0.85), rgb(30 41 59 / 0.9));
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -208,35 +227,19 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgb(226 232 240 / 0.9);
+    background: light-dark(rgb(226 232 240 / 0.9), rgb(30 41 59 / 0.9));
     border-radius: 9999px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgb(100 116 139 / 0.9);
+    background: light-dark(rgb(100 116 139 / 0.9), rgb(100 116 139 / 0.95));
     border: 2px solid transparent;
     background-clip: padding-box;
     border-radius: 9999px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgb(71 85 105 / 0.95);
-  }
-
-  .dark .custom-scrollbar {
-    scrollbar-color: rgb(100 116 139 / 0.95) rgb(30 41 59 / 0.9);
-  }
-
-  .dark .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgb(30 41 59 / 0.9);
-  }
-
-  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgb(100 116 139 / 0.95);
-  }
-
-  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgb(148 163 184 / 0.95);
+    background: light-dark(rgb(71 85 105 / 0.95), rgb(148 163 184 / 0.95));
   }
 
   .json-key {

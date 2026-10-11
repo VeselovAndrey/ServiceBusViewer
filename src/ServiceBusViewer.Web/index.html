@@ -13,13 +13,15 @@
     <title>Service Bus Viewer</title>
     <script>
       (function () {
-        const storedTheme = localStorage.getItem('theme');
-        const prefersDark = window.matchMedia(
-          '(prefers-color-scheme: dark)',
-        ).matches;
-
-        if (storedTheme === 'dark' || (!storedTheme && prefersDark)) {
-          document.documentElement.classList.add('dark');
+        try {
+          const storedTheme = localStorage.getItem('theme');
+          if (storedTheme === 'light' || storedTheme === 'dark') {
+            document.querySelector('meta[name="color-scheme"]').content =
+              storedTheme;
+          }
+        } catch {
+          // Persistence unavailable (e.g. site data blocked); the page still
+          // follows the system color scheme.
         }
       })();
     </script>
