@@ -12,6 +12,7 @@ namespace ServiceBusViewer.Api.Models;
 /// <param name="DisplayedMessage">Currently selected/displayed message or null.</param>
 /// <param name="SendResultMessage">Result message from the last send operation or null.</param>
 /// <param name="ReceiveSessionId">Session id currently used for receive operations or null.</param>
+/// <param name="TotalMessageCount">Total number of messages in the selected entity (dead-letter count for a dead-letter list), when known from the management API; otherwise null.</param>
 public record ViewerState(
 	string ServiceBusHostName,
 	string? EntityName,
@@ -23,4 +24,5 @@ public record ViewerState(
 	bool HasMoreMessages,
 	ReceivedMessage? DisplayedMessage,
 	string? SendResultMessage,
-	string? ReceiveSessionId);
+	string? ReceiveSessionId,
+	long? TotalMessageCount);

@@ -137,6 +137,9 @@ public sealed class ViewerEntityServiceTests
 				TimeToLive: null,
 				To: null,
 				ReplyTo: null,
-				Subject: null),
+				Subject: null,
+				DeadLetterReason: null,
+				DeadLetterSource: null,
+				DeadLetterErrorDescription: null),
 			ApplicationProperties: new Dictionary<string, object>());
 }

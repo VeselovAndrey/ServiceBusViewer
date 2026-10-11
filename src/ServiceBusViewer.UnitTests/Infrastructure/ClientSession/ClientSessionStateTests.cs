@@ -32,7 +32,7 @@ public sealed class ClientSessionStateTests
 		state.Connection = connection;
 		state.SelectedEntityId = new QueueEntityId("orders");
 		state.CurrentMessages = new ReceivedMessageList([], true);
-		state.DisplayedMessage = new ReceivedMessage("body", new ReceivedMessageProperties("id", null, null, null, null, 1, DateTimeOffset.UtcNow, null, null, null, null, null), new Dictionary<string, object>());
+		state.DisplayedMessage = new ReceivedMessage("body", new ReceivedMessageProperties("id", null, null, null, null, 1, DateTimeOffset.UtcNow, null, null, null, null, null, null, null, null), new Dictionary<string, object>());
 		state.ReceiveSessionId = "session";
 		state.SendResultMessage = "Sent";
 		CancellationToken previousCancellationToken = state.ConnectionCancellationToken;

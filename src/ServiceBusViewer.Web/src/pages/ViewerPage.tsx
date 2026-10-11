@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { serviceBusApi } from '../api/serviceBusApi';
 import { Alert } from '../components/common/Alert';
@@ -6,6 +6,12 @@ import { CopyFullMessageButton } from '../components/common/CopyFullMessageButto
 import { JsonMessageBody } from '../components/common/JsonMessageBody';
 import { EntitySidebar } from '../components/entities/EntitySidebar';
 import { AppLayout } from '../components/layout/AppLayout';
+import { DropAllConfirmPrompt, DropSingleConfirmPrompt } from '../components/viewer/DropPrompts';
+import { RepublishManualIdPrompt } from '../components/viewer/RepublishPrompts';
+import {
+	RepublishStrategyMenu,
+	republishStrategyOptions,
+} from '../components/viewer/RepublishStrategyMenu';
 import { SendMessageForm } from '../components/viewer/SendMessageForm';
 import {
 	buildPeekedMessageSummary,
@@ -20,13 +26,26 @@ import {
 import { getErrorMessages } from '../lib/problemDetails';
 import { useAppState } from '../state/AppStateContext';
 import type {
+	DropDeadLettersResponseDto,
 	EntityIdDto,
 	ReceivedMessageApplicationPropertyDto,
+	RepublishDeadLetterRequestDto,
+	RepublishDeadLetterResponseDto,
+	RepublishMessageIdStrategy,
 	SendMessageRequestDto,
 	ViewerState,
 } from '../types/serviceBus';
 
-type ViewerAction = 'disconnect' | 'receive' | 'refresh' | 'send';
+type ViewerAction = 'disconnect' | 'drop' | 'receive' | 'refresh' | 'republish' | 'send';
+
+// Number of dead-letter messages each bounded bulk step processes per request (decided in Task 25-01).
+const BULK_STEP_SIZE = 100;
+
+interface BulkOperationProgress {
+	operation: 'drop' | 'republish';
+	processed: number;
+	failed: number;
+}
 
 function buildSendResultMessage(request: SendMessageRequestDto) {
 	const { messageId } = request.sendMessageProperties;
@@ -34,6 +53,26 @@ function buildSendResultMessage(request: SendMessageRequestDto) {
 	return messageId.trim()
 		? `Message '${messageId}' sent successfully.`
 		: 'Message sent successfully.';
+}
+
+function buildRepublishOutcomeMessages(outcome: RepublishDeadLetterResponseDto, cancelled: boolean) {
+	const messages = [
+		`${cancelled ? 'Republish cancelled.' : outcome.succeeded ? 'Republish succeeded.' : 'Republish finished with failures.'} ${outcome.affectedCount} republished, ${outcome.failedCount} failed.`,
+	];
+	if (outcome.detail) {
+		messages.push(outcome.detail);
+	}
+	return messages;
+}
+
+function buildDropOutcomeMessages(outcome: DropDeadLettersResponseDto, cancelled: boolean) {
+	const messages = [
+		`${cancelled ? 'Drop cancelled.' : outcome.succeeded ? 'Drop succeeded.' : 'Drop finished with failures.'} ${outcome.affectedCount} dropped, ${outcome.failedCount} failed.`,
+	];
+	if (outcome.detail) {
+		messages.push(outcome.detail);
+	}
+	return messages;
 }
 
 export function ViewerPage() {
@@ -47,6 +86,28 @@ export function ViewerPage() {
 	const [selectionKey, setSelectionKey] = useState<string | null>(null);
 	const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 	const [receiveSessionId, setReceiveSessionId] = useState(viewer?.receiveSessionId ?? '');
+	const [deadLetterMode, setDeadLetterMode] = useState(false);
+	const [deadLetterViewer, setDeadLetterViewer] = useState<ViewerState | null>(null);
+	const [republishOutcome, setRepublishOutcome] = useState<RepublishDeadLetterResponseDto | null>(
+		null,
+	);
+	const [republishCancelled, setRepublishCancelled] = useState(false);
+	const [republishErrorMessages, setRepublishErrorMessages] = useState<string[]>([]);
+	const [republishPrompt, setRepublishPrompt] = useState<{
+		kind: 'manual';
+		messageId: string;
+	} | null>(null);
+	const [republishTargetRequiresDuplicateDetection, setRepublishTargetRequiresDuplicateDetection] =
+		useState<boolean | null>(null);
+	const [dropOutcome, setDropOutcome] = useState<DropDeadLettersResponseDto | null>(null);
+	const [dropCancelled, setDropCancelled] = useState(false);
+	const [dropErrorMessages, setDropErrorMessages] = useState<string[]>([]);
+	const [dropConfirmOpen, setDropConfirmOpen] = useState(false);
+	const [dropSingleTarget, setDropSingleTarget] = useState<string | null>(null);
+	const [bulkProgress, setBulkProgress] = useState<BulkOperationProgress | null>(null);
+	const bulkCancelRequestedRef = useRef(false);
+	const [removingMessageIds, setRemovingMessageIds] = useState<Map<string, 'drop' | 'republish'>>(new Map());
+	const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (!sessionState?.isConnected || viewer) {
@@ -98,6 +159,44 @@ export function ViewerPage() {
 
 		return () => window.clearTimeout(timerId);
 	}, [sendResultMessage, sendErrorMessages.length, setViewerState]);
+
+	useEffect(() => {
+		setRepublishTargetRequiresDuplicateDetection(null);
+
+		if (!deadLetterMode) {
+			return;
+		}
+
+		const detailsType = currentViewer?.topicName ? 'Topic' : 'Queue';
+		const detailsName = currentViewer?.topicName ?? currentViewer?.entityName;
+		if (!detailsName) {
+			return;
+		}
+
+		let isDisposed = false;
+		void serviceBusApi
+			.getEntityDetails(detailsType, detailsName, null)
+			.then((details) => {
+				if (isDisposed || details.properties === null) {
+					return;
+				}
+
+				const requiresDuplicateDetection =
+					'requiresDuplicateDetection' in details.properties
+						? Boolean(details.properties.requiresDuplicateDetection)
+						: false;
+				setRepublishTargetRequiresDuplicateDetection(requiresDuplicateDetection);
+			})
+			.catch(() => {
+				if (!isDisposed) {
+					setRepublishTargetRequiresDuplicateDetection(null);
+				}
+			});
+
+		return () => {
+			isDisposed = true;
+		};
+	}, [deadLetterMode, currentViewer?.topicName, currentViewer?.entityName]);
 
 	const syncViewer = useCallback(
 		async (nextViewer: ViewerState) => {
@@ -162,16 +261,29 @@ export function ViewerPage() {
 			subtitle: 'Loading viewer state...',
 			typeLabel: 'Queue' as const,
 		};
-	const peekedMessageSummary = currentViewer
-		? buildPeekedMessageSummary(currentViewer.messages, currentViewer.hasMoreMessages)
-		: '0 total';
-	const showScheduledEnqueue = currentViewer?.messages.some((message) =>
+	const activeMessageSource = deadLetterMode ? deadLetterViewer : currentViewer;
+	const activeMessages = activeMessageSource?.messages ?? [];
+	// Drop/republish buttons stay disabled while any operation runs, including the row-removal
+	// animation window after a single republish succeeds (pendingAction already cleared by then).
+	const deadLetterOperationInProgress = pendingAction !== null || removingMessageIds.size > 0;
+	// With management access, the total count comes from runtime properties, so no full read is needed; it covers the live list and the dead-letter list alike.
+	const totalMessageCount = activeMessageSource?.totalMessageCount ?? null;
+	const peekedMessageSummary =
+		totalMessageCount !== null && (activeMessageSource?.hasMoreMessages ?? false)
+			? `Showing first ${activeMessages.length} of ${totalMessageCount}${deadLetterMode ? ' dead-lettered' : ''}`
+			: buildPeekedMessageSummary(
+				activeMessages,
+				activeMessageSource?.hasMoreMessages ?? false,
+			);
+	const showScheduledEnqueue = activeMessages.some((message) =>
 		Boolean(message.properties.scheduledEnqueueTime),
-	) ?? false;
-	const showPartitionKey = currentViewer?.messages.some((message) =>
+	);
+	const showPartitionKey = activeMessages.some((message) =>
 		Boolean(message.properties.partitionKey),
-	) ?? false;
-	const peekedMessageColumnCount = 6 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0);
+	);
+	// Content Type shows only for peeked messages and Dead Letter Reason only in dead-letter mode, so they cancel out.
+	const peekedMessageColumnCount =
+		6 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0);
 
 	const handleDisconnect = async () => {
 		await runAction('disconnect', async () => {
@@ -191,6 +303,18 @@ export function ViewerPage() {
 			const nextViewer = await syncViewer(await serviceBusApi.selectEntity(entity));
 			setExpandedRows(new Set());
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
+			setDeadLetterMode(false);
+			setDeadLetterViewer(null);
+			setRepublishPrompt(null);
+			setRepublishOutcome(null);
+			setRepublishCancelled(false);
+			setRepublishErrorMessages([]);
+			setDropConfirmOpen(false);
+			setDropSingleTarget(null);
+			setDropOutcome(null);
+			setDropCancelled(false);
+			setDropErrorMessages([]);
+			setBulkSuccessMessage(null);
 			navigate('/viewer', { replace: true });
 		} catch (error: unknown) {
 			setErrorMessages(getErrorMessages(error));
@@ -200,11 +324,34 @@ export function ViewerPage() {
 	};
 
 	const handleRefresh = async () => {
+		setBulkSuccessMessage(null);
 		await runAction('refresh', async () => {
+			if (deadLetterMode) {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setExpandedRows(new Set());
+				return;
+			}
+
 			const nextViewer = await syncViewer(await serviceBusApi.refreshViewer());
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setExpandedRows(new Set());
 		});
+	};
+
+	const handleToggleDeadLetter = async () => {
+		setBulkSuccessMessage(null);
+		if (!deadLetterMode) {
+			await runAction('refresh', async () => {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setDeadLetterMode(true);
+				setExpandedRows(new Set());
+			});
+			return;
+		}
+
+		setDeadLetterMode(false);
+		setDeadLetterViewer(null);
+		setExpandedRows(new Set());
 	};
 
 	const handleReceive = async () => {
@@ -250,6 +397,301 @@ export function ViewerPage() {
 		}
 	};
 
+	const runRepublish = async (request: RepublishDeadLetterRequestDto) => {
+		const isBulk = request.messageId === null;
+		setPendingAction('republish');
+		setRepublishOutcome(null);
+		setRepublishCancelled(false);
+		setRepublishErrorMessages([]);
+		bulkCancelRequestedRef.current = false;
+
+		if (isBulk) {
+			setBulkProgress({ operation: 'republish', processed: 0, failed: 0 });
+		}
+
+		let totalAffected = 0;
+		let totalFailed = 0;
+		let detail: string | null = null;
+		let allStepsSucceeded = true;
+		let cancelled = false;
+
+		try {
+			// A bulk republish runs as a sequence of bounded requests; the loop stops when a step processes
+			// zero messages or the user cancels. Single-message republish stays one unbounded request.
+			while (true) {
+				const step = await serviceBusApi.republishDeadLetter(
+					isBulk ? { ...request, maxCount: BULK_STEP_SIZE } : request,
+				);
+				totalAffected += step.affectedCount;
+				totalFailed += step.failedCount;
+				allStepsSucceeded = allStepsSucceeded && step.succeeded;
+				detail = step.detail ?? detail;
+
+				if (!isBulk) {
+					break;
+				}
+
+				setBulkProgress({ operation: 'republish', processed: totalAffected + totalFailed, failed: totalFailed });
+
+				if (bulkCancelRequestedRef.current) {
+					cancelled = true;
+					break;
+				}
+
+				if (step.affectedCount + step.failedCount === 0) {
+					break;
+				}
+			}
+
+			const republishSucceeded = !cancelled && allStepsSucceeded;
+
+			if (!isBulk && republishSucceeded) {
+				animateAndRemoveMessage(request.messageId!, 'republish');
+				return;
+			}
+
+			if (isBulk && republishSucceeded) {
+				setBulkSuccessMessage('All dead-lettered messages republished.');
+			} else {
+				setRepublishCancelled(cancelled);
+				setRepublishOutcome({
+					succeeded: republishSucceeded,
+					affectedCount: totalAffected,
+					failedCount: totalFailed,
+					detail,
+				});
+			}
+
+			try {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setExpandedRows(new Set());
+			} catch {
+				setRepublishErrorMessages([
+					'The republish completed, but the dead-letter list could not be refreshed. Use Refresh to try again.',
+				]);
+			}
+		} catch (error: unknown) {
+			if (isBulk && totalAffected + totalFailed > 0) {
+				setRepublishOutcome({
+					succeeded: false,
+					affectedCount: totalAffected,
+					failedCount: totalFailed,
+					detail,
+				});
+			}
+			setRepublishErrorMessages(getErrorMessages(error));
+		} finally {
+			setBulkProgress(null);
+			setPendingAction(null);
+		}
+	};
+
+	const startSingleRepublish = (
+		messageId: string,
+		strategy: RepublishMessageIdStrategy,
+		manualMessageId: string | null = null,
+	) => {
+		void runRepublish({ messageId, strategy, manualMessageId });
+	};
+
+	const singleRepublishStrategyOptions =
+		republishTargetRequiresDuplicateDetection === false
+			? republishStrategyOptions
+			: republishStrategyOptions.filter((option) => option.value !== 'KeepOriginal');
+
+	const bulkRepublishStrategyOptions = singleRepublishStrategyOptions.filter(
+		(option) => option.value !== 'Manual',
+	);
+
+	const handleSingleStrategyPick = (messageId: string, strategy: RepublishMessageIdStrategy) => {
+		if (strategy === 'Manual') {
+			setRepublishPrompt({ kind: 'manual', messageId });
+			return;
+		}
+
+		startSingleRepublish(messageId, strategy);
+	};
+
+	const handleBulkStrategyPick = (strategy: RepublishMessageIdStrategy) => {
+		void runRepublish({ messageId: null, strategy, manualMessageId: null });
+	};
+
+	const handleRepublishPromptCancel = () => {
+		setRepublishPrompt(null);
+	};
+
+	const handleManualPromptConfirm = (manualMessageId: string) => {
+		const prompt = republishPrompt;
+		if (prompt === null) {
+			return;
+		}
+
+		setRepublishPrompt(null);
+		startSingleRepublish(prompt.messageId, 'Manual', manualMessageId);
+	};
+
+	const runDrop = async (messageId: string | null) => {
+		const isBulk = messageId === null;
+		setPendingAction('drop');
+		setDropOutcome(null);
+		setDropCancelled(false);
+		setDropErrorMessages([]);
+		bulkCancelRequestedRef.current = false;
+
+		if (isBulk) {
+			setBulkProgress({ operation: 'drop', processed: 0, failed: 0 });
+		}
+
+		let totalAffected = 0;
+		let totalFailed = 0;
+		let detail: string | null = null;
+		let allStepsSucceeded = true;
+		let cancelled = false;
+
+		try {
+			// A bulk drop runs as a sequence of bounded requests; the loop stops when a step processes
+			// zero messages or the user cancels. Single-message drop stays one unbounded request.
+			while (true) {
+				const step = await serviceBusApi.dropDeadLetters(
+					isBulk ? { messageId, maxCount: BULK_STEP_SIZE } : { messageId },
+				);
+				totalAffected += step.affectedCount;
+				totalFailed += step.failedCount;
+				allStepsSucceeded = allStepsSucceeded && step.succeeded;
+				detail = step.detail ?? detail;
+
+				if (!isBulk) {
+					break;
+				}
+
+				setBulkProgress({ operation: 'drop', processed: totalAffected + totalFailed, failed: totalFailed });
+
+				if (bulkCancelRequestedRef.current) {
+					cancelled = true;
+					break;
+				}
+
+				if (step.affectedCount + step.failedCount === 0) {
+					break;
+				}
+			}
+
+			const dropSucceeded = !cancelled && allStepsSucceeded;
+
+			if (!isBulk && dropSucceeded) {
+				animateAndRemoveMessage(messageId!, 'drop');
+				return;
+			}
+
+			if (isBulk && dropSucceeded) {
+				setBulkSuccessMessage('All dead-lettered messages dropped.');
+			} else {
+				setDropCancelled(cancelled);
+				setDropOutcome({
+					succeeded: dropSucceeded,
+					affectedCount: totalAffected,
+					failedCount: totalFailed,
+					detail,
+				});
+			}
+
+			try {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setExpandedRows(new Set());
+			} catch {
+				setDropErrorMessages([
+					'The drop completed, but the dead-letter list could not be refreshed. Use Refresh to try again.',
+				]);
+			}
+		} catch (error: unknown) {
+			if (isBulk && totalAffected + totalFailed > 0) {
+				setDropOutcome({
+					succeeded: false,
+					affectedCount: totalAffected,
+					failedCount: totalFailed,
+					detail,
+				});
+			}
+			setDropErrorMessages(getErrorMessages(error));
+		} finally {
+			setBulkProgress(null);
+			setPendingAction(null);
+		}
+	};
+
+	const handleBulkCancel = () => {
+		bulkCancelRequestedRef.current = true;
+	};
+
+	const removeMessageFromList = (messageId: string) => {
+		setDeadLetterViewer((current) => {
+			if (!current) {
+				return current;
+			}
+
+			return {
+				...current,
+				messages: current.messages.filter(
+					(message) => message.properties.messageId !== messageId,
+				),
+				totalMessageCount:
+					current.totalMessageCount !== null ? current.totalMessageCount - 1 : null,
+			};
+		});
+	};
+
+	// A successfully dropped or republished single message animates out of the list instead of a full
+	// refresh: drop turns the row gray and soft before shrinking it to zero; republish shrinks directly.
+	const animateAndRemoveMessage = (messageId: string, variant: 'drop' | 'republish') => {
+		setRemovingMessageIds((current) => new Map(current).set(messageId, variant));
+		window.setTimeout(() => {
+			removeMessageFromList(messageId);
+			setRemovingMessageIds((current) => {
+				const next = new Map(current);
+				next.delete(messageId);
+				return next;
+			});
+		}, 300);
+	};
+
+	const dismissRepublishFeedback = () => {
+		setRepublishOutcome(null);
+		setRepublishCancelled(false);
+		setRepublishErrorMessages([]);
+	};
+
+	const dismissDropFeedback = () => {
+		setDropOutcome(null);
+		setDropCancelled(false);
+		setDropErrorMessages([]);
+	};
+
+	const handleDropSingle = (messageId: string) => {
+		setDropSingleTarget(messageId);
+	};
+
+	const handleDropSingleConfirm = () => {
+		const messageId = dropSingleTarget;
+		setDropSingleTarget(null);
+
+		if (messageId !== null) {
+			void runDrop(messageId);
+		}
+	};
+
+	const handleDropSingleCancel = () => {
+		setDropSingleTarget(null);
+	};
+
+	const handleDropAllConfirm = () => {
+		setDropConfirmOpen(false);
+		void runDrop(null);
+	};
+
+	const handleDropAllCancel = () => {
+		setDropConfirmOpen(false);
+	};
+
 	const renderApplicationPropertiesTable = (
 		applicationProperties: Record<string, ReceivedMessageApplicationPropertyDto> | null,
 		emptyClassName: string,
@@ -266,7 +708,9 @@ export function ViewerPage() {
 							</tr>
 						</thead>
 						<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-							{Object.entries(applicationProperties).map(([key, property]) => (
+							{Object.entries(applicationProperties)
+								.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+								.map(([key, property]) => (
 								<tr key={key}>
 									<td className="px-4 py-2 font-mono text-xs text-slate-700 dark:text-slate-200">
 										{key}
@@ -366,6 +810,24 @@ export function ViewerPage() {
 										refresh
 									</span>
 									Refresh
+								</button>
+
+								<button
+									type="button"
+									className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+										deadLetterMode
+											? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300'
+											: 'border-slate-200 bg-white hover:bg-slate-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+									}`}
+									aria-pressed={deadLetterMode}
+									aria-busy={deadLetterMode && pendingAction === 'refresh'}
+									disabled={Boolean(currentViewer) && pendingAction !== null}
+									onClick={() => {
+										void handleToggleDeadLetter();
+									}}
+								>
+									<span className="material-icons-round text-sm">inventory_2</span>
+									Dead Letter
 								</button>
 
 								<div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -517,88 +979,262 @@ export function ViewerPage() {
 								<div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 md:flex-row md:items-center md:justify-between">
 									<div className="flex items-center gap-2">
 										<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-											Peeked Messages
+											{deadLetterMode ? 'Dead-Lettered Messages' : 'Peeked Messages'}
 										</h2>
 										<span className="rounded-xl bg-slate-100 px-2 py-1 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
 											{peekedMessageSummary}
 										</span>
 									</div>
+
+									{deadLetterMode ? (
+										<div className="flex items-center gap-2">
+											<RepublishStrategyMenu
+												align="right"
+												ariaBusy={pendingAction === 'republish'}
+												buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 shadow-sm transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300 dark:hover:bg-brand-950/50"
+												buttonContent={
+													<>
+														<span className="material-icons-round text-sm">upload</span>
+														{pendingAction === 'republish' ? 'Republishing...' : 'Republish All'}
+														<span className="material-icons-round text-sm">arrow_drop_down</span>
+													</>
+												}
+												disabled={deadLetterOperationInProgress || activeMessages.length === 0}
+												menuTitle="Republish"
+												options={bulkRepublishStrategyOptions}
+												onPick={handleBulkStrategyPick}
+											/>
+											<button
+												type="button"
+												className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+												aria-busy={pendingAction === 'drop'}
+												disabled={
+													deadLetterOperationInProgress ||
+													activeMessages.length === 0
+												}
+												onClick={() => {
+													setDropConfirmOpen(true);
+												}}
+											>
+												<span className="material-icons-round inline-block rotate-180 text-sm">
+													upload
+												</span>
+												{pendingAction === 'drop' ? 'Dropping...' : 'Drop All'}
+											</button>
+										</div>
+									) : null}
 								</div>
 
-								{currentViewer?.messages.length ? (
-									<div className="overflow-x-auto">
+								{deadLetterMode &&
+								((republishOutcome !== null && !republishOutcome.succeeded) ||
+									republishErrorMessages.length > 0 ||
+									(dropOutcome !== null && !dropOutcome.succeeded) ||
+									dropErrorMessages.length > 0) ? (
+									<div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/30">
+										{republishOutcome && !republishOutcome.succeeded ? (
+											<Alert
+												messages={buildRepublishOutcomeMessages(republishOutcome, republishCancelled)}
+												tone="error"
+												onDismiss={dismissRepublishFeedback}
+											/>
+										) : null}
+										{republishErrorMessages.length > 0 ? (
+											<Alert messages={republishErrorMessages} tone="error" onDismiss={dismissRepublishFeedback} />
+										) : null}
+										{dropOutcome && !dropOutcome.succeeded ? (
+											<Alert
+												messages={buildDropOutcomeMessages(dropOutcome, dropCancelled)}
+												tone="error"
+												onDismiss={dismissDropFeedback}
+											/>
+										) : null}
+										{dropErrorMessages.length > 0 ? (
+											<Alert messages={dropErrorMessages} tone="error" onDismiss={dismissDropFeedback} />
+										) : null}
+									</div>
+								) : null}
+
+								{deadLetterMode && bulkProgress ? (
+								<div
+									aria-live="polite"
+									className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-brand-50/60 px-4 py-3 dark:border-slate-800 dark:bg-brand-950/20"
+								>
+									<div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+										<span className="material-icons-round animate-spin text-sm text-brand-500">
+											refresh
+										</span>
+										{bulkProgress.operation === 'republish' ? 'Republishing' : 'Dropping'} dead-lettered
+										messages: {bulkProgress.processed} processed, {bulkProgress.failed} failed
+									</div>
+									<button
+										type="button"
+										className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+										onClick={handleBulkCancel}
+									>
+										<span className="material-icons-round text-sm">close</span>
+										Cancel
+									</button>
+								</div>
+							) : null}
+
+							{activeMessages.length ? (
+									<div className={`message-table-container overflow-x-auto${deadLetterMode ? ' dead-letter' : ''}`}>
 										<table className="min-w-full text-left text-sm">
 											<thead className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
 												<tr>
 													<th className="px-4 py-3 font-medium">Message ID</th>
-													{showPartitionKey && <th className="px-4 py-3 font-medium">Partition Key</th>}
-													<th className="px-4 py-3 font-medium">Session</th>
-													<th className="px-4 py-3 font-medium">Delivery Count</th>
-													<th className="px-4 py-3 font-medium">Enqueued Time / TTL</th>
-													{showScheduledEnqueue && <th className="px-4 py-3 font-medium">Scheduled Enqueue</th>}
-													<th className="px-4 py-3 font-medium">Content Type</th>
+													{showPartitionKey && <th className="col-partition-key px-4 py-3 font-medium">Partition Key</th>}
+													<th className="col-session px-4 py-3 font-medium">Session</th>
+													<th className="col-delivery-count px-4 py-3 font-medium">Delivery Count</th>
+													<th className="col-enqueued-time px-4 py-3 font-medium">Enqueued Time / TTL</th>
+													{showScheduledEnqueue && <th className="col-scheduled-enqueue px-4 py-3 font-medium">Scheduled Enqueue</th>}
+													{!deadLetterMode && <th className="col-content-type px-4 py-3 font-medium">Content Type</th>}
+													{deadLetterMode && <th className="px-4 py-3 font-medium">Dead Letter Reason</th>}
 													<th className="px-4 py-3 text-center font-medium">Actions</th>
 												</tr>
 											</thead>
 											<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-												{currentViewer.messages.map((message, index) => {
+												{activeMessages.map((message, index) => {
 													const rowKey = createMessageRowKey(message, index);
 													const isExpanded = expandedRows.has(rowKey);
-													const propertyRows: Array<[string, string]> = [
+													const deadLetterPropertyRows: Array<[string, string]> = deadLetterMode
+														? [
+															['Dead Letter Reason', formatNullable(message.properties.deadLetterReason)],
+															['Dead Letter Source', formatNullable(message.properties.deadLetterSource)],
+															[
+																	'Dead Letter Error Description',
+																	formatNullable(message.properties.deadLetterErrorDescription),
+																],
+														]
+														: [];
+													const propertyRows: Array<[string, string, string?]> = [
+														...deadLetterPropertyRows,
 														['Scheduled Enqueue', formatDateTime(message.properties.scheduledEnqueueTime)],
 														['Correlation ID', formatNullable(message.properties.correlationId)],
+														[
+															'Content Type',
+															formatNullable(message.properties.contentType, 'not set'),
+															deadLetterMode ? undefined : 'prop-content-type',
+														],
 														['Subject', formatNullable(message.properties.subject)],
 														['To', formatNullable(message.properties.to)],
 														['Reply To', formatNullable(message.properties.replyTo)],
+														...(showPartitionKey
+															? ([[
+																'Partition Key',
+																formatNullable(message.properties.partitionKey),
+																'prop-partition-key',
+															]] as Array<[string, string, string?]>)
+															: []),
+														['Session', formatNullable(message.properties.sessionId, 'No session'), 'prop-session'],
+														['Delivery Count', String(message.properties.deliveryCount), 'prop-delivery-count'],
+														[
+															'Enqueued Time / TTL',
+															`${formatDateTime(message.properties.enqueuedTimeUtc)} (TTL: ${formatNullable(message.properties.timeToLive)})`,
+															'prop-enqueued-time',
+														],
 													];
 
 													return (
 														<Fragment key={rowKey}>
-															<tr className="align-top transition hover:bg-slate-50 dark:hover:bg-slate-950/40">
+															<tr className={`align-top transition hover:bg-slate-50 dark:hover:bg-slate-950/40${removingMessageIds.get(message.properties.messageId) === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId) ? ' message-row-removing' : ''}`}>
 																<td className="px-4 py-3">
 																	<div className="font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{message.properties.messageId}
 																	</div>
 																</td>
 																{showPartitionKey && (
-																	<td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-200">
+																	<td className="col-partition-key px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{formatNullable(message.properties.partitionKey)}
 																	</td>
 																)}
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																<td className="col-session px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{formatNullable(message.properties.sessionId, 'No session')}
 																</td>
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																<td className="col-delivery-count px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{message.properties.deliveryCount}
 																</td>
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																<td className="col-enqueued-time px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{formatDateTimeShort(message.properties.enqueuedTimeUtc)}
 																	<div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
 																		TTL: {formatNullable(message.properties.timeToLive)}
 																	</div>
 																</td>
 																{showScheduledEnqueue && (
-																	<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																	<td className="col-scheduled-enqueue px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																		{message.properties.scheduledEnqueueTime
 																			? formatDateTimeShort(message.properties.scheduledEnqueueTime)
 																			: 'n/a'}
 																	</td>
 																)}
-																<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-																	{formatNullable(message.properties.contentType, 'not set')}
-																</td>
+																{!deadLetterMode && (
+																	<td className="col-content-type px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																		{formatNullable(message.properties.contentType, 'not set')}
+																	</td>
+																)}
+																{deadLetterMode && (
+																	<td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+																		{formatNullable(message.properties.deadLetterReason)}
+																	</td>
+																)}
 																<td className="px-4 py-3">
 																	<div className="flex items-center justify-end gap-2">
 																		<CopyFullMessageButton message={message} />
+																		{deadLetterMode ? (
+																			<RepublishStrategyMenu
+																				align="right"
+																				ariaBusy={pendingAction === 'republish'}
+																				buttonClassName="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+																				buttonContent={
+																					<>
+																						<span className="material-icons-round text-sm">
+																									upload
+																						</span>
+																						<span className="material-icons-round text-sm">
+																							arrow_drop_down
+																						</span>
+																					</>
+																				}
+																				buttonTitle="Republish"
+																				disabled={deadLetterOperationInProgress}
+																				menuTitle="Republish"
+																				options={singleRepublishStrategyOptions}
+																				onPick={(strategy) =>
+																					handleSingleStrategyPick(
+																						message.properties.messageId,
+																						strategy,
+																					)
+																				}
+																			/>
+																		) : null}
+																		{deadLetterMode ? (
+																			<button
+																				type="button"
+																				aria-label="Drop"
+																				className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-rose-100 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+																				disabled={deadLetterOperationInProgress}
+																				title="Drop"
+																				onClick={() =>
+																					handleDropSingle(
+																						message.properties.messageId,
+																						)
+																				}
+																			>
+																				<span className="material-icons-round inline-block rotate-180 text-sm">
+																					upload
+																				</span>
+																			</button>
+																		) : null}
 																		<button
 																			type="button"
-																			className="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+																			aria-label={isExpanded ? 'Collapse message details' : 'Expand message details'}
+																			title={isExpanded ? 'Collapse' : 'Expand'}
+																			className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
 																			onClick={() => toggleExpandedRow(rowKey)}
 																		>
 																			<span className="material-icons-round text-sm">
 																				{isExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
 																			</span>
-																			<span className="w-14 text-center">{isExpanded ? 'Collapse' : 'Expand'}</span>
 																		</button>
 																	</div>
 																</td>
@@ -616,8 +1252,10 @@ export function ViewerPage() {
 																						</tr>
 																					</thead>
 																					<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-																						{propertyRows.map(([label, value]) => (
-																							<tr key={`${rowKey}-${label}`}>
+																						{[...propertyRows]
+																					.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+																					.map(([label, value, rowClassName]) => (
+																							<tr key={`${rowKey}-${label}`} className={rowClassName}>
 																								<th className="w-44 whitespace-nowrap bg-white px-4 py-2 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
 																									{label}
 																								</th>
@@ -651,7 +1289,9 @@ export function ViewerPage() {
 								) : (
 									<div className="p-6">
 										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
-											No messages found.
+											{bulkSuccessMessage ?? (deadLetterMode
+												? 'No dead-lettered messages found.'
+												: 'No messages found.')}
 										</div>
 									</div>
 								)}
@@ -659,6 +1299,30 @@ export function ViewerPage() {
 						</div>
 					</main>
 				</div>
+
+				{republishPrompt ? (
+					<RepublishManualIdPrompt
+						messageId={republishPrompt.messageId}
+						onCancel={handleRepublishPromptCancel}
+						onConfirm={handleManualPromptConfirm}
+					/>
+				) : null}
+
+				{dropConfirmOpen ? (
+					<DropAllConfirmPrompt
+						onCancel={handleDropAllCancel}
+						onConfirm={handleDropAllConfirm}
+						visibleCount={deadLetterViewer?.messages.length ?? 0}
+					/>
+				) : null}
+
+				{dropSingleTarget !== null ? (
+					<DropSingleConfirmPrompt
+						messageId={dropSingleTarget}
+						onCancel={handleDropSingleCancel}
+						onConfirm={handleDropSingleConfirm}
+					/>
+				) : null}
 			</div>
 		</AppLayout>
 	);

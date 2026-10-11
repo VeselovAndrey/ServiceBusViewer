@@ -1,5 +1,7 @@
+using System.Text.Json.Serialization;
 using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Api.Endpoints;
+using ServiceBusViewer.Api.Endpoints.Viewer.RepublishDeadLetter;
 using ServiceBusViewer.Api.ExceptionHandling;
 using ServiceBusViewer.Configuration;
 using ServiceBusViewer.Infrastructure.ClientSession;
@@ -8,8 +10,11 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-builder.Services.ConfigureHttpJsonOptions(options
-	=> options.SerializerOptions.Converters.Add(new SubscriptionRuleJsonConverter()));
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+	options.SerializerOptions.Converters.Add(new SubscriptionRuleJsonConverter());
+	options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<RepublishMessageIdStrategy>());
+});
 builder.Services.AddCors(options => options.AddPolicy("LocalDevelopment", policy => policy
 	.SetIsOriginAllowed(static origin => IsLocalDevelopmentOrigin(origin))
 	.AllowAnyHeader()
