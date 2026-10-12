@@ -112,7 +112,7 @@ export function EntityDetailsPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-300">
-                    <span className="material-icons-round text-[20px]">{icon}</span>
+                    <span className="material-icons-round text-[1.25rem]">{icon}</span>
                   </span>
 
                   <div className="min-w-0">

@@ -108,7 +108,7 @@ export function RepublishManualIdPrompt({
 			</p>
 			<label
 				htmlFor="republish-manual-message-id"
-				className="mt-3 block text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500"
+				className="mt-3 block text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500"
 			>
 				New message id
 			</label>
