@@ -12,6 +12,7 @@
 - **Changed:** Single drop/republish animates the message row out of the list; bulk success shows a transient message in the empty-list placeholder; errors and cancelled operations appear as dismissible messages.
 - **Changed:** Drop and republish buttons are disabled while any dead-letter operation is running.
 - **Changed:** Upgraded dependencies to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
+- **Fixed:** Dead-letter drop and republish operations now allow enough time for the initial receive on session-enabled queues and subscriptions.
 
 ## 0.48.0 (2026-08-23)
 
