@@ -13,8 +13,8 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 {
 	private static readonly TimeSpan _emptyReceiveWaitTime = TimeSpan.FromSeconds(1);
 
-	// ReceiveMessagesAsync requires a positive wait, so the republish loop polls the dead-letter queue with a short positive wait instead of an immediate return.
-	private static readonly TimeSpan _republishPollWaitTime = TimeSpan.FromMilliseconds(100);
+	// ReceiveMessagesAsync requires a positive wait. Use the same bounded wait as ordinary receives so the initial dead-letter receive has enough time to return messages.
+	private static readonly TimeSpan _deadLetterReceiveWaitTime = TimeSpan.FromSeconds(1);
 
 	private readonly ServiceBusClient _client;
 	private readonly ServiceBusAdministrationClient? _adminClient;
@@ -160,7 +160,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		await using ServiceBusSender sender = GetSender(entity);
 
 		while (true) {
-			IReadOnlyList<ServiceBusReceivedMessage> batch = await receiver.ReceiveMessagesAsync(10, maxWaitTime: _republishPollWaitTime, cancellationToken: cancellationToken);
+			IReadOnlyList<ServiceBusReceivedMessage> batch = await receiver.ReceiveMessagesAsync(10, maxWaitTime: _deadLetterReceiveWaitTime, cancellationToken: cancellationToken);
 			int unseenRequestedCount = 0;
 
 			foreach (ServiceBusReceivedMessage message in batch) {
@@ -221,7 +221,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		await using ServiceBusReceiver receiver = GetDeadLetterReceiver(entity);
 
 		while (true) {
-			IReadOnlyList<ServiceBusReceivedMessage> batch = await receiver.ReceiveMessagesAsync(10, maxWaitTime: _republishPollWaitTime, cancellationToken: cancellationToken);
+			IReadOnlyList<ServiceBusReceivedMessage> batch = await receiver.ReceiveMessagesAsync(10, maxWaitTime: _deadLetterReceiveWaitTime, cancellationToken: cancellationToken);
 			int unseenRequestedCount = 0;
 
 			foreach (ServiceBusReceivedMessage message in batch) {
