@@ -885,7 +885,7 @@ export function ViewerPage() {
 										<>
 											<div className="grid gap-4 border-b border-dashed border-slate-200 pb-4 dark:border-slate-800 lg:grid-cols-2 xl:grid-cols-5">
 												<div>
-													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+													<div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
 														Enqueued Time
 													</div>
 													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
@@ -893,7 +893,7 @@ export function ViewerPage() {
 													</div>
 												</div>
 												<div>
-													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+													<div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
 														Message ID
 													</div>
 													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
@@ -901,7 +901,7 @@ export function ViewerPage() {
 													</div>
 												</div>
 												<div>
-													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+													<div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
 														Partition Key
 													</div>
 													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
@@ -909,7 +909,7 @@ export function ViewerPage() {
 													</div>
 												</div>
 												<div>
-													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+													<div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
 														Session ID
 													</div>
 													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
@@ -917,7 +917,7 @@ export function ViewerPage() {
 													</div>
 												</div>
 												<div>
-													<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+													<div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
 														Delivery Count
 													</div>
 													<div className="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200">
@@ -981,7 +981,7 @@ export function ViewerPage() {
 										<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
 											{deadLetterMode ? 'Dead-Lettered Messages' : 'Peeked Messages'}
 										</h2>
-										<span className="rounded-xl bg-slate-100 px-2 py-1 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+										<span className="rounded-xl bg-slate-100 px-2 py-1 text-[0.6875rem] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
 											{peekedMessageSummary}
 										</span>
 									</div>
@@ -1156,7 +1156,7 @@ export function ViewerPage() {
 																</td>
 																<td className="col-enqueued-time px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
 																	{formatDateTimeShort(message.properties.enqueuedTimeUtc)}
-																	<div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+																	<div className="mt-1 text-[0.6875rem] text-slate-400 dark:text-slate-500">
 																		TTL: {formatNullable(message.properties.timeToLive)}
 																	</div>
 																</td>
@@ -1184,7 +1184,7 @@ export function ViewerPage() {
 																			<RepublishStrategyMenu
 																				align="right"
 																				ariaBusy={pendingAction === 'republish'}
-																				buttonClassName="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+																				buttonClassName="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[0.6875rem] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
 																				buttonContent={
 																					<>
 																						<span className="material-icons-round text-sm">
@@ -1211,7 +1211,7 @@ export function ViewerPage() {
 																			<button
 																				type="button"
 																				aria-label="Drop"
-																				className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-rose-100 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+																				className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-2 text-[0.6875rem] font-medium text-slate-500 transition hover:bg-rose-100 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
 																				disabled={deadLetterOperationInProgress}
 																				title="Drop"
 																				onClick={() =>
@@ -1229,7 +1229,7 @@ export function ViewerPage() {
 																			type="button"
 																			aria-label={isExpanded ? 'Collapse message details' : 'Expand message details'}
 																			title={isExpanded ? 'Collapse' : 'Expand'}
-																			className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+																			className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-2 text-[0.6875rem] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
 																			onClick={() => toggleExpandedRow(rowKey)}
 																		>
 																			<span className="material-icons-round text-sm">

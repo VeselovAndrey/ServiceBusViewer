@@ -92,7 +92,7 @@ export function EntitySidebar({
         <label className="relative block">
           <span className="sr-only">Filter entities</span>
           <span
-            className="material-icons-round pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-[18px] text-slate-400 dark:text-slate-500"
+            className="material-icons-round pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-[1.125rem] text-slate-400 dark:text-slate-500"
             aria-hidden="true"
           >
             search
@@ -123,7 +123,7 @@ export function EntitySidebar({
 
         {queues.length > 0 ? (
           <section className="space-y-1">
-            <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+            <div className="px-2 py-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
               Queues
             </div>
             <div className="space-y-1">
@@ -160,7 +160,7 @@ export function EntitySidebar({
                         aria-label="View queue properties"
                         to={buildDetailsPath(queue)}
                       >
-                        <span className="material-icons-round text-[18px]">info</span>
+                        <span className="material-icons-round text-[1.125rem]">info</span>
                       </Link>
                     ) : null}
                   </div>
@@ -172,7 +172,7 @@ export function EntitySidebar({
 
         {topics.length > 0 ? (
           <section className="pt-2">
-            <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+            <div className="px-2 py-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
               Topics
             </div>
             <div className="space-y-1">
@@ -206,7 +206,7 @@ export function EntitySidebar({
                           aria-label="View topic properties"
                           to={buildDetailsPath(topic)}
                         >
-                          <span className="material-icons-round text-[18px]">info</span>
+                          <span className="material-icons-round text-[1.125rem]">info</span>
                         </Link>
                       ) : null}
                     </div>
@@ -251,7 +251,7 @@ export function EntitySidebar({
                                   aria-label="View subscription properties"
                                   to={buildDetailsPath(subscription)}
                                 >
-                                  <span className="material-icons-round text-[18px]">info</span>
+                                  <span className="material-icons-round text-[1.125rem]">info</span>
                                 </Link>
                               ) : null}
                             </div>

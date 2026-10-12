@@ -148,7 +148,7 @@ export function RepublishStrategyMenu({
 					style={position}
 				>
 					{menuTitle ? (
-						<div className="border-b border-slate-200 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:border-slate-800 dark:text-slate-500">
+						<div className="border-b border-slate-200 px-4 py-2 text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:border-slate-800 dark:text-slate-500">
 							{menuTitle}
 						</div>
 					) : null}
