@@ -62,7 +62,7 @@ export function CopyButton({
 			type="button"
 			disabled={isDisabled}
 			className={cx(
-				'relative inline-flex h-8 items-center justify-center overflow-hidden rounded-lg border text-[11px] font-medium transition-all duration-200',
+				'relative inline-flex h-8 items-center justify-center overflow-hidden rounded-lg border text-[0.6875rem] font-medium transition-all duration-200',
 				isDisabled
 					? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-600'
 					: copyStatus === 'copied'

@@ -20,7 +20,7 @@ export function JsonMessageBody({ body, className }: JsonMessageBodyProps) {
   return (
     <div className={cx('js-message-container', className)}>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+        <h3 className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
           Message Body
         </h3>
         <div className="flex items-center gap-2">

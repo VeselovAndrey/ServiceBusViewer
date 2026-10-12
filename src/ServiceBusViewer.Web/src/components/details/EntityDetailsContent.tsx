@@ -148,7 +148,7 @@ export function EntityDetailsContent({
 					<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
 						Entity properties
 					</h2>
-					<span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+					<span className="rounded-full bg-slate-100 px-2 py-1 text-[0.6875rem] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
 						Read-only
 					</span>
 				</div>
@@ -186,7 +186,7 @@ export function EntityDetailsContent({
 								<h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
 									Subscription rules
 								</h3>
-								<span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+								<span className="rounded-full bg-slate-100 px-2 py-1 text-[0.6875rem] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
 									{subscriptionRules.length} total
 								</span>
 							</div>
@@ -268,7 +268,7 @@ export function EntityDetailsContent({
 																			key={label}
 																			className="rounded-2xl border border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900"
 																		>
-																			<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+																			<div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
 																				{label}
 																			</div>
 																			<div className="mt-1 text-xs text-slate-700 dark:text-slate-200">
@@ -329,7 +329,7 @@ export function EntityDetailsContent({
 													return (
 														<div className="grid gap-3">
 															<div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
-																<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+																<div className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
 																	Filter Type
 																</div>
 																<div className="mt-1 text-xs text-slate-700 dark:text-slate-200">

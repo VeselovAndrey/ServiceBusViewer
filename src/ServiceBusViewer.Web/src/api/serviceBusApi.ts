@@ -1,8 +1,12 @@
 import type {
 	ConnectRequestDto,
+	DropDeadLettersRequestDto,
+	DropDeadLettersResponseDto,
 	EntityDetailsDto,
 	EntityIdDto,
 	ReceiveRequestDto,
+	RepublishDeadLetterRequestDto,
+	RepublishDeadLetterResponseDto,
 	SessionStateDto,
 	SendMessageRequestDto,
 	ViewerState,
@@ -73,6 +77,23 @@ export const serviceBusApi = {
 	refreshViewer() {
 		return requestJson<ViewerState>('/viewer/refresh', {
 			method: 'POST',
+		});
+	},
+	refreshDeadLetterList() {
+		return requestJson<ViewerState>('/viewer/refresh-dlq', {
+			method: 'POST',
+		});
+	},
+	republishDeadLetter(request: RepublishDeadLetterRequestDto) {
+		return requestJson<RepublishDeadLetterResponseDto>('/viewer/republish-dlq', {
+			method: 'POST',
+			body: JSON.stringify(request),
+		});
+	},
+	dropDeadLetters(request: DropDeadLettersRequestDto) {
+		return requestJson<DropDeadLettersResponseDto>('/viewer/drop-dlq', {
+			method: 'POST',
+			body: JSON.stringify(request),
 		});
 	},
 	selectEntity(entity: EntityIdDto) {

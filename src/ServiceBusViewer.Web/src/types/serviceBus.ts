@@ -26,6 +26,9 @@ export interface ReceivedMessagePropertiesDto {
 	to: string | null;
 	replyTo: string | null;
 	subject: string | null;
+	deadLetterReason: string | null;
+	deadLetterSource: string | null;
+	deadLetterErrorDescription: string | null;
 }
 
 export interface ReceivedMessageApplicationPropertyDto {
@@ -51,6 +54,7 @@ export interface ViewerState {
 	displayedMessage: ReceivedMessageDto | null;
 	sendResultMessage: string | null;
 	receiveSessionId: string | null;
+	totalMessageCount: number | null;
 }
 
 export interface SessionStateDto {
@@ -207,3 +211,31 @@ export type EntityPropertiesDto =
 	| TopicEntityPropertiesDto
 	| SubscriptionEntityPropertiesDto
 	| Record<string, unknown>;
+
+export type RepublishMessageIdStrategy = 'KeepOriginal' | 'AutoGenerate' | 'Guid' | 'GuidV7' | 'Manual';
+
+export interface RepublishDeadLetterRequestDto {
+	messageId: string | null;
+	strategy: RepublishMessageIdStrategy;
+	manualMessageId: string | null;
+	maxCount?: number | null;
+}
+
+export interface RepublishDeadLetterResponseDto {
+	succeeded: boolean;
+	affectedCount: number;
+	failedCount: number;
+	detail: string | null;
+}
+
+export interface DropDeadLettersRequestDto {
+	messageId: string | null;
+	maxCount?: number | null;
+}
+
+export interface DropDeadLettersResponseDto {
+	succeeded: boolean;
+	affectedCount: number;
+	failedCount: number;
+	detail: string | null;
+}

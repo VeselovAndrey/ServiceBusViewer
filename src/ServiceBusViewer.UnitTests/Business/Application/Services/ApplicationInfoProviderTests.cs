@@ -9,7 +9,7 @@ using Xunit;
 public sealed class ApplicationInfoProviderTests
 {
 	[Fact]
-	public void IsRunningInContainer_SettingsIndicateContainer_ReturnsTrue()
+	public void ApplicationInfoProvider_IsRunningInContainer_SettingsIndicateContainer_ReturnsTrue()
 	{
 		// Arrange
 		IApplicationInfoProviderSettings settings = Substitute.For<IApplicationInfoProviderSettings>();
@@ -24,7 +24,7 @@ public sealed class ApplicationInfoProviderTests
 	}
 
 	[Fact]
-	public void ApplicationVersion_AssemblyMetadataIsRead_ReturnsAssemblyVersion()
+	public void ApplicationInfoProvider_ApplicationVersion_AssemblyMetadataIsRead_ReturnsAssemblyVersion()
 	{
 		// Arrange
 		Assembly assembly = typeof(ApplicationInfoProvider).Assembly;

@@ -100,6 +100,8 @@ export function SendMessageForm({
 	const [isContentTypeMenuOpen, setIsContentTypeMenuOpen] = useState(false);
 	const [contentTypeFilter, setContentTypeFilter] = useState('');
 	const contentTypeContainerRef = useRef<HTMLDivElement | null>(null);
+	const collapseToggleRef = useRef<HTMLButtonElement | null>(null);
+	const formContentRef = useRef<HTMLDivElement | null>(null);
 	const [duplicateDetection, setDuplicateDetection] = useState<boolean | null>(null);
 	const [loadJsonStatus, setLoadJsonStatus] = useState<{
 		kind: 'error';
@@ -418,7 +420,7 @@ export function SendMessageForm({
 						type="button"
 						disabled={!isOpen}
 						className={cx(
-							'inline-flex min-w-[10.5rem] items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+							'inline-flex min-w-[10.5rem] items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[0.6875rem] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
 							!isOpen
 								? 'cursor-not-allowed border-slate-200 bg-white text-slate-500 opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'
 								: pasteStatus === 'success'
@@ -445,7 +447,7 @@ export function SendMessageForm({
 						title="Show or hide advanced fields"
 						disabled={!isOpen}
 						className={cx(
-							'inline-flex h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-slate-800 dark:bg-slate-900',
+							'inline-flex h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[0.6875rem] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-slate-800 dark:bg-slate-900',
 							showAdvanced
 								? 'text-slate-700 dark:text-slate-200'
 								: 'text-slate-500 dark:text-slate-300',
@@ -472,8 +474,17 @@ export function SendMessageForm({
 					</button>
 					<button
 						type="button"
-						className="inline-flex h-7 w-24 items-center justify-center gap-1 rounded-lg bg-slate-100 px-2 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-						onClick={() => setIsOpen((current) => !current)}
+						ref={collapseToggleRef}
+						aria-expanded={isOpen}
+						aria-controls="sendMessageFormContent"
+						aria-label={isOpen ? 'Collapse send message form' : 'Expand send message form'}
+						className="inline-flex h-7 w-24 items-center justify-center gap-1 rounded-lg bg-slate-100 px-2 text-[0.6875rem] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+						onClick={() => {
+							if (isOpen && formContentRef.current?.contains(document.activeElement)) {
+								collapseToggleRef.current?.focus();
+							}
+							setIsOpen((current) => !current);
+						}}
 					>
 						<span className="material-icons-round text-sm">
 							{isOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
@@ -483,11 +494,16 @@ export function SendMessageForm({
 				</div>
 			</div>
 
-			<div className={cx('send-form-transition', !isOpen && 'js-send-form-hidden')}>
+			<div
+				id="sendMessageFormContent"
+				ref={formContentRef}
+				inert={!isOpen}
+				className={cx('send-form-transition', !isOpen && 'js-send-form-hidden')}
+			>
 				<form className="p-4 lg:p-6" onSubmit={(event) => void handleSubmit(event)}>
 					<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
 						<div className="flex min-h-0 flex-col">
-							<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+							<label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 								Payload
 							</label>
 							<textarea
@@ -500,7 +516,7 @@ export function SendMessageForm({
 
 						<div className="space-y-4">
 							<div>
-								<label className="mb-2 flex items-center justify-between pr-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+								<label className="mb-2 flex items-center justify-between pr-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									Message ID
 									{duplicateDetection === true ? (
 										<span
@@ -536,7 +552,7 @@ export function SendMessageForm({
 							</div>
 
 							<div>
-								<label className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+								<label className="mb-2 flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									<span>Session ID</span>
 								</label>
 								<input
@@ -555,7 +571,7 @@ export function SendMessageForm({
 
 							{showAdvanced ? (
 								<div>
-									<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+									<label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 										Partition Key
 									</label>
 									<input
@@ -570,7 +586,7 @@ export function SendMessageForm({
 							) : null}
 
 							<div>
-								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+								<label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									Correlation ID
 								</label>
 								<input
@@ -583,7 +599,7 @@ export function SendMessageForm({
 							</div>
 
 							<div>
-								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+								<label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									Content Type
 								</label>
 								<div className="relative" ref={contentTypeContainerRef}>
@@ -630,7 +646,7 @@ export function SendMessageForm({
 											!isContentTypeMenuOpen && 'hidden',
 										)}
 									>
-										<div className="border-b border-slate-200 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-slate-800 dark:text-slate-400">
+										<div className="border-b border-slate-200 px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-slate-800 dark:text-slate-400">
 											Common content types
 										</div>
 										<div className="custom-scrollbar h-48 overflow-y-scroll p-2 pr-2" style={{ scrollbarGutter: 'stable' }}>
@@ -664,7 +680,7 @@ export function SendMessageForm({
 
 					<div className="mt-6 grid gap-4 lg:grid-cols-2">
 						<div>
-							<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+							<label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 								Scheduled Enqueue Time
 							</label>
 							<input
@@ -676,7 +692,7 @@ export function SendMessageForm({
 						</div>
 
 						<div>
-							<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+							<label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 								Time To Live
 							</label>
 							<input
@@ -692,7 +708,7 @@ export function SendMessageForm({
 					{showAdvanced ? (
 						<div className="mt-6 grid gap-4 sm:grid-cols-3">
 							<div>
-								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+								<label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									To
 								</label>
 								<input
@@ -705,7 +721,7 @@ export function SendMessageForm({
 							</div>
 
 							<div>
-								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+								<label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									Reply To
 								</label>
 								<input
@@ -718,7 +734,7 @@ export function SendMessageForm({
 							</div>
 
 							<div>
-								<label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+								<label className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									Subject
 								</label>
 								<input
@@ -735,7 +751,7 @@ export function SendMessageForm({
 					<div className="mt-6">
 						<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
 							<div>
-								<label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+								<label className="block text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 									Custom Properties
 								</label>
 								<p className="mt-1 text-xs text-slate-500 dark:text-slate-400">

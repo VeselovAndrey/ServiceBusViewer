@@ -3,7 +3,26 @@
 @plugin "@tailwindcss/typography";
 @source "./**/*.{ts,tsx}";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* Dark branching without JS: an explicit override lives in the
+   <meta name="color-scheme"> content ("light"/"dark"); with no override
+   ("light dark") the system media query decides. */
+@custom-variant dark {
+  &:where(
+    :root:has(> head > meta[name="color-scheme"][content="dark"]),
+    :root:has(> head > meta[name="color-scheme"][content="dark"]) *
+  ) {
+    @slot;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    &:where(
+      :root:has(> head > meta[name="color-scheme"][content="light dark"]),
+      :root:has(> head > meta[name="color-scheme"][content="light dark"]) *
+    ) {
+      @slot;
+    }
+  }
+}
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -21,6 +40,13 @@
   --color-brand-900: #1e3a5f;
 }
 
+/* Progressive enhancement: enables transitions between fixed lengths and intrinsic
+   sizing keywords (e.g. height: 0 -> auto) for the send-form collapse. Browsers
+   without support ignore this and toggle the size instantly. */
+:root {
+  interpolate-size: allow-keywords;
+}
+
 @view-transition {
   navigation: auto;
 }
@@ -29,6 +55,14 @@
 ::view-transition-new(root) {
   animation-duration: 0.16s;
   animation-timing-function: ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
 }
 
 @font-face {
@@ -68,8 +102,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: block;
-  src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-400-normal.woff2")
-    format("woff2");
+  src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-400-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -77,8 +110,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: block;
-  src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-500-normal.woff2")
-    format("woff2");
+  src: url("/fonts/jetbrains-mono/jetbrains-mono-latin-500-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -94,11 +126,15 @@
 @layer base {
   html {
     @apply bg-slate-100 dark:bg-slate-950;
-    color-scheme: light;
-  }
+    color-scheme: light dark;
 
-  html.dark {
-    color-scheme: dark;
+    &:has(> head > meta[name="color-scheme"][content="dark"]) {
+      color-scheme: dark;
+    }
+
+    &:has(> head > meta[name="color-scheme"][content="light"]) {
+      color-scheme: light;
+    }
   }
 
   body {
@@ -115,6 +151,7 @@
 }
 
 @layer components {
+
   button,
   a[href],
   [role="button"],
@@ -131,19 +168,13 @@
 
   input::placeholder,
   textarea::placeholder {
-    color: rgb(148 163 184 / 0.5) !important;
-    opacity: 1 !important;
-  }
-
-  .dark input::placeholder,
-  .dark textarea::placeholder {
-    color: rgb(100 116 139 / 0.6) !important;
+    color: light-dark(rgb(148 163 184 / 0.5), rgb(100 116 139 / 0.6)) !important;
     opacity: 1 !important;
   }
 
   .entity-name-tooltip {
-    position: fixed;
-    z-index: 2147483647;
+    inset: auto;
+    margin: 0;
     max-width: min(22rem, calc(100vw - 1.5rem));
     border-radius: 0.375rem;
     border: 1px solid rgb(30 41 59 / 0.9);
@@ -155,14 +186,18 @@
     text-align: center;
     white-space: normal;
     box-shadow: 0 10px 25px rgb(15 23 42 / 0.28);
-    pointer-events: none;
+    position-anchor: --entity-tooltip;
+    bottom: anchor(top);
+    justify-self: anchor-center;
+    margin-block-end: 0.5rem;
+    position-try: flip-block, flip-inline;
   }
 
   .material-icons-round {
     font-family: "Material Icons Round";
     font-weight: normal;
     font-style: normal;
-    font-size: 24px;
+    font-size: 1.5rem;
     line-height: 1;
     letter-spacing: normal;
     text-transform: none;
@@ -180,45 +215,35 @@
   }
 
   .custom-scrollbar {
+    --scrollbar-thumb: light-dark(rgb(100 116 139 / 0.9), rgb(100 116 139 / 0.95));
+    --scrollbar-track: light-dark(rgb(226 232 240 / 0.85), rgb(30 41 59 / 0.9));
+    --scrollbar-thumb-hover: light-dark(rgb(71 85 105 / 0.95), rgb(148 163 184 / 0.95));
+
     scrollbar-width: auto;
-    scrollbar-color: rgb(100 116 139 / 0.9) rgb(226 232 240 / 0.85);
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   }
 
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
-  }
+  @supports not (scrollbar-color: auto) {
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
 
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgb(226 232 240 / 0.9);
-    border-radius: 9999px;
-  }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: var(--scrollbar-track);
+      border-radius: 9999px;
+    }
 
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgb(100 116 139 / 0.9);
-    border: 2px solid transparent;
-    background-clip: padding-box;
-    border-radius: 9999px;
-  }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      border: 2px solid transparent;
+      background-clip: padding-box;
+      border-radius: 9999px;
+    }
 
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgb(71 85 105 / 0.95);
-  }
-
-  .dark .custom-scrollbar {
-    scrollbar-color: rgb(100 116 139 / 0.95) rgb(30 41 59 / 0.9);
-  }
-
-  .dark .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgb(30 41 59 / 0.9);
-  }
-
-  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgb(100 116 139 / 0.95);
-  }
-
-  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgb(148 163 184 / 0.95);
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: var(--scrollbar-thumb-hover);
+    }
   }
 
   .json-key {
@@ -241,18 +266,189 @@
     @apply text-slate-500 dark:text-slate-400;
   }
 
+  /* Animate the true intrinsic content height (0 <-> auto via interpolate-size)
+     instead of a fixed max-height ceiling, so the visible motion matches the
+     stated duration and no oversized clipping ceiling remains. */
   .send-form-transition {
-    max-height: 220rem;
+    height: auto;
     opacity: 1;
+    visibility: visible;
     overflow: hidden;
     transition:
-      max-height 0.3s ease,
-      opacity 0.3s ease;
+      height 0.3s ease,
+      opacity 0.3s ease,
+      visibility 0s linear 0s;
   }
 
   .send-form-transition.js-send-form-hidden {
-    max-height: 0;
+    height: 0;
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
+    transition:
+      height 0.3s ease,
+      opacity 0.3s ease,
+      visibility 0s linear 0.3s;
+  }
+}
+
+/* Single dead-letter removal: the row shrinks and fades before the message leaves the list. */
+.message-table-container tr.message-row-removing>td {
+  transition: padding 300ms ease, opacity 300ms ease;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  line-height: 0;
+}
+
+.message-table-container tr.message-row-removing>td>* {
+  overflow: hidden;
+  animation: message-row-content-collapse 300ms ease forwards;
+}
+
+/* Single dead-letter drop: the row first turns gray and soft, then shrinks to zero height. */
+.message-table-container tr.message-row-dropping>td {
+  animation: message-row-drop-out 300ms ease forwards;
+}
+
+.message-table-container tr.message-row-dropping>td>* {
+  overflow: hidden;
+  animation: message-row-content-collapse 300ms ease forwards;
+}
+
+/* Cell content keeps its own height (e.g. the 28px action buttons) even when cell padding and
+   line-height collapse, so the content itself must shrink to zero for the row to reach zero. */
+@keyframes message-row-content-collapse {
+  0%,
+  35% {
+    max-height: 3rem;
+  }
+
+  100% {
+    max-height: 0;
+  }
+}
+
+@keyframes message-row-drop-out {
+  0% {
+    opacity: 1;
+    background-color: transparent;
+  }
+
+  35% {
+    opacity: 0.45;
+    background-color: rgb(148 163 184 / 0.25);
+  }
+
+  100% {
+    opacity: 0;
+    background-color: rgb(148 163 184 / 0.25);
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-table-container tr.message-row-removing>td {
+    transition: none;
+  }
+
+  .message-table-container tr.message-row-dropping>td {
+    animation: none;
+    opacity: 0;
+  }
+
+  /* Collapse/expand is instant for reduced-motion users; without transition
+     the delayed visibility swap is unnecessary. */
+  .send-form-transition,
+  .send-form-transition.js-send-form-hidden {
+    transition: none;
+  }
+}
+
+/* Peeked/dead-letter message table: progressively hide secondary columns when the
+   table's own width gets tight. Message ID, Dead Letter Reason, and Actions always stay. */
+.message-table-container {
+  container-type: inline-size;
+}
+
+@container (max-width: 1279px) {
+
+  .message-table-container .col-partition-key,
+  .message-table-container .col-scheduled-enqueue {
+    display: none;
+  }
+}
+
+@container (max-width: 1079px) {
+
+  .message-table-container .col-session,
+  .message-table-container .col-content-type {
+    display: none;
+  }
+}
+
+@container (max-width: 919px) {
+
+  .message-table-container .col-delivery-count,
+  .message-table-container .col-enqueued-time {
+    display: none;
+  }
+}
+
+/* Expanded message property rows mirroring responsively hidden columns:
+   hidden while the column is visible, shown once the column is hidden. */
+.message-table-container .prop-partition-key,
+.message-table-container .prop-session,
+.message-table-container .prop-delivery-count,
+.message-table-container .prop-enqueued-time,
+.message-table-container .prop-content-type {
+  display: none;
+}
+
+@container (max-width: 1279px) {
+  .message-table-container .prop-partition-key {
+    display: table-row;
+  }
+}
+
+@container (max-width: 1079px) {
+
+  .message-table-container .prop-session,
+  .message-table-container .prop-content-type {
+    display: table-row;
+  }
+}
+
+@container (max-width: 919px) {
+
+  .message-table-container .prop-delivery-count,
+  .message-table-container .prop-enqueued-time {
+    display: table-row;
+  }
+}
+
+/* Dead-letter mode hides secondary columns earlier; mirrored property rows follow. */
+@container (max-width: 1279px) {
+  .message-table-container.dead-letter .col-session {
+    display: none;
+  }
+
+  .message-table-container.dead-letter .prop-session {
+    display: table-row;
+  }
+}
+
+@container (max-width: 1079px) {
+
+  .message-table-container.dead-letter .col-delivery-count,
+  .message-table-container.dead-letter .col-enqueued-time {
+    display: none;
+  }
+
+  .message-table-container.dead-letter .prop-delivery-count,
+  .message-table-container.dead-letter .prop-enqueued-time {
+    display: table-row;
   }
 }

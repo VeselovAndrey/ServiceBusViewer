@@ -85,7 +85,7 @@ export function AppLayout({
             aria-pressed={isDark}
             onClick={toggleTheme}
           >
-            <span className="material-icons-round text-[20px]">{isDark ? 'light_mode' : 'dark_mode'}</span>
+            <span className="material-icons-round text-[1.25rem]">{isDark ? 'light_mode' : 'dark_mode'}</span>
           </button>
 
           {headerAction?.kind === 'button' ? (
@@ -116,7 +116,7 @@ export function AppLayout({
 
       {children}
 
-      <footer className="flex h-12 items-center justify-between border-t border-slate-200 bg-white/75 px-4 text-[11px] text-slate-500 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-400">
+      <footer className="flex h-12 items-center justify-between border-t border-slate-200 bg-white/75 px-4 text-[0.6875rem] text-slate-500 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-400">
         <div className="flex items-center gap-1.5">
           <span className="inline-flex items-center leading-none">Service Bus Viewer {applicationVersion}</span>
           <span className="inline-flex items-center leading-none" aria-hidden="true">

@@ -14,6 +14,7 @@ using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 /// <param name="DisplayedMessage">Message currently opened for detailed viewing, if any.</param>
 /// <param name="SendResultMessage">Optional result message after a send operation (success/error).</param>
 /// <param name="ReceiveSessionId">Optional active receive session identifier for session-enabled entities.</param>
+/// <param name="TotalMessageCount">Total number of messages in the selected entity (dead-letter count for a dead-letter list), when known from the management API; otherwise null.</param>
 public sealed record ViewerState(
 	string ServiceBusHostName,
 	string? EntityName,
@@ -25,4 +26,5 @@ public sealed record ViewerState(
 	bool HasMoreMessages,
 	ReceivedMessage? DisplayedMessage,
 	string? SendResultMessage,
-	string? ReceiveSessionId);
+	string? ReceiveSessionId,
+	long? TotalMessageCount);

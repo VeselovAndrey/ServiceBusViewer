@@ -31,18 +31,39 @@ internal static class BusinessModelMapping
 		=> new(
 			message.Body,
 			new ReceivedMessageProperties(
-				message.Properties.MessageId, message.Properties.PartitionKey, message.Properties.SessionId, message.Properties.CorrelationId,
-				message.Properties.ContentType, message.Properties.DeliveryCount, message.Properties.EnqueuedTimeUtc.ToString("O", CultureInfo.InvariantCulture),
-				message.Properties.ScheduledEnqueueTime?.ToString("O", CultureInfo.InvariantCulture), message.Properties.TimeToLive?.ToString("c", CultureInfo.InvariantCulture),
-				message.Properties.To, message.Properties.ReplyTo, message.Properties.Subject),
+				message.Properties.MessageId,
+				message.Properties.PartitionKey,
+				message.Properties.SessionId,
+				message.Properties.CorrelationId,
+				message.Properties.ContentType,
+				message.Properties.DeliveryCount,
+				message.Properties.EnqueuedTimeUtc.ToString("O", CultureInfo.InvariantCulture),
+				message.Properties.ScheduledEnqueueTime?.ToString("O", CultureInfo.InvariantCulture),
+				message.Properties.TimeToLive?.ToString("c", CultureInfo.InvariantCulture),
+				message.Properties.To,
+				message.Properties.ReplyTo,
+				message.Properties.Subject,
+				message.Properties.DeadLetterReason,
+				message.Properties.DeadLetterSource,
+				message.Properties.DeadLetterErrorDescription),
+
 			message.ApplicationProperties.ToDictionary(
 				pair => pair.Key,
 				pair => new ReceivedMessageApplicationProperty(ResponseMapping.NormalizeObjectValue(pair.Value) ?? string.Empty, ResponseMapping.GetApplicationPropertyType(pair.Value))));
 
 	/// <summary>Maps business-contract viewer state to an API response model.</summary>
 	internal static ViewerState ToApiModel(this BusinessViewerState state)
-		=> new(
-			state.ServiceBusHostName, state.EntityName, state.TopicName, state.RequiresSession, state.IsManagementApiAvailable,
-			[.. state.AvailableEntities.Select(entity => entity.ToApiModel())], [.. state.Messages.Select(message => message.ToApiModel())], state.HasMoreMessages,
-			state.DisplayedMessage?.ToApiModel(), state.SendResultMessage, state.ReceiveSessionId);
+		=> new ViewerState(
+			state.ServiceBusHostName,
+			state.EntityName,
+			state.TopicName,
+			state.RequiresSession,
+			state.IsManagementApiAvailable,
+			[.. state.AvailableEntities.Select(entity => entity.ToApiModel())],
+			[.. state.Messages.Select(message => message.ToApiModel())],
+			state.HasMoreMessages,
+			state.DisplayedMessage?.ToApiModel(),
+			state.SendResultMessage,
+			state.ReceiveSessionId,
+			state.TotalMessageCount);
 }

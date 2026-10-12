@@ -13,7 +13,7 @@ using Xunit;
 public sealed class ViewerMessageServiceTests
 {
 	[Fact]
-	public async Task RefreshAsync_NonSessionEntity_ClearsReceiveSessionAndReplacesMessages()
+	public async Task ViewerMessageService_RefreshAsync_NonSessionEntity_ClearsReceiveSessionAndReplacesMessages()
 	{
 		// Arrange
 		const string queueName = "default-queue";
@@ -47,7 +47,7 @@ public sealed class ViewerMessageServiceTests
 	}
 
 	[Fact]
-	public async Task SendAsync_SessionEntityHasNoSessionId_ThrowsSendMessageValidationException()
+	public async Task ViewerMessageService_SendAsync_SessionEntityHasNoSessionId_ThrowsSendMessageValidationException()
 	{
 		// Arrange
 		const string queueName = "default-queue";
@@ -74,7 +74,7 @@ public sealed class ViewerMessageServiceTests
 	}
 
 	[Fact]
-	public async Task ReceiveAsync_SessionEntityWithSessionId_ReceivesFromSpecifiedSessionAndRefreshesMessages()
+	public async Task ViewerMessageService_ReceiveAsync_SessionEntityWithSessionId_ReceivesFromSpecifiedSessionAndRefreshesMessages()
 	{
 		// Arrange
 		const string queueName = "default-queue";
@@ -104,7 +104,7 @@ public sealed class ViewerMessageServiceTests
 	}
 
 	[Fact]
-	public async Task SendAsync_NonSessionEntity_SendsCommandAndClearsReceiveSession()
+	public async Task ViewerMessageService_SendAsync_NonSessionEntity_SendsCommandAndClearsReceiveSession()
 	{
 		// Arrange
 		const string queueName = "default-queue";

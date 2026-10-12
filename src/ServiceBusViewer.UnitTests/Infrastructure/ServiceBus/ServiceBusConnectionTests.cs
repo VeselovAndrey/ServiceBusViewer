@@ -9,7 +9,7 @@ using Xunit;
 public sealed class ServiceBusConnectionTests
 {
 	[Fact]
-	public async Task GetEntityProperties_EntityExists_ReturnsCachedProperties()
+	public async Task ServiceBusConnection_GetEntityProperties_EntityExists_ReturnsCachedProperties()
 	{
 		// Arrange
 		const string queueName = "default-queue";
@@ -24,7 +24,7 @@ public sealed class ServiceBusConnectionTests
 	}
 
 	[Fact]
-	public async Task PeekMessagesAsync_TopicEntity_ReturnsEmptyWithoutReceiving()
+	public async Task ServiceBusConnection_PeekMessagesAsync_TopicEntity_ReturnsEmptyWithoutReceiving()
 	{
 		// Arrange
 		var topic = new TopicEntityProperties("events", TimeSpan.FromDays(1), false, TimeSpan.FromMinutes(10), true, false, TimeSpan.FromDays(30));
@@ -38,7 +38,7 @@ public sealed class ServiceBusConnectionTests
 	}
 
 	[Fact]
-	public async Task GetEntityProperties_EntityIsMissing_ThrowsInvalidOperationException()
+	public async Task ServiceBusConnection_GetEntityProperties_EntityIsMissing_ThrowsInvalidOperationException()
 	{
 		// Arrange
 		const string queueName = "default-queue";
@@ -52,7 +52,7 @@ public sealed class ServiceBusConnectionTests
 	}
 
 	[Fact]
-	public async Task DisposeAsync_ConnectionIsDisposed_RejectsFurtherOperations()
+	public async Task ServiceBusConnection_DisposeAsync_ConnectionIsDisposed_RejectsFurtherOperations()
 	{
 		// Arrange
 		const string queueName = "default-queue";

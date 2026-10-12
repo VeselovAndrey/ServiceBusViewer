@@ -1,35 +1,34 @@
 # AI Coding Agent Instructions
 
-> 📌 This document is the primary agent-facing guide for repository-specific implementation rules. Keep it concise, accurate, and update it when repository conventions change.
+> 📌 **This document is the primary memory store for all AI agents working on this project.** All conventions, patterns, decisions, and coding standards documented here should be followed consistently across all code changes. When making updates to the codebase, ensure that all relevant team conventions from this file are applied.
 
-## Project Context
+# Key folders and files
 
-ServiceBusViewer is split into three cooperating projects:
+- `docs\` stores the main product and architecture documentation, including:
+    - the [PRD](docs/PRD.md)
+    - the [technical spec](docs/TECH_SPEC.md)
+    - the [glossary](docs/GLOSSARY.md)
+    - the [project structure](docs/PROJECT_STRUCTURE.md) - load this when selecting a location for a file or class
+- `.agents\specs\` stores agent-oriented engineering guidance, including:
+    - the [C# code style](.agents/specs/CSHARP_CODESTYLE.md) - MUST follow these rules for C# code
+    - the [architecture rules](.agents/specs/ARCHITECTURE_RULES.md) - MUST follow these rules for module boundaries, dependencies, registration, and reflection
+    - the [git branching rules](.agents\specs\GIT_BRANCHING_RULES.md) - MUST follow these rules for git branching
+    - the [work-item conventions](.agents/specs/WORK_ITEM_CONVENTIONS.md) - MUST follow when planning, implementing, or updating work items; the owning skill defines exact workflow procedures
+- `.workitems/` stores requirements and delivery work by lifecycle state; follow the [work-item folder layout](.agents/specs/WORK_ITEM_CONVENTIONS.md#folder-layout).
+- `src\` stores the C# source code, including the `.slnx` solution file, projects, implementation code, and tests.
+    - Host-project Dockerfiles belong inside their corresponding project folders under `src\`, not under `deployment\`.
+- `deployment\` stores deployment and build scripts, including PowerShell scripts and DevOps pipelines.
 
-- `src\ServiceBusViewer` — ASP.NET Core minimal API backend
-- `src\ServiceBusViewer.Web` — React + Vite SPA frontend
-- `src\ServiceBusViewer.AppHost` — local Aspire/AppHost orchestration
+# General rules
 
-Primary use case: local development and testing with the Azure Service Bus Emulator.
+- Do not assume or guesss, always ask to clarify.
+- Store agent-created temporary files in `.agents/.tmp/` inside the repository; create the folder when needed. Never use `.workitems` or `src` for temporary files.
+- Never rewrite existing working tests without explicit confirmation.
+- Never install any new tools without explicit confirmation.
+- Ask only when a missing decision materially affects the current planning or implementation level. Preserve safe explicit assumptions when clarification is unnecessary.
+- Git staging, commits (including amendments), and pushes each require an explicit developer request, including when performed through tools or delegated agents. Work items and implementation approval are not authorization. Requirements file staging is unrelated. Clarify ambiguous scope before acting.
+- The [PRD](docs\PRD.md) and the [technical spec](docs\TECH_SPEC.md) are ToC files. When investigating load only sections that required for the current task or referenced by other section. Do not load the entire PRD or technical spec unless explicitly requested.
 
-## Source-of-Truth Documents
-
-- `.agents\specs\CSHARP_CODESTYLE.md` — C# coding conventions and style rules.
-- `CHANGELOG.md` — complete product version history
-- `docs\PROJECT_STRUCTURE.md` — repository layout, folder responsibilities, and dependency boundaries
-- `README.md` — developer workflows, container usage, product overview, and recent release summary
-
-Do not duplicate detailed structure or workflow guidance here when those files already cover it.
-
-Follow `.agents\specs\CSHARP_CODESTYLE.md` for C# code. If a rule conflicts with `.editorconfig`, `.editorconfig` takes precedence.
-
-## Architecture Rules
-
-See docs\PROJECT_STRUCTURE.md for the canonical architecture and folder responsibilities.
-
-Enforced rules for agents:
-- Minimal API handlers must remain thin: validate input, call the appropriate business capability service, and map results to HTTP responses.
-- Preserve browser-session isolation: keep viewer and Service Bus connection state scoped to the `sbv-session` browser cookie.
 
 ## Service Bus Implementation Notes
 

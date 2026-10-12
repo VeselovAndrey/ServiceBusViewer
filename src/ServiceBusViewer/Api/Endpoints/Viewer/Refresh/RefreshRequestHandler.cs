@@ -29,6 +29,7 @@ internal static class RefreshRequestHandler
 			response.HasMoreMessages,
 			response.DisplayedMessage,
 			response.SendResultMessage,
-			response.ReceiveSessionId);
+			response.ReceiveSessionId,
+			response.TotalMessageCount);
 	}
 }

@@ -1,5 +1,18 @@
 # Service Bus Viewer Version History
 
+## 1.0.0-rc1 (2026-10-11)
+
+- **Added:** Republish dead-lettered messages to the original entity or permanently drop them — per message, or the entire dead-letter queue with **Republish All** / **Drop All** (with a confirmation dialog).
+- **Added:** A dropdown on both buttons for how the republished copy's message id is assigned: keep the original (hidden when the target has duplicate detection), Service Bus auto-generate, a new GUID or GUID v7, or a manual id for a single message.
+- **Added:** Republish results show the affected and failed counts plus the first failure detail; failed messages remain in the dead-letter queue.
+- **Added:** A **Dead Letter** toggle that displays the selected entity's dead-letter queue (the queue's **$DeadLetterQueue**, or the subscription's queue); the list adds **Dead Letter Reason** and **Dead Letter Source** columns, and the expanded message shows the reason, source, and error description.
+- **Added:** Bulk **Republish All** / **Drop All** run as bounded steps with a progress indicator and a **Cancel** button.
+- **Added:** The message list header shows the entity's total message count when reliable counts are available.
+- **Changed:** Dead letter mode: its own heading and empty state, **Refresh** reloads the dead-letter list, and selecting another entity exits the mode.
+- **Changed:** Single drop/republish animates the message row out of the list; bulk success shows a transient message in the empty-list placeholder; errors and cancelled operations appear as dismissible messages.
+- **Changed:** Drop and republish buttons are disabled while any dead-letter operation is running.
+- **Changed:** Upgraded dependencies to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
+
 ## 0.48.0 (2026-08-23)
 
 - **Added:** Per-message **Delivery Count** based on `SystemProperties.DeliveryCount` as reported by Azure Service Bus, shown as a column in the Peeked Messages list and in the Last Received Message details, so redelivered messages are visible without opening each one.
