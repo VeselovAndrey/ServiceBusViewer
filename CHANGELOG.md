@@ -1,9 +1,13 @@
 # Service Bus Viewer Version History
 
-## 1.0.0-rc2 (2026-10-13)
+## 1.0.0-rc2 (2026-10-14)
 
-- **Added:** Configurable peek count on the Viewer page — presets for 1, 5, 10, 30, 50, and 100 or a custom value up to 500, applied without reconnecting and persisted in the browser.
-- **Added:** Use device settings theme option that follows the OS light/dark setting live; the choice is stored in the browser.
+- **Added:** Peek count selection on the Viewer page — presets (1, 5, 10, 30, 50, 100) or a custom value up to 500 — applied without reconnecting; the choice is saved in the browser.
+- **Added:** A theme option that follows the OS light/dark setting live; the choice is saved in the browser.
+- **Added:** Emulator connect hint on the Connect screen, with a button that fills in the emulator connection strings (separate Docker and Podman buttons when the viewer runs in a container).
+- **Changed:** The **Dead Letter** toggle now shows its target — **Switch to Dead Letter** / **Switch to Active Messages** — with a matching archive/inbox icon and a fixed button width.
+- **Changed:** **Republish All** uses the same neutral button style as the other buttons on the page.
+- **Fixed:** Dark-mode tints (dead-letter toggle, dead-letter header bar, button shadows) that were not rendering because the `brand-950` theme color was missing.
 
 ## 1.0.0-rc1 (2026-10-11)
 

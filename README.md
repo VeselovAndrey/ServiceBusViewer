@@ -51,6 +51,7 @@ Settings entered on the connection page apply to the current browser session. Th
 | `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING` | Optional emulator-only administration connection used to browse and refresh entities. | Not set |
 | `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` | Queue to open directly, or parent topic when a subscription is also configured. | Empty |
 | `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` | Optional subscription to open under the configured parent topic. | Not set |
+| `SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT` | Controls whether the connect screen shows the emulator connect hint and the insert button. | Shown (hidden only when set to `false`) |
 
 For example, the following command preconfigures namespace browsing for an emulator running on the Docker host:
 
@@ -90,6 +91,8 @@ Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey
 Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
 ```
 
+For a Podman container host, replace `host.docker.internal` above with `host.containers.internal`.
+
 ## Browser-session isolation
 
 The API keeps viewer state in a server-side bucket identified by the `sbv-session` cookie. Different browser profiles and private browsing sessions have isolated viewer state. 
@@ -97,10 +100,14 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 1.0.0-rc2 (2026-10-13)
+## 1.0.0-rc2 (2026-10-14)
 
-- **Added:** Configurable peek count on the Viewer page — presets for 1, 5, 10, 30, 50, and 100 or a custom value up to 500, applied without reconnecting and persisted in the browser.
-- **Added:** Use device settings theme option that follows the OS light/dark setting live; the choice is stored in the browser.
+- **Added:** Peek count selection on the Viewer page — presets (1, 5, 10, 30, 50, 100) or a custom value up to 500 — applied without reconnecting; the choice is saved in the browser.
+- **Added:** A theme option that follows the OS light/dark setting live; the choice is saved in the browser.
+- **Added:** Emulator connect hint on the Connect screen, with a button that fills in the emulator connection strings (separate Docker and Podman buttons when the viewer runs in a container).
+- **Changed:** The Dead Letter toggle now shows its target — "Switch to Dead Letter" / "Switch to Active Messages" — with a matching archive/inbox icon and a fixed button width.
+- **Changed:** Republish All uses the same neutral button style as the other buttons on the page.
+- **Fixed:** Dark-mode tints (dead-letter toggle, dead-letter header bar, button shadows) that were not rendering because the brand-950 theme color was missing.
 
 ## 1.0.0-rc1 (2026-10-11)
 

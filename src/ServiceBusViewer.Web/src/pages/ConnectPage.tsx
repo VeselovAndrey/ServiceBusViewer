@@ -22,6 +22,12 @@ const emptyConnectRequest: ConnectRequestDto = {
 	peekMessageCount: readStoredPeekMessageCount(),
 };
 
+const buildEmulatorDefaultConnectionString = (host: string) =>
+	`Endpoint=sb://${host};SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;`;
+
+const insertButtonClassName =
+	'inline-flex items-center justify-center rounded-lg bg-brand-100 px-3 py-2 text-xs font-semibold text-brand-700 transition hover:bg-brand-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-brand-900/60 dark:text-brand-300 dark:hover:bg-brand-900';
+
 export function ConnectPage() {
 	const navigate = useNavigate();
 	const { sessionState, refreshSessionState } = useAppState();
@@ -52,6 +58,18 @@ export function ConnectPage() {
 	if (sessionState.isConnected) {
 		return <Navigate replace to="/viewer" />;
 	}
+
+	const emulatorHost = sessionState.isRunningInContainer ? 'host.docker.internal' : 'localhost';
+
+	const handleInsertEmulatorDefaults = (host: string) => {
+		setFormState((current) => ({
+			...current,
+			connectionString: buildEmulatorDefaultConnectionString(host),
+			emulatorManagementConnectionString: buildEmulatorDefaultConnectionString(
+				`${host}:5300`,
+			),
+		}));
+	};
 
 	const handleChange = (key: keyof ConnectRequestDto, event: ChangeEvent<HTMLInputElement>) => {
 		const value = event.target.value;
@@ -271,33 +289,85 @@ export function ConnectPage() {
 									</div>
 								</div>
 
-								{sessionState.isRunningInContainer && (
+								{sessionState.showEmulatorConnectHint && (
 									<div className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
 										<span className="material-icons-round text-base" aria-hidden="true">
 											info
 										</span>
 										<div>
-											<p>To reach the emulator on the host machine:</p>
+											<p>To connect to the local Service Bus emulator:</p>
 											<ul className="mt-1 list-disc space-y-1 pl-4">
 												<li>
-													Docker: use{' '}
-													<span className="font-mono text-slate-700 dark:text-slate-200">
-														host.docker.internal
-													</span>
+													Message endpoint: use{' '}
+													{sessionState.isRunningInContainer ? (
+														<>
+															<span className="font-mono text-slate-700 dark:text-slate-200">
+																host.docker.internal
+															</span>{' '}
+															for Docker or{' '}
+															<span className="font-mono text-slate-700 dark:text-slate-200">
+																host.containers.internal
+															</span>{' '}
+															for Podman
+														</>
+													) : (
+														<span className="font-mono text-slate-700 dark:text-slate-200">
+															{emulatorHost}
+														</span>
+													)}
 												</li>
 												<li>
-													Podman: use{' '}
-													<span className="font-mono text-slate-700 dark:text-slate-200">
-														host.docker.internal
-													</span>{' '}
-													or{' '}
-													<span className="font-mono text-slate-700 dark:text-slate-200">
-														host.containers.internal
-													</span>
-													, and the host service must listen on a non-loopback
-													interface (not just 127.0.0.1) to be reachable
+													Emulator management: use{' '}
+													{sessionState.isRunningInContainer ? (
+														<>
+															the same host with port{' '}
+															<span className="font-mono text-slate-700 dark:text-slate-200">
+																5300
+															</span>{' '}
+															(default port)
+														</>
+													) : (
+														<>
+															<span className="font-mono text-slate-700 dark:text-slate-200">
+																{`${emulatorHost}:5300`}
+															</span>{' '}
+															(default port)
+														</>
+													)}
 												</li>
 											</ul>
+											<div className="mt-3 flex gap-2">
+												{sessionState.isRunningInContainer ? (
+													<>
+														<button
+															type="button"
+															className={insertButtonClassName}
+															onClick={() => handleInsertEmulatorDefaults(
+																'host.docker.internal',
+															)}
+														>
+															Insert Docker defaults
+														</button>
+														<button
+															type="button"
+															className={insertButtonClassName}
+															onClick={() => handleInsertEmulatorDefaults(
+																'host.containers.internal',
+															)}
+														>
+															Insert Podman defaults
+														</button>
+													</>
+												) : (
+													<button
+														type="button"
+														className={insertButtonClassName}
+														onClick={() => handleInsertEmulatorDefaults(emulatorHost)}
+													>
+														Insert emulator defaults
+													</button>
+												)}
+											</div>
 										</div>
 									</div>
 								)}
