@@ -19,6 +19,8 @@
   <script>
     (function () {
       try {
+        // Absent or 'system' keeps the default 'light dark' so the page
+        // follows the OS color scheme; 'light'/'dark' pin the scheme.
         const storedTheme = localStorage.getItem('theme');
         if (storedTheme === 'light' || storedTheme === 'dark') {
           document.querySelector('meta[name="color-scheme"]').content =
