@@ -8,7 +8,7 @@ The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Asp
 
 - Automatically browse an Azure namespace when the primary connection has Manage permission, or connect directly to a queue or subscription.
 - Browse queues, topics, subscriptions, entity properties, and subscription filters.
-- Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
+- Peek and receive messages from queues or topic subscriptions, including session-enabled entities, with a configurable peek count (presets 1-100 or a custom value up to 500) persisted in the browser.
 - View the selected entity's dead-lettered messages with their dead-letter reason and source, and refresh the dead-letter list as the queue's contents change.
 - Republish dead-lettered messages to the original entity, one at a time or in bulk, choosing how the republished copy's message id is assigned.
 - Drop dead-lettered messages, one at a time or the entire dead-letter queue with a confirmation, with the affected and failed counts reported for the operation.
@@ -99,21 +99,18 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## 1.0.0-rc2 (2026-10-13)
 
-- **Added:** Use device settings as a third theme option alongside Light and Dark: the app follows the OS light/dark setting live, without a reload, and the choice — stored in the browser — is applied on every load.
+- **Added:** Configurable peek count on the Viewer page — presets for 1, 5, 10, 30, 50, and 100 or a custom value up to 500, applied without reconnecting and persisted in the browser.
+- **Added:** Use device settings theme option that follows the OS light/dark setting live; the choice is stored in the browser.
 
 ## 1.0.0-rc1 (2026-10-11)
 
-- **Added:** Republish dead-lettered messages to the original entity or permanently drop them — per message, or the entire dead-letter queue with Republish All / Drop All (with a confirmation dialog).
-- **Added:** A dropdown on both buttons for how the republished copy's message id is assigned: keep the original (hidden when the target has duplicate detection), Service Bus auto-generate, a new GUID or GUID v7, or a manual id for a single message.
-- **Added:** Republish results show the affected and failed counts plus the first failure detail; failed messages remain in the dead-letter queue.
-- **Added:** A Dead Letter toggle that displays the selected entity's dead-letter queue (the queue's $DeadLetterQueue, or the subscription's queue); the list adds Dead Letter Reason and Dead Letter Source columns, and the expanded message shows the reason, source, and error description.
-- **Added:** Bulk Republish All / Drop All run as bounded steps with a progress indicator and a Cancel button.
-- **Added:** The message list header shows the entity's total message count when reliable counts are available.
-- **Changed:** Dead letter mode: its own heading and empty state, Refresh reloads the dead-letter list, and selecting another entity exits the mode.
-- **Changed:** Single drop/republish animates the message row out of the list; bulk success shows a transient message in the empty-list placeholder; errors and cancelled operations appear as dismissible messages.
-- **Changed:** Drop and republish buttons are disabled while any dead-letter operation is running.
-- **Changed:** Upgraded dependencies to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
-- **Fixed:** Dead-letter drop and republish operations now allow enough time for the initial receive on session-enabled queues and subscriptions.
+- **Added:** Dead Letter toggle showing the selected entity's dead-letter queue with the dead-letter reason, source, and error description.
+- **Added:** Republish dead-lettered messages to the original entity or drop them permanently — per message or in bulk (Republish All / Drop All with confirmation), with progress, cancellation, and affected/failed counts.
+- **Added:** Message-id strategy dropdown for republishing: keep original (hidden with duplicate detection), auto-generate, GUID or GUID v7, or a manual id for a single message.
+- **Added:** Total message count in the message list header when reliable counts are available.
+- **Changed:** In dead letter mode, Refresh reloads the dead-letter list and selecting another entity exits the mode; single drop/republish animates the row out; dead-letter buttons stay disabled while an operation runs.
+- **Changed:** Upgraded to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
+- **Fixed:** Dead-letter drop and republish now allow enough time for the initial receive on session-enabled entities.
 
 ## 0.48.0 (2026-08-23)
 

@@ -70,6 +70,11 @@ export interface ConnectRequestDto {
 	emulatorManagementConnectionString: string | null;
 	queueOrTopicName: string | null;
 	subscriptionName: string | null;
+	peekMessageCount: number;
+}
+
+export interface UpdatePeekMessageCountRequestDto {
+	peekMessageCount: number;
 }
 
 export interface ReceiveRequestDto {

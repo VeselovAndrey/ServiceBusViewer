@@ -16,7 +16,7 @@ internal sealed class ViewerEntityService : IViewerEntityService
 
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			connection.GetEntityProperties(entityId);
-			ReceivedMessageList messages = await connection.PeekMessagesAsync(entityId, 50, operationCancellationSource.Token);
+			ReceivedMessageList messages = await connection.PeekMessagesAsync(entityId, session.PeekMessageCount, operationCancellationSource.Token);
 
 			session.SelectedEntityId = entityId;
 			session.CurrentMessages = messages;

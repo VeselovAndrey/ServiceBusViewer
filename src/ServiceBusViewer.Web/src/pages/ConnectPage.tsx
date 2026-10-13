@@ -10,6 +10,7 @@ import { serviceBusApi } from '../api/serviceBusApi';
 import { Alert } from '../components/common/Alert';
 import { AppLayout } from '../components/layout/AppLayout';
 import { getErrorMessages } from '../lib/problemDetails';
+import { readStoredPeekMessageCount } from '../lib/peekMessageCount';
 import { useAppState } from '../state/AppStateContext';
 import type { ConnectRequestDto } from '../types/serviceBus';
 
@@ -18,6 +19,7 @@ const emptyConnectRequest: ConnectRequestDto = {
 	emulatorManagementConnectionString: null,
 	queueOrTopicName: null,
 	subscriptionName: null,
+	peekMessageCount: readStoredPeekMessageCount(),
 };
 
 export function ConnectPage() {
@@ -39,6 +41,7 @@ export function ConnectPage() {
 			emulatorManagementConnectionString: sessionState.connection.emulatorManagementConnectionString,
 			queueOrTopicName: sessionState.connection.queueOrTopicName,
 			subscriptionName: sessionState.connection.subscriptionName,
+			peekMessageCount: readStoredPeekMessageCount(),
 		});
 	}, [sessionState]);
 

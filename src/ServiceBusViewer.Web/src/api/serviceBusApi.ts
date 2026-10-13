@@ -9,6 +9,7 @@ import type {
 	RepublishDeadLetterResponseDto,
 	SessionStateDto,
 	SendMessageRequestDto,
+	UpdatePeekMessageCountRequestDto,
 	ViewerState,
 } from '../types/serviceBus';
 import { ApiError, extractProblemMessages } from '../lib/problemDetails';
@@ -108,6 +109,12 @@ export const serviceBusApi = {
 	},
 	receive(request: ReceiveRequestDto) {
 		return requestJson<ViewerState>('/viewer/receive', {
+			body: JSON.stringify(request),
+			method: 'POST',
+		});
+	},
+	updatePeekMessageCount(request: UpdatePeekMessageCountRequestDto) {
+		return requestJson<ViewerState>('/viewer/peek-message-count', {
 			body: JSON.stringify(request),
 			method: 'POST',
 		});

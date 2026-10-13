@@ -12,6 +12,7 @@ internal sealed class ViewerSessionScope : IDisposable
 		State = Substitute.For<IViewerSessionState>();
 		State.Gate.Returns(_gate);
 		State.ConnectionCancellationToken.Returns(CancellationToken.None);
+		State.PeekMessageCount.Returns(50);
 	}
 
 	internal IViewerSessionState State { get; }

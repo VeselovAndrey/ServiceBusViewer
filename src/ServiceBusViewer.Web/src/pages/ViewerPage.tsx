@@ -13,6 +13,8 @@ import {
 	republishStrategyOptions,
 } from '../components/viewer/RepublishStrategyMenu';
 import { SendMessageForm } from '../components/viewer/SendMessageForm';
+import { PeekMessageCountSelector } from '../components/viewer/PeekMessageCountSelector';
+import { usePeekMessageCount } from '../hooks/usePeekMessageCount';
 import {
 	buildPeekedMessageSummary,
 	createMessageRowKey,
@@ -36,10 +38,12 @@ import type {
 	ViewerState,
 } from '../types/serviceBus';
 
-type ViewerAction = 'disconnect' | 'drop' | 'receive' | 'refresh' | 'republish' | 'send';
+type ViewerAction = 'disconnect' | 'drop' | 'receive' | 'refresh' | 'republish' | 'send' | 'peek-count';
 
 // Number of dead-letter messages each bounded bulk step processes per request (decided in Task 25-01).
 const BULK_STEP_SIZE = 100;
+
+const MESSAGE_ROW_BASE_CLASS = 'align-top transition hover:bg-slate-50 dark:hover:bg-slate-950/40';
 
 interface BulkOperationProgress {
 	operation: 'drop' | 'republish';
@@ -108,6 +112,7 @@ export function ViewerPage() {
 	const bulkCancelRequestedRef = useRef(false);
 	const [removingMessageIds, setRemovingMessageIds] = useState<Map<string, 'drop' | 'republish'>>(new Map());
 	const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
+	const [peekMessageCount, setPeekMessageCount] = usePeekMessageCount();
 
 	useEffect(() => {
 		if (!sessionState?.isConnected || viewer) {
@@ -352,6 +357,20 @@ export function ViewerPage() {
 		setDeadLetterMode(false);
 		setDeadLetterViewer(null);
 		setExpandedRows(new Set());
+	};
+
+	const handlePeekMessageCountApply = async (count: number) => {
+		await runAction('peek-count', async () => {
+			const nextViewer = await serviceBusApi.updatePeekMessageCount({ peekMessageCount: count });
+			setPeekMessageCount(count);
+
+			if (deadLetterMode) {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setExpandedRows(new Set());
+			}
+
+			await syncViewer(nextViewer);
+		});
 	};
 
 	const handleReceive = async () => {
@@ -984,6 +1003,13 @@ export function ViewerPage() {
 										<span className="rounded-xl bg-slate-100 px-2 py-1 text-[0.6875rem] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
 											{peekedMessageSummary}
 										</span>
+										<PeekMessageCountSelector
+											value={peekMessageCount}
+											disabled={pendingAction !== null}
+											onApply={(count) => {
+												void handlePeekMessageCountApply(count);
+											}}
+										/>
 									</div>
 
 									{deadLetterMode ? (
@@ -1137,7 +1163,7 @@ export function ViewerPage() {
 
 													return (
 														<Fragment key={rowKey}>
-															<tr className={`align-top transition hover:bg-slate-50 dark:hover:bg-slate-950/40${removingMessageIds.get(message.properties.messageId) === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId) ? ' message-row-removing' : ''}`}>
+															<tr className={`${MESSAGE_ROW_BASE_CLASS}${removingMessageIds.get(message.properties.messageId) === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId) ? ' message-row-removing' : ''}`}>
 																<td className="px-4 py-3">
 																	<div className="font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{message.properties.messageId}

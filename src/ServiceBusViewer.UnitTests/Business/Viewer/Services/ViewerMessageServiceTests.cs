@@ -47,6 +47,63 @@ public sealed class ViewerMessageServiceTests
 	}
 
 	[Fact]
+	public async Task ViewerMessageService_UpdatePeekMessageCountAsync_ValidCount_UpdatesSessionAndRePeeksMessages()
+	{
+		// Arrange
+		const string queueName = "default-queue";
+		QueueEntityProperties queue = EntitiesData.CreateQueueProperties(queueName);
+		var refreshedMessages = new ReceivedMessageList([], true);
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.AvailableEntities.Returns((IReadOnlyList<EntityProperties>)[queue]);
+		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
+		connection.PeekMessagesAsync(new QueueEntityId(queueName), 200, Arg.Any<CancellationToken>()).Returns(refreshedMessages);
+
+		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
+
+		using var sessionScope = new ViewerSessionScope();
+		IViewerSessionState session = sessionScope.State;
+		session.Connection = connection;
+		session.SelectedEntityId = new QueueEntityId(queueName);
+		session.CurrentMessages = ReceivedMessageList.Empty;
+		session.SendResultMessage = "Sent";
+
+		// Act
+		ViewerState state = await service.UpdatePeekMessageCountAsync(session, 200, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(200, session.PeekMessageCount);
+		Assert.Equal(refreshedMessages, session.CurrentMessages);
+		Assert.Null(session.SendResultMessage);
+		Assert.True(state.HasMoreMessages);
+		await connection.Received(1).PeekMessagesAsync(new QueueEntityId(queueName), 200, Arg.Any<CancellationToken>());
+	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(501)]
+	public async Task ViewerMessageService_UpdatePeekMessageCountAsync_InvalidCount_ThrowsAndLeavesPreviousCountApplied(int invalidCount)
+	{
+		// Arrange
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+
+		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
+
+		using var sessionScope = new ViewerSessionScope();
+		IViewerSessionState session = sessionScope.State;
+		session.Connection = connection;
+		session.SelectedEntityId = new QueueEntityId("default-queue");
+
+		// Act
+		Task action() => service.UpdatePeekMessageCountAsync(session, invalidCount, CancellationToken.None);
+
+		// Assert
+		await Assert.ThrowsAsync<ArgumentOutOfRangeException>(action);
+		Assert.Equal(50, session.PeekMessageCount);
+		await connection.DidNotReceive().PeekMessagesAsync(Arg.Any<EntityId>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
 	public async Task ViewerMessageService_SendAsync_SessionEntityHasNoSessionId_ThrowsSendMessageValidationException()
 	{
 		// Arrange
