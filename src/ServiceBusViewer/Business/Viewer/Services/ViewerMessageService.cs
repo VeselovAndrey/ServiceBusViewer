@@ -23,7 +23,7 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 
 			session.CurrentMessages = entityId is null
 				? ReceivedMessageList.Empty
-				: await connection.PeekMessagesAsync(entityId, 50, operationCancellationToken);
+				: await connection.PeekMessagesAsync(entityId, session.PeekMessageCount, operationCancellationToken);
 
 			bool requiresSession = entityId is not null && connection.GetEntityProperties(entityId).RequiresSession;
 
@@ -51,7 +51,7 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			EntityId? entityId = session.SelectedEntityId;
 
 			session.CurrentMessages = entityId is not null
-				? await connection.PeekDeadLetterMessagesAsync(entityId, 50, operationCancellationToken)
+				? await connection.PeekDeadLetterMessagesAsync(entityId, session.PeekMessageCount, operationCancellationToken)
 				: ReceivedMessageList.Empty;
 
 			bool requiresSession = entityId is not null && connection.GetEntityProperties(entityId).RequiresSession;
@@ -170,7 +170,7 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			session.SendResultMessage = null;
 
 			try {
-				session.CurrentMessages = await connection.PeekMessagesAsync(entityId, 50, operationCancellationToken);
+				session.CurrentMessages = await connection.PeekMessagesAsync(entityId, session.PeekMessageCount, operationCancellationToken);
 			}
 			catch (OperationCanceledException) when (operationCancellationToken.IsCancellationRequested) {
 				throw;
@@ -180,6 +180,33 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 					"Message receive succeeded, but refreshing the peeked message list failed. Error type: {ErrorType}.",
 					exception.GetType().FullName);
 			}
+
+			return session.ToViewerState(connection);
+		}
+		finally {
+			session.Gate.Release();
+		}
+	}
+
+	/// <inheritdoc/>
+	public async Task<ViewerState> UpdatePeekMessageCountAsync(IViewerSessionState session, int peekMessageCount, CancellationToken cancellationToken)
+	{
+		if (peekMessageCount is < PeekMessageCountBounds.Min or > PeekMessageCountBounds.Max)
+			throw new ArgumentOutOfRangeException(nameof(peekMessageCount), peekMessageCount, $"The peek message count must be a whole number from {PeekMessageCountBounds.Min} through {PeekMessageCountBounds.Max}.");
+
+		await session.Gate.WaitAsync(cancellationToken);
+
+		try {
+			using var operationCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.ConnectionCancellationToken);
+			CancellationToken operationCancellationToken = operationCancellationSource.Token;
+			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
+			EntityId? entityId = session.SelectedEntityId;
+
+			session.PeekMessageCount = peekMessageCount;
+			session.CurrentMessages = entityId is null
+				? ReceivedMessageList.Empty
+				: await connection.PeekMessagesAsync(entityId, peekMessageCount, operationCancellationToken);
+			session.SendResultMessage = null;
 
 			return session.ToViewerState(connection);
 		}

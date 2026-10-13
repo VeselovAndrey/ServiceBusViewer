@@ -48,6 +48,11 @@ public interface IViewerSessionState : IAsyncDisposable
 	string? ReceiveSessionId { get; set; }
 
 	/// <summary>
+	/// The number of messages peeked for the viewer message list in this session.
+	/// </summary>
+	int PeekMessageCount { get; set; }
+
+	/// <summary>
 	/// A short human-readable result from the last send operation that can be shown to the viewer.
 	/// </summary>
 	string? SendResultMessage { get; set; }

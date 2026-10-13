@@ -49,6 +49,13 @@ public interface IViewerMessageService
 	/// <returns>TThe viewer state after attempting to receive a message.</returns>
 	Task<ViewerState> ReceiveAsync(IViewerSessionState session, string? sessionId, CancellationToken cancellationToken);
 
+	/// <summary>Updates the number of messages peeked for the viewer message list and re-peeks the currently selected entity.</summary>
+	/// <param name="session">The viewer session state to update.</param>
+	/// <param name="peekMessageCount">Number of messages to peek for the viewer message list; must be a whole number from 1 through 500.</param>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
+	/// <returns>The viewer state after applying the new peek message count.</returns>
+	Task<ViewerState> UpdatePeekMessageCountAsync(IViewerSessionState session, int peekMessageCount, CancellationToken cancellationToken);
+
 	/// <summary>Sends a message to the currently selected entity.</summary>
 	/// <param name="session">The viewer session state to use.</param>
 	/// <param name="command">The message body and properties to send.</param>

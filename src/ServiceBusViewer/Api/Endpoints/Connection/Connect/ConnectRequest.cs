@@ -1,10 +1,9 @@
 namespace ServiceBusViewer.Api.Endpoints.Connection.Connect;
 
 using System.Collections.Generic;
+using ServiceBusViewer.Business.Viewer.Contracts;
 
-/// <summary>
-/// Request to establish a connection to a Service Bus namespace or entity.
-/// </summary>
+/// <summary>Request to establish a connection to a Service Bus namespace or entity.</summary>
 /// <param name="ConnectionString">Primary connection string.</param>
 /// <param name="EmulatorManagementConnectionString">Optional emulator-only management connection string.</param>
 /// <param name="QueueOrTopicName">
@@ -12,11 +11,13 @@ using System.Collections.Generic;
 /// <paramref name="SubscriptionName"/> is also provided, in which case it identifies the parent topic.
 /// </param>
 /// <param name="SubscriptionName">Optional subscription name for direct access through its parent topic.</param>
+/// <param name="PeekMessageCount">Number of messages to peek for the viewer message list. Must be a whole number from 1 through 500.</param>
 public sealed record ConnectRequest(
 	string ConnectionString,
 	string? EmulatorManagementConnectionString,
 	string? QueueOrTopicName,
-	string? SubscriptionName);
+	string? SubscriptionName,
+	int PeekMessageCount);
 
 /// <summary>Validator for <see cref="ConnectRequest"/>.</summary>
 internal static class ConnectRequestValidator
@@ -27,9 +28,12 @@ internal static class ConnectRequestValidator
 	/// <returns><c>true</c> if the request is valid; otherwise, <c>false</c>.</returns>
 	public static bool Validate(ConnectRequest request, out IReadOnlyDictionary<string, string[]>? errors)
 	{
-		var local = new Dictionary<string, string[]>(capacity: 1);
+		var local = new Dictionary<string, string[]>(capacity: 2);
 		if (string.IsNullOrWhiteSpace(request.ConnectionString))
 			local[nameof(request.ConnectionString)] = ["Connection string is required."];
+
+		if (request.PeekMessageCount is < PeekMessageCountBounds.Min or > PeekMessageCountBounds.Max)
+			local[nameof(request.PeekMessageCount)] = [$"Peek message count must be a whole number from {PeekMessageCountBounds.Min} through {PeekMessageCountBounds.Max}."];
 
 		if (local.Count > 0) {
 			errors = local;

@@ -34,6 +34,9 @@ internal sealed class ClientSessionState : IViewerSessionState
 
 	public string? ReceiveSessionId { get; set; }
 
+	/// <inheritdoc/>
+	public int PeekMessageCount { get; set; } = 50;
+
 	public string? SendResultMessage { get; set; }
 
 	public bool IsConnected => Connection is not null;

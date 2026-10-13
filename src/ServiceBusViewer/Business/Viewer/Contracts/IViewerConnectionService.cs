@@ -14,9 +14,10 @@ public interface IViewerConnectionService
 	/// <summary>Opens a Service Bus connection for the viewer session.</summary>
 	/// <param name="session">The viewer session state to update.</param>
 	/// <param name="settings">Connection settings provided by the client.</param>
+	/// <param name="peekMessageCount">Number of messages to peek for the viewer message list; must be a whole number from 1 through 500.</param>
 	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>The resulting viewer state after the connection is established.</returns>
-	Task<ViewerState> ConnectAsync(IViewerSessionState session, ConnectionSettings settings, CancellationToken cancellationToken);
+	Task<ViewerState> ConnectAsync(IViewerSessionState session, ConnectionSettings settings, int peekMessageCount, CancellationToken cancellationToken);
 
 	/// <summary>Disconnects the current Service Bus connection and clears connection-scoped viewer state.</summary>
 	/// <param name="session">The viewer session state to reset.</param>

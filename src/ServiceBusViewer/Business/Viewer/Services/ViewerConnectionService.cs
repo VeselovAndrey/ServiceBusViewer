@@ -19,9 +19,10 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 		}
 	}
 
-	public async Task<ViewerState> ConnectAsync(IViewerSessionState session, ConnectionSettings settings, CancellationToken cancellationToken)
+	public async Task<ViewerState> ConnectAsync(IViewerSessionState session, ConnectionSettings settings, int peekMessageCount, CancellationToken cancellationToken)
 	{
-		ArgumentNullException.ThrowIfNull(settings);
+		if (peekMessageCount is < PeekMessageCountBounds.Min or > PeekMessageCountBounds.Max)
+			throw new ArgumentOutOfRangeException(nameof(peekMessageCount), peekMessageCount, $"The peek message count must be a whole number from {PeekMessageCountBounds.Min} through {PeekMessageCountBounds.Max}.");
 
 		await session.Gate.WaitAsync(cancellationToken);
 
@@ -36,7 +37,7 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 				EntityId? selectedEntityId = GetInitialSelectedEntityId(settings, connection.AvailableEntities);
 				ReceivedMessageList currentMessages = selectedEntityId is null
 					? ReceivedMessageList.Empty
-					: await connection.PeekMessagesAsync(selectedEntityId, 50, operationCancellationSource.Token);
+					: await connection.PeekMessagesAsync(selectedEntityId, peekMessageCount, operationCancellationSource.Token);
 
 				session.ConnectionSettings = settings;
 				session.Connection = connection;
@@ -45,6 +46,7 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 				session.DisplayedMessage = null;
 				session.SendResultMessage = null;
 				session.ReceiveSessionId = null;
+				session.PeekMessageCount = peekMessageCount;
 
 				return session.ToViewerState(connection);
 			}
