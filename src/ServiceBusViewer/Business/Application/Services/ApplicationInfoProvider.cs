@@ -12,6 +12,8 @@ internal sealed class ApplicationInfoProvider(IApplicationInfoProviderSettings s
 
 	public bool IsRunningInContainer { get; } = settings.IsRunningInContainer;
 
+	public bool ShowEmulatorConnectHint { get; } = settings.ShowEmulatorConnectHint;
+
 	private static string GetApplicationVersion()
 	{
 		Assembly assembly = typeof(ApplicationInfoProvider).Assembly;

@@ -845,8 +845,11 @@ export function ViewerPage() {
 										void handleToggleDeadLetter();
 									}}
 								>
-									<span className="material-icons-round text-sm">inventory_2</span>
-									Dead Letter
+									<span className="material-icons-round text-sm">{deadLetterMode ? 'inbox' : 'archive'}</span>
+									<span className="inline-grid">
+										<span className="col-start-1 row-start-1 invisible">Switch to Active Messages</span>
+										<span className="col-start-1 row-start-1 text-left">{deadLetterMode ? 'Switch to Active Messages' : 'Switch to Dead Letter'}</span>
+									</span>
 								</button>
 
 								<div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -1017,7 +1020,7 @@ export function ViewerPage() {
 											<RepublishStrategyMenu
 												align="right"
 												ariaBusy={pendingAction === 'republish'}
-												buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 shadow-sm transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300 dark:hover:bg-brand-950/50"
+												buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
 												buttonContent={
 													<>
 														<span className="material-icons-round text-sm">upload</span>

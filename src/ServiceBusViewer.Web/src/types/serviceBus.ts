@@ -60,6 +60,7 @@ export interface ViewerState {
 export interface SessionStateDto {
 	applicationVersion: string;
 	isRunningInContainer: boolean;
+	showEmulatorConnectHint: boolean;
 	connection: ConnectionSettingsDto;
 	viewer: ViewerState | null;
 	isConnected: boolean;

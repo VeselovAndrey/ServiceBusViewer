@@ -14,6 +14,7 @@ internal static class GetSessionStateRequestHandler
 		return TypedResults.Ok(new SessionStateResponse(
 				applicationInfoProvider.ApplicationVersion,
 				applicationInfoProvider.IsRunningInContainer,
+				applicationInfoProvider.ShowEmulatorConnectHint,
 				viewerConnectionSnapshot.Connection.ToApiModel(),
 				viewerConnectionSnapshot.Viewer?.ToApiModel(),
 				viewerConnectionSnapshot.IsConnected));

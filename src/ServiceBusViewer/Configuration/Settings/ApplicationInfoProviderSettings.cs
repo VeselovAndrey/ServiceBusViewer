@@ -11,4 +11,11 @@ internal sealed class ApplicationInfoProviderSettings : IApplicationInfoProvider
 			Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_RUNNING_IN_CONTAINER"),
 			"true",
 			StringComparison.OrdinalIgnoreCase);
+
+	/// <inheritdoc/>
+	public bool ShowEmulatorConnectHint
+		=> !string.Equals(
+			Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT"),
+			"false",
+			StringComparison.OrdinalIgnoreCase);
 }
