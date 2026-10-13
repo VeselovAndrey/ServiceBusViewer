@@ -1,5 +1,9 @@
 # Service Bus Viewer Version History
 
+## 1.0.0-rc2 (2026-10-13)
+
+- **Added:** **Use device settings** as a third theme option alongside Light and Dark: the app follows the OS light/dark setting live, without a reload, and the choice — stored in the browser — is applied on every load.
+
 ## 1.0.0-rc1 (2026-10-11)
 
 - **Added:** Republish dead-lettered messages to the original entity or permanently drop them — per message, or the entire dead-letter queue with **Republish All** / **Drop All** (with a confirmation dialog).
