@@ -130,3 +130,32 @@ export function RepublishManualIdPrompt({
 		</PromptDialogShell>
 	);
 }
+
+interface RepublishAllConfirmPromptProps {
+	onCancel: () => void;
+	onConfirm: () => void;
+	visibleCount: number;
+}
+
+export function RepublishAllConfirmPrompt({
+	onCancel,
+	onConfirm,
+	visibleCount,
+}: RepublishAllConfirmPromptProps) {
+	return (
+		<PromptDialogShell
+			confirmLabel="Republish All"
+			description="This republishes every dead-lettered message in the selected entity's dead-letter queue back to the original entity."
+			onCancel={onCancel}
+			onConfirm={onConfirm}
+			title="Republish all dead-lettered messages?"
+		>
+			<p className="text-xs text-slate-500 dark:text-slate-400">
+				{visibleCount} message{visibleCount === 1 ? '' : 's'}{' '}
+				{visibleCount === 1 ? 'is' : 'are'} currently visible. The republish applies
+				to the entire dead-letter queue, including messages beyond the visible
+				page.
+			</p>
+		</PromptDialogShell>
+	);
+}
