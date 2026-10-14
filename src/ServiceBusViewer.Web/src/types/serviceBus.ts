@@ -61,7 +61,7 @@ export interface SessionStateDto {
 	applicationVersion: string;
 	isRunningInContainer: boolean;
 	showEmulatorConnectHint: boolean;
-	connection: ConnectionSettingsDto;
+	connection: ConnectionSettingsDto | null;
 	viewer: ViewerState | null;
 	isConnected: boolean;
 }

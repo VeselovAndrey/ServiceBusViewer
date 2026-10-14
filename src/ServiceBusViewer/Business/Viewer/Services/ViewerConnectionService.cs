@@ -111,6 +111,7 @@ internal sealed class ViewerConnectionService(IServiceBusConnectionFactory conne
 	private static ViewerConnectionSnapshot ToViewerConnectionSnapshot(IViewerSessionState session)
 		=> new ViewerConnectionSnapshot(
 			session.ConnectionSettings,
+			session.ConnectionSettings == session.ApplicationConfiguredConnectionSettings,
 			session.IsConnected
 				? session.ToViewerState(session.Connection!)
 				: null,

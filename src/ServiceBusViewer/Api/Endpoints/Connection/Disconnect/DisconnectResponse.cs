@@ -6,11 +6,11 @@ using ServiceBusViewer.Api.Models;
 /// Response for the Disconnect endpoint containing connection summary and viewer state.
 /// </summary>
 /// <param name="ApplicationVersion">Application version string.</param>
-/// <param name="Connection">Connection settings snapshot.</param>
+/// <param name="Connection">Connection settings snapshot, or null when the session's settings do not match the application-configured settings.</param>
 /// <param name="Viewer">Current viewer state or null.</param>
 /// <param name="IsConnected">Whether the viewer is currently connected.</param>
 public sealed record DisconnectResponse(
 	string ApplicationVersion,
-	ConnectionSettings Connection,
+	ConnectionSettings? Connection,
 	ViewerState? Viewer,
 	bool IsConnected);

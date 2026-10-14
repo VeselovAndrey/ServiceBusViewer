@@ -24,6 +24,22 @@ public sealed class ClientSessionStateTests
 	}
 
 	[Fact]
+	public void ClientSessionState_ChangesConnectionSettings_KeepsApplicationConfiguredConnectionSettings()
+	{
+		// Arrange
+		var applicationSettings = new ConnectionSettings("Endpoint=sb://app/", "Endpoint=sb://emulator-admin/", "app-queue", "app-subscription");
+		var state = new ClientSessionState(applicationSettings);
+		var userSettings = new ConnectionSettings("Endpoint=sb://user/", null, "user-queue", null);
+
+		// Act
+		state.ConnectionSettings = userSettings;
+
+		// Assert
+		Assert.Equal(userSettings, state.ConnectionSettings);
+		Assert.Equal(applicationSettings, state.ApplicationConfiguredConnectionSettings);
+	}
+
+	[Fact]
 	public async Task ClientSessionState_ResetConnectionAsync_ConnectedState_ClearsStateAndDisposesConnection()
 	{
 		// Arrange

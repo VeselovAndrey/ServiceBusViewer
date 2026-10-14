@@ -1,4 +1,5 @@
 import {
+	useCallback,
 	useEffect,
 	useRef,
 	useState,
@@ -42,14 +43,39 @@ export function ConnectPage() {
 		}
 
 		isInitializedRef.current = true;
+
+		const connection = sessionState.connection;
+		if (!connection) {
+			return;
+		}
+
 		setFormState({
-			connectionString: sessionState.connection.connectionString,
-			emulatorManagementConnectionString: sessionState.connection.emulatorManagementConnectionString,
-			queueOrTopicName: sessionState.connection.queueOrTopicName,
-			subscriptionName: sessionState.connection.subscriptionName,
+			connectionString: connection.connectionString,
+			emulatorManagementConnectionString: connection.emulatorManagementConnectionString,
+			queueOrTopicName: connection.queueOrTopicName,
+			subscriptionName: connection.subscriptionName,
 			peekMessageCount: readStoredPeekMessageCount(),
 		});
 	}, [sessionState]);
+
+	const clearConnectionStrings = useCallback(() => {
+		setFormState((current) => ({
+			...current,
+			connectionString: '',
+			emulatorManagementConnectionString: null,
+		}));
+	}, []);
+
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				clearConnectionStrings();
+			}
+		};
+
+		document.addEventListener('keydown', handleKeyDown);
+		return () => document.removeEventListener('keydown', handleKeyDown);
+	}, [clearConnectionStrings]);
 
 	if (!sessionState) {
 		return null;
@@ -389,6 +415,14 @@ export function ConnectPage() {
 									</svg>
 									{isSubmitting ? 'Connecting...' : 'Connect'}
 								</button>
+
+								<p className="text-center text-xs leading-5 text-slate-400 dark:text-slate-500">
+									Press{' '}
+									<kbd className="rounded-md border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[0.6875rem] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
+										Esc
+									</kbd>{' '}
+									to clear the connection strings
+								</p>
 
 								<Alert className="mt-5" messages={errorMessages} tone="error" />
 							</form>

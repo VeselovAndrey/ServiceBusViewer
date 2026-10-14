@@ -15,7 +15,7 @@ internal static class DisconnectRequestHandler
 		return TypedResults.Ok(
 			new DisconnectResponse(
 				applicationInfoProvider.ApplicationVersion,
-				viewerConnectionSnapshot.Connection.ToApiModel(),
+				viewerConnectionSnapshot.ToConnectionApiModel(),
 				viewerConnectionSnapshot.Viewer?.ToApiModel(),
 				viewerConnectionSnapshot.IsConnected));
 	}

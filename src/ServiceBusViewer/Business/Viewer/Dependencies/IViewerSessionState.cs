@@ -22,6 +22,9 @@ public interface IViewerSessionState : IAsyncDisposable
 	/// </summary>
 	ConnectionSettings ConnectionSettings { get; set; }
 
+	/// <summary>Gets the application-configured connection settings captured when the session was created.</summary>
+	ConnectionSettings ApplicationConfiguredConnectionSettings { get; }
+
 	/// <summary>
 	/// The currently opened Service Bus connection context for this session, or <c>null</c> when disconnected.
 	/// </summary>
