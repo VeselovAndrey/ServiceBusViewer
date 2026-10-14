@@ -5,9 +5,13 @@
 - **Added:** Peek count selection on the Viewer page — presets (1, 5, 10, 30, 50, 100) or a custom value up to 500 — applied without reconnecting; the choice is saved in the browser.
 - **Added:** A theme option that follows the OS light/dark setting live; the choice is saved in the browser.
 - **Added:** Emulator connect hint on the Connect screen, with a button that fills in the emulator connection strings (separate Docker and Podman buttons when the viewer runs in a container).
-- **Changed:** The **Dead Letter** toggle now shows its target — **Switch to Dead Letter** / **Switch to Active Messages** — with a matching archive/inbox icon and a fixed button width.
+- **Added:** Sortable message-list columns (Message ID, Session, Delivery Count, Enqueued Time / TTL, Content Type, and Dead Letter Reason in dead-letter mode) with direction indicators, and a search box over the loaded messages — in both peeked and dead-letter modes.
+- **Added:** Confirmation prompt for Republish All, matching the Drop All confirmation.
+- **Changed:** The **Dead Letter** toggle now shows its target — **To Dead Letter** / **To Active** — with a matching archive/inbox icon and a fixed button width.
 - **Changed:** **Republish All** uses the same neutral button style as the other buttons on the page.
+- **Changed:** Viewer header layout: Refresh, the mode toggle, search, and the receive controls moved into the message-list and Last Received Message headers; the mode toggle is now "To Dead Letter" / "To Active"; in dead-letter mode Republish All and Drop All sit on a separate line below a divider.
 - **Fixed:** Dark-mode tints (dead-letter toggle, dead-letter header bar, button shadows) that were not rendering because the `brand-950` theme color was missing.
+- **Fixed:** Page flicker while resizing the window near layout wrap points.
 
 ## 1.0.0-rc1 (2026-10-11)
 

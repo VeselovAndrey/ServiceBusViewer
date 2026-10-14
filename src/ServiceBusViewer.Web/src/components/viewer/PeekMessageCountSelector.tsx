@@ -71,7 +71,7 @@ export function PeekMessageCountSelector({ value, disabled, onApply }: PeekMessa
 			</label>
 			<select
 				id="peek-message-count"
-				className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 shadow-sm transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:text-slate-200"
+				className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 shadow-sm transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:text-slate-200"
 				value={String(value)}
 				disabled={disabled}
 				onChange={handleSelectChange}

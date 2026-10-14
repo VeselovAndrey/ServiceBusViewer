@@ -222,6 +222,9 @@
 
     scrollbar-width: auto;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    /* Reserve the scrollbar gutter so wrapping content at a resize threshold cannot
+       toggle the scrollbar on and off (which would make the page flicker). */
+    scrollbar-gutter: stable;
   }
 
   @supports not (scrollbar-color: auto) {
