@@ -13,6 +13,7 @@ internal sealed class ClientSessionState : IViewerSessionState
 	public ClientSessionState(ConnectionSettings connectionSettings)
 	{
 		ConnectionSettings = connectionSettings;
+		ApplicationConfiguredConnectionSettings = connectionSettings;
 		Touch();
 	}
 
@@ -23,6 +24,9 @@ internal sealed class ClientSessionState : IViewerSessionState
 	public void CancelActiveConnectionOperations() => _connectionCancellationSource.Cancel();
 
 	public ConnectionSettings ConnectionSettings { get; set; }
+
+	/// <inheritdoc/>
+	public ConnectionSettings ApplicationConfiguredConnectionSettings { get; }
 
 	public IServiceBusConnection? Connection { get; set; }
 

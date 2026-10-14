@@ -15,7 +15,7 @@ internal static class GetSessionStateRequestHandler
 				applicationInfoProvider.ApplicationVersion,
 				applicationInfoProvider.IsRunningInContainer,
 				applicationInfoProvider.ShowEmulatorConnectHint,
-				viewerConnectionSnapshot.Connection.ToApiModel(),
+				viewerConnectionSnapshot.ToConnectionApiModel(),
 				viewerConnectionSnapshot.Viewer?.ToApiModel(),
 				viewerConnectionSnapshot.IsConnected));
 	}

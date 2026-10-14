@@ -77,6 +77,58 @@ public sealed class ViewerConnectionServiceTests
 	}
 
 	[Fact]
+	public async Task ViewerConnectionService_GetSnapshotAsync_SettingsMatchApplicationConfiguredSettings_ReportsPreconfiguredConnectionTrue()
+	{
+		// Arrange
+		var service = new ViewerConnectionService(null!);
+		using var sessionScope = ViewerSessionScope.CreateDisconnected();
+		IViewerSessionState session = sessionScope.State;
+
+		var settings = new ConnectionSettings("Endpoint=sb://test/", null, null, null);
+		session.ConnectionSettings.Returns(settings);
+		session.ApplicationConfiguredConnectionSettings.Returns(settings);
+
+		// Act
+		ViewerConnectionSnapshot snapshot = await service.GetSnapshotAsync(session, CancellationToken.None);
+
+		// Assert
+		Assert.True(snapshot.IsPreconfiguredConnection);
+	}
+
+	[Fact]
+	public async Task ViewerConnectionService_GetSnapshotAsync_AfterConnectingWithDifferentSettings_ReportsPreconfiguredConnectionFalse()
+	{
+		// Arrange
+		const string queueName = "default-queue";
+		QueueEntityProperties queue = EntitiesData.CreateQueueProperties(queueName, requiresSession: false);
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.AvailableEntities.Returns([queue]);
+		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
+		connection.PeekMessagesAsync(Arg.Any<EntityId>(), 50, Arg.Any<CancellationToken>()).Returns(ReceivedMessageList.Empty);
+
+		IServiceBusConnectionFactory factory = Substitute.For<IServiceBusConnectionFactory>();
+		var service = new ViewerConnectionService(factory);
+
+		using var sessionScope = ViewerSessionScope.CreateDisconnected();
+		IViewerSessionState session = sessionScope.State;
+
+		var applicationSettings = new ConnectionSettings("Endpoint=sb://app/", null, queueName, null);
+		var userSettings = new ConnectionSettings("Endpoint=sb://user/", null, queueName, null);
+		session.ConnectionSettings.Returns(applicationSettings);
+		session.ApplicationConfiguredConnectionSettings.Returns(applicationSettings);
+		factory.OpenAsync(userSettings, Arg.Any<CancellationToken>()).Returns(connection);
+
+		// Act
+		await service.ConnectAsync(session, userSettings, 50, CancellationToken.None);
+		ViewerConnectionSnapshot snapshot = await service.GetSnapshotAsync(session, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(userSettings, session.ConnectionSettings);
+		Assert.False(snapshot.IsPreconfiguredConnection);
+	}
+
+	[Fact]
 	public async Task ViewerConnectionService_GetCurrentStateAsync_DisconnectedSession_ThrowsViewerNotConnectedException()
 	{
 		// Arrange
