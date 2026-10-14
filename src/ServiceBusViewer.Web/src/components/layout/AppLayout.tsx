@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { cx } from '../../lib/cx';
 import { useTheme } from '../../hooks/useTheme';
+import { ThemePreferenceMenu } from './ThemePreferenceMenu';
 
 interface HeaderStatus {
   text: string;
@@ -47,7 +48,7 @@ export function AppLayout({
   headerStatus,
   title,
 }: AppLayoutProps) {
-  const { isDark, toggleTheme } = useTheme();
+  const { preference, setPreference } = useTheme();
 
   useEffect(() => {
     document.title = title.length === 0 ? 'Service Bus Viewer' : `${title} | Service Bus Viewer`;
@@ -78,15 +79,7 @@ export function AppLayout({
         </div>
 
         <div className="flex items-center gap-2 px-4">
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:text-slate-300 dark:hover:bg-zinc-800 dark:hover:text-white"
-            aria-label="Toggle color theme"
-            aria-pressed={isDark}
-            onClick={toggleTheme}
-          >
-            <span className="material-icons-round text-[1.25rem]">{isDark ? 'light_mode' : 'dark_mode'}</span>
-          </button>
+          <ThemePreferenceMenu onPick={setPreference} preference={preference} />
 
           {headerAction?.kind === 'button' ? (
             <button

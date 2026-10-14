@@ -35,7 +35,7 @@ public sealed class ViewerConnectionServiceTests
 		factory.OpenAsync(settings, Arg.Any<CancellationToken>()).Returns(connection);
 
 		// Act
-		ViewerState state = await service.ConnectAsync(session, settings, CancellationToken.None);
+		ViewerState state = await service.ConnectAsync(session, settings, 50, CancellationToken.None);
 
 		// Assert
 		Assert.Same(connection, session.Connection);
@@ -43,6 +43,89 @@ public sealed class ViewerConnectionServiceTests
 		await factory.Received(1).OpenAsync(settings, Arg.Any<CancellationToken>());
 		await connection.Received(1).PeekMessagesAsync(new QueueEntityId(queueName), 50, Arg.Any<CancellationToken>());
 		Assert.Equal(queueName, state.EntityName);
+	}
+
+	[Fact]
+	public async Task ViewerConnectionService_ConnectAsync_CustomPeekMessageCount_StoresCountAndPeeksWithIt()
+	{
+		// Arrange
+		const string queueName = "default-queue";
+		QueueEntityProperties queue = EntitiesData.CreateQueueProperties(queueName, requiresSession: false);
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.AvailableEntities.Returns([queue]);
+		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
+		connection.PeekMessagesAsync(Arg.Any<EntityId>(), 200, Arg.Any<CancellationToken>()).Returns(ReceivedMessageList.Empty);
+
+		IServiceBusConnectionFactory factory = Substitute.For<IServiceBusConnectionFactory>();
+
+		var service = new ViewerConnectionService(factory);
+
+		using var sessionScope = new ViewerSessionScope();
+		IViewerSessionState session = sessionScope.State;
+
+		var settings = new ConnectionSettings("Endpoint=sb://test/", null, queueName, null);
+
+		factory.OpenAsync(settings, Arg.Any<CancellationToken>()).Returns(connection);
+
+		// Act
+		await service.ConnectAsync(session, settings, 200, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(200, session.PeekMessageCount);
+		await connection.Received(1).PeekMessagesAsync(new QueueEntityId(queueName), 200, Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ViewerConnectionService_GetSnapshotAsync_SettingsMatchApplicationConfiguredSettings_ReportsPreconfiguredConnectionTrue()
+	{
+		// Arrange
+		var service = new ViewerConnectionService(null!);
+		using var sessionScope = ViewerSessionScope.CreateDisconnected();
+		IViewerSessionState session = sessionScope.State;
+
+		var settings = new ConnectionSettings("Endpoint=sb://test/", null, null, null);
+		session.ConnectionSettings.Returns(settings);
+		session.ApplicationConfiguredConnectionSettings.Returns(settings);
+
+		// Act
+		ViewerConnectionSnapshot snapshot = await service.GetSnapshotAsync(session, CancellationToken.None);
+
+		// Assert
+		Assert.True(snapshot.IsPreconfiguredConnection);
+	}
+
+	[Fact]
+	public async Task ViewerConnectionService_GetSnapshotAsync_AfterConnectingWithDifferentSettings_ReportsPreconfiguredConnectionFalse()
+	{
+		// Arrange
+		const string queueName = "default-queue";
+		QueueEntityProperties queue = EntitiesData.CreateQueueProperties(queueName, requiresSession: false);
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.AvailableEntities.Returns([queue]);
+		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
+		connection.PeekMessagesAsync(Arg.Any<EntityId>(), 50, Arg.Any<CancellationToken>()).Returns(ReceivedMessageList.Empty);
+
+		IServiceBusConnectionFactory factory = Substitute.For<IServiceBusConnectionFactory>();
+		var service = new ViewerConnectionService(factory);
+
+		using var sessionScope = ViewerSessionScope.CreateDisconnected();
+		IViewerSessionState session = sessionScope.State;
+
+		var applicationSettings = new ConnectionSettings("Endpoint=sb://app/", null, queueName, null);
+		var userSettings = new ConnectionSettings("Endpoint=sb://user/", null, queueName, null);
+		session.ConnectionSettings.Returns(applicationSettings);
+		session.ApplicationConfiguredConnectionSettings.Returns(applicationSettings);
+		factory.OpenAsync(userSettings, Arg.Any<CancellationToken>()).Returns(connection);
+
+		// Act
+		await service.ConnectAsync(session, userSettings, 50, CancellationToken.None);
+		ViewerConnectionSnapshot snapshot = await service.GetSnapshotAsync(session, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(userSettings, session.ConnectionSettings);
+		Assert.False(snapshot.IsPreconfiguredConnection);
 	}
 
 	[Fact]
@@ -74,7 +157,7 @@ public sealed class ViewerConnectionServiceTests
 		var settings = new ConnectionSettings("Endpoint=sb://test/", null, null, null);
 
 		// Act
-		Task action() => service.ConnectAsync(session, settings, CancellationToken.None);
+		Task action() => service.ConnectAsync(session, settings, 50, CancellationToken.None);
 
 		// Assert
 		await Assert.ThrowsAsync<ViewerAlreadyConnectedException>(action);
@@ -97,7 +180,7 @@ public sealed class ViewerConnectionServiceTests
 		var settings = new ConnectionSettings("Endpoint=sb://test/", null, "missing-queue", null);
 
 		// Act
-		Task action() => service.ConnectAsync(session, settings, CancellationToken.None);
+		Task action() => service.ConnectAsync(session, settings, 50, CancellationToken.None);
 
 		// Assert
 		await Assert.ThrowsAsync<ArgumentException>(action);

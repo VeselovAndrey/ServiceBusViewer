@@ -60,7 +60,8 @@ export interface ViewerState {
 export interface SessionStateDto {
 	applicationVersion: string;
 	isRunningInContainer: boolean;
-	connection: ConnectionSettingsDto;
+	showEmulatorConnectHint: boolean;
+	connection: ConnectionSettingsDto | null;
 	viewer: ViewerState | null;
 	isConnected: boolean;
 }
@@ -70,6 +71,11 @@ export interface ConnectRequestDto {
 	emulatorManagementConnectionString: string | null;
 	queueOrTopicName: string | null;
 	subscriptionName: string | null;
+	peekMessageCount: number;
+}
+
+export interface UpdatePeekMessageCountRequestDto {
+	peekMessageCount: number;
 }
 
 export interface ReceiveRequestDto {

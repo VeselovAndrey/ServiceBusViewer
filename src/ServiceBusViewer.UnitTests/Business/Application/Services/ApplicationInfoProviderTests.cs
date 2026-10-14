@@ -4,6 +4,7 @@ using System.Reflection;
 using NSubstitute;
 using ServiceBusViewer.Business.Application.Dependencies;
 using ServiceBusViewer.Business.Application.Services;
+using ServiceBusViewer.Configuration.Settings;
 using Xunit;
 
 public sealed class ApplicationInfoProviderTests
@@ -42,5 +43,93 @@ public sealed class ApplicationInfoProviderTests
 
 		// Assert
 		Assert.Equal(expectedVersion, applicationVersion);
+	}
+
+	[Fact]
+	public void ApplicationInfoProviderSettings_ShowEmulatorConnectHint_VariableUnset_ReturnsTrue()
+	{
+		// Arrange
+		string? previousValue = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT");
+		try
+		{
+			Environment.SetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT", null);
+			var settings = new ApplicationInfoProviderSettings();
+
+			// Act
+			bool shown = settings.ShowEmulatorConnectHint;
+
+			// Assert
+			Assert.True(shown);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT", previousValue);
+		}
+	}
+
+	[Fact]
+	public void ApplicationInfoProviderSettings_ShowEmulatorConnectHint_VariableFalse_ReturnsFalse()
+	{
+		// Arrange
+		string? previousValue = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT");
+		try
+		{
+			Environment.SetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT", "false");
+			var settings = new ApplicationInfoProviderSettings();
+
+			// Act
+			bool shown = settings.ShowEmulatorConnectHint;
+
+			// Assert
+			Assert.False(shown);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT", previousValue);
+		}
+	}
+
+	[Fact]
+	public void ApplicationInfoProviderSettings_ShowEmulatorConnectHint_VariableFalseDifferentCase_ReturnsFalse()
+	{
+		// Arrange
+		string? previousValue = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT");
+		try
+		{
+			Environment.SetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT", "FALSE");
+			var settings = new ApplicationInfoProviderSettings();
+
+			// Act
+			bool shown = settings.ShowEmulatorConnectHint;
+
+			// Assert
+			Assert.False(shown);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT", previousValue);
+		}
+	}
+
+	[Fact]
+	public void ApplicationInfoProviderSettings_ShowEmulatorConnectHint_VariableOtherValue_ReturnsTrue()
+	{
+		// Arrange
+		string? previousValue = Environment.GetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT");
+		try
+		{
+			Environment.SetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT", "true");
+			var settings = new ApplicationInfoProviderSettings();
+
+			// Act
+			bool shown = settings.ShowEmulatorConnectHint;
+
+			// Assert
+			Assert.True(shown);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT", previousValue);
+		}
 	}
 }

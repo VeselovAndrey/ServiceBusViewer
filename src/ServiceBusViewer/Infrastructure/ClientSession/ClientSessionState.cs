@@ -13,6 +13,7 @@ internal sealed class ClientSessionState : IViewerSessionState
 	public ClientSessionState(ConnectionSettings connectionSettings)
 	{
 		ConnectionSettings = connectionSettings;
+		ApplicationConfiguredConnectionSettings = connectionSettings;
 		Touch();
 	}
 
@@ -24,6 +25,9 @@ internal sealed class ClientSessionState : IViewerSessionState
 
 	public ConnectionSettings ConnectionSettings { get; set; }
 
+	/// <inheritdoc/>
+	public ConnectionSettings ApplicationConfiguredConnectionSettings { get; }
+
 	public IServiceBusConnection? Connection { get; set; }
 
 	public EntityId? SelectedEntityId { get; set; }
@@ -33,6 +37,9 @@ internal sealed class ClientSessionState : IViewerSessionState
 	public ReceivedMessage? DisplayedMessage { get; set; }
 
 	public string? ReceiveSessionId { get; set; }
+
+	/// <inheritdoc/>
+	public int PeekMessageCount { get; set; } = 50;
 
 	public string? SendResultMessage { get; set; }
 

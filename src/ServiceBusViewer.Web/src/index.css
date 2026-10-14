@@ -38,6 +38,7 @@
   --color-brand-700: #005a9e;
   --color-brand-800: #1d4f91;
   --color-brand-900: #1e3a5f;
+  --color-brand-950: #172a44;
 }
 
 /* Progressive enhancement: enables transitions between fixed lengths and intrinsic
@@ -221,6 +222,9 @@
 
     scrollbar-width: auto;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    /* Reserve the scrollbar gutter so wrapping content at a resize threshold cannot
+       toggle the scrollbar on and off (which would make the page flicker). */
+    scrollbar-gutter: stable;
   }
 
   @supports not (scrollbar-color: auto) {

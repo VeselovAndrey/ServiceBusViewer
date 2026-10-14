@@ -3,6 +3,7 @@ namespace ServiceBusViewer.Api.Converters;
 using System.Globalization;
 using ServiceBusViewer.Api.Models;
 using BusinessConnectionSettings = ServiceBusViewer.Business.Viewer.Contracts.ConnectionSettings;
+using BusinessConnectionSnapshot = ServiceBusViewer.Business.Viewer.Contracts.ViewerConnectionSnapshot;
 using BusinessViewerState = ServiceBusViewer.Business.Viewer.Contracts.ViewerState;
 using BusinessEntityId = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.EntityId;
 using BusinessReceivedMessage = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.ReceivedMessage;
@@ -17,7 +18,14 @@ internal static class BusinessModelMapping
 	internal static ConnectionSettings ToApiModel(this BusinessConnectionSettings settings)
 		=> new(settings.ConnectionString, settings.EmulatorManagementConnectionString, settings.QueueOrTopicName, settings.SubscriptionName);
 
-	/// <summary>Maps a business-contract entity identifier to an API response model.</summary>
+	/// <summary>
+	/// Maps the business-contract connection snapshot's outward-facing connection settings, returning a value only when the session's current settings match the
+	/// application-configured settings 1:1.
+	/// </summary>
+	internal static ConnectionSettings? ToConnectionApiModel(this BusinessConnectionSnapshot snapshot)
+		=> snapshot.IsPreconfiguredConnection ? snapshot.Connection.ToApiModel() : null;
+
+	/// <summary>Maps business-contract entity identifier to an API response model.</summary>
 	internal static EntityId ToApiModel(this BusinessEntityId entity)
 		=> entity switch {
 			QueueEntityId queue => new EntityId("Queue", queue.Name, null),

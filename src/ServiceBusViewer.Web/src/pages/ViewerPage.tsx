@@ -7,12 +7,14 @@ import { JsonMessageBody } from '../components/common/JsonMessageBody';
 import { EntitySidebar } from '../components/entities/EntitySidebar';
 import { AppLayout } from '../components/layout/AppLayout';
 import { DropAllConfirmPrompt, DropSingleConfirmPrompt } from '../components/viewer/DropPrompts';
-import { RepublishManualIdPrompt } from '../components/viewer/RepublishPrompts';
+import { RepublishAllConfirmPrompt, RepublishManualIdPrompt } from '../components/viewer/RepublishPrompts';
 import {
 	RepublishStrategyMenu,
 	republishStrategyOptions,
 } from '../components/viewer/RepublishStrategyMenu';
 import { SendMessageForm } from '../components/viewer/SendMessageForm';
+import { PeekMessageCountSelector } from '../components/viewer/PeekMessageCountSelector';
+import { usePeekMessageCount } from '../hooks/usePeekMessageCount';
 import {
 	buildPeekedMessageSummary,
 	createMessageRowKey,
@@ -23,6 +25,12 @@ import {
 	getEntityKey,
 	getViewerEntityMeta,
 } from '../lib/formatters';
+import { matchesPeekedMessageSearch } from '../lib/messageSearch';
+import {
+	comparePeekedMessages,
+	type PeekedMessageSort,
+	type PeekedMessageSortColumn,
+} from '../lib/messageSorting';
 import { getErrorMessages } from '../lib/problemDetails';
 import { useAppState } from '../state/AppStateContext';
 import type {
@@ -36,10 +44,12 @@ import type {
 	ViewerState,
 } from '../types/serviceBus';
 
-type ViewerAction = 'disconnect' | 'drop' | 'receive' | 'refresh' | 'republish' | 'send';
+type ViewerAction = 'disconnect' | 'drop' | 'receive' | 'refresh' | 'republish' | 'send' | 'peek-count';
 
 // Number of dead-letter messages each bounded bulk step processes per request (decided in Task 25-01).
 const BULK_STEP_SIZE = 100;
+
+const MESSAGE_ROW_BASE_CLASS = 'align-top transition hover:bg-slate-50 dark:hover:bg-slate-950/40';
 
 interface BulkOperationProgress {
 	operation: 'drop' | 'republish';
@@ -103,11 +113,18 @@ export function ViewerPage() {
 	const [dropCancelled, setDropCancelled] = useState(false);
 	const [dropErrorMessages, setDropErrorMessages] = useState<string[]>([]);
 	const [dropConfirmOpen, setDropConfirmOpen] = useState(false);
+	const [republishAllConfirmStrategy, setRepublishAllConfirmStrategy] =
+		useState<RepublishMessageIdStrategy | null>(null);
 	const [dropSingleTarget, setDropSingleTarget] = useState<string | null>(null);
 	const [bulkProgress, setBulkProgress] = useState<BulkOperationProgress | null>(null);
 	const bulkCancelRequestedRef = useRef(false);
 	const [removingMessageIds, setRemovingMessageIds] = useState<Map<string, 'drop' | 'republish'>>(new Map());
 	const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
+	const [peekMessageCount, setPeekMessageCount] = usePeekMessageCount();
+	const [messageSort, setMessageSort] = useState<PeekedMessageSort | null>(null);
+	// The search text intentionally survives new message-set loads (unlike the active sort) and is
+	// re-applied to each newly loaded set; only the clear control or the user empties it.
+	const [messageSearchText, setMessageSearchText] = useState('');
 
 	useEffect(() => {
 		if (!sessionState?.isConnected || viewer) {
@@ -247,6 +264,21 @@ export function ViewerPage() {
 		];
 	}, [currentViewer?.displayedMessage]);
 
+	// The displayed rows derive from the already-loaded messages only: sorting reorders the loaded
+	// set and searching narrows it, both display-only and never triggering message retrieval.
+	// Each row keeps its original load-order index so row keys and expansion state stay stable.
+	const displayedMessageRows = useMemo(() => {
+		const source = deadLetterMode ? deadLetterViewer : viewer;
+		let rows = (source?.messages ?? []).map((message, loadIndex) => ({ loadIndex, message }));
+		if (messageSort !== null) {
+			rows.sort((left, right) => comparePeekedMessages(left.message, right.message, messageSort));
+		}
+
+		rows = rows.filter(({ message }) => matchesPeekedMessageSearch(message, messageSearchText));
+
+		return rows;
+	}, [deadLetterMode, deadLetterViewer, viewer, messageSort, messageSearchText]);
+
 	if (!sessionState) {
 		return null;
 	}
@@ -302,10 +334,12 @@ export function ViewerPage() {
 		try {
 			const nextViewer = await syncViewer(await serviceBusApi.selectEntity(entity));
 			setExpandedRows(new Set());
+			setMessageSort(null);
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setDeadLetterMode(false);
 			setDeadLetterViewer(null);
 			setRepublishPrompt(null);
+			setRepublishAllConfirmStrategy(null);
 			setRepublishOutcome(null);
 			setRepublishCancelled(false);
 			setRepublishErrorMessages([]);
@@ -329,12 +363,14 @@ export function ViewerPage() {
 			if (deadLetterMode) {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
 				setExpandedRows(new Set());
+				setMessageSort(null);
 				return;
 			}
 
 			const nextViewer = await syncViewer(await serviceBusApi.refreshViewer());
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setExpandedRows(new Set());
+			setMessageSort(null);
 		});
 	};
 
@@ -345,6 +381,7 @@ export function ViewerPage() {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
 				setDeadLetterMode(true);
 				setExpandedRows(new Set());
+				setMessageSort(null);
 			});
 			return;
 		}
@@ -352,6 +389,22 @@ export function ViewerPage() {
 		setDeadLetterMode(false);
 		setDeadLetterViewer(null);
 		setExpandedRows(new Set());
+		setMessageSort(null);
+	};
+
+	const handlePeekMessageCountApply = async (count: number) => {
+		await runAction('peek-count', async () => {
+			const nextViewer = await serviceBusApi.updatePeekMessageCount({ peekMessageCount: count });
+			setPeekMessageCount(count);
+
+			if (deadLetterMode) {
+				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
+				setExpandedRows(new Set());
+				setMessageSort(null);
+			}
+
+			await syncViewer(nextViewer);
+		});
 	};
 
 	const handleReceive = async () => {
@@ -363,6 +416,7 @@ export function ViewerPage() {
 			);
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setExpandedRows(new Set());
+			setMessageSort(null);
 		});
 	};
 
@@ -382,6 +436,7 @@ export function ViewerPage() {
 				const nextViewer = await syncViewer(await serviceBusApi.refreshViewer());
 				setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 				setExpandedRows(new Set());
+				setMessageSort(null);
 				setViewerState({
 					...nextViewer,
 					sendResultMessage,
@@ -465,6 +520,7 @@ export function ViewerPage() {
 			try {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
 				setExpandedRows(new Set());
+				setMessageSort(null);
 			} catch {
 				setRepublishErrorMessages([
 					'The republish completed, but the dead-letter list could not be refreshed. Use Refresh to try again.',
@@ -513,7 +569,20 @@ export function ViewerPage() {
 	};
 
 	const handleBulkStrategyPick = (strategy: RepublishMessageIdStrategy) => {
-		void runRepublish({ messageId: null, strategy, manualMessageId: null });
+		setRepublishAllConfirmStrategy(strategy);
+	};
+
+	const handleRepublishAllConfirm = () => {
+		const strategy = republishAllConfirmStrategy;
+		setRepublishAllConfirmStrategy(null);
+
+		if (strategy !== null) {
+			void runRepublish({ messageId: null, strategy, manualMessageId: null });
+		}
+	};
+
+	const handleRepublishAllCancel = () => {
+		setRepublishAllConfirmStrategy(null);
 	};
 
 	const handleRepublishPromptCancel = () => {
@@ -598,6 +667,7 @@ export function ViewerPage() {
 			try {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
 				setExpandedRows(new Set());
+				setMessageSort(null);
 			} catch {
 				setDropErrorMessages([
 					'The drop completed, but the dead-letter list could not be refreshed. Use Refresh to try again.',
@@ -732,6 +802,171 @@ export function ViewerPage() {
 		return <div className={emptyClassName}>No custom properties on this message.</div>;
 	};
 
+	const handleSortHeaderClick = (column: PeekedMessageSortColumn) => {
+		setMessageSort((current) => {
+			if (current?.column !== column) {
+				return { column, direction: 'ascending' };
+			}
+
+			return current.direction === 'ascending' ? { column, direction: 'descending' } : null;
+		});
+	};
+
+	const renderSortableHeader = (column: PeekedMessageSortColumn, label: string) => {
+		const isActive = messageSort?.column === column;
+		const direction = isActive && messageSort !== null ? messageSort.direction : null;
+		const indicator =
+			direction === 'ascending'
+				? 'arrow_upward'
+				: direction === 'descending'
+					? 'arrow_downward'
+					: 'unfold_more';
+		const stateLabel =
+			direction === 'ascending'
+				? 'sorted ascending'
+				: direction === 'descending'
+					? 'sorted descending'
+					: 'not sorted';
+
+		return (
+			<button
+				type="button"
+				className={`inline-flex items-center gap-1 rounded font-medium transition hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:hover:text-slate-200${
+					isActive ? ' text-brand-600 dark:text-brand-400' : ''
+				}`}
+				aria-label={`Sort by ${label} (${stateLabel})`}
+				title={`Sort by ${label} (${stateLabel})`}
+				onClick={() => handleSortHeaderClick(column)}
+			>
+				{label}
+				<span aria-hidden="true" className="material-icons-round text-sm">
+					{indicator}
+				</span>
+			</button>
+		);
+	};
+
+	// Block-header controls are shared between the single-row layout and the dead-letter
+	// small-screen two-line layout, so they are built once and placed per breakpoint.
+	const refreshButton = (
+		<button
+			type="button"
+			className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+			aria-busy={pendingAction === 'refresh'}
+			disabled={pendingAction === 'refresh'}
+			onClick={() => {
+				void handleRefresh();
+			}}
+		>
+			<span
+				className={`material-icons-round text-sm${pendingAction === 'refresh' ? ' animate-spin' : ''}`}
+			>
+				refresh
+			</span>
+			Refresh
+		</button>
+	);
+
+	const switchModeButton = (
+		<button
+			type="button"
+			className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+				deadLetterMode
+					? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300'
+					: 'border-slate-200 bg-white hover:bg-slate-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+			}`}
+			aria-pressed={deadLetterMode}
+			aria-busy={deadLetterMode && pendingAction === 'refresh'}
+			disabled={Boolean(currentViewer) && pendingAction !== null}
+			onClick={() => {
+				void handleToggleDeadLetter();
+			}}
+		>
+			<span className="material-icons-round text-sm">{deadLetterMode ? 'inbox' : 'archive'}</span>
+			<span className="inline-grid">
+				<span className="col-start-1 row-start-1 invisible">To Dead Letter</span>
+				<span className="col-start-1 row-start-1 text-left">{deadLetterMode ? 'To Active' : 'To Dead Letter'}</span>
+			</span>
+		</button>
+	);
+
+	const deadLetterBulkActions = (
+		<>
+			<RepublishStrategyMenu
+				align="right"
+				ariaBusy={pendingAction === 'republish'}
+				buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+				buttonContent={
+					<>
+						<span className="material-icons-round text-sm">upload</span>
+						{pendingAction === 'republish' ? 'Republishing...' : 'Republish All'}
+						<span className="material-icons-round text-sm">arrow_drop_down</span>
+					</>
+				}
+				disabled={deadLetterOperationInProgress || activeMessages.length === 0}
+				menuTitle="Republish"
+				options={bulkRepublishStrategyOptions}
+				onPick={handleBulkStrategyPick}
+			/>
+			<button
+				type="button"
+				className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+				aria-busy={pendingAction === 'drop'}
+				disabled={
+					deadLetterOperationInProgress ||
+					activeMessages.length === 0
+				}
+				onClick={() => {
+					setDropConfirmOpen(true);
+				}}
+			>
+				<span className="material-icons-round inline-block rotate-180 text-sm">
+					upload
+				</span>
+				{pendingAction === 'drop' ? 'Dropping...' : 'Drop All'}
+			</button>
+		</>
+	);
+
+	const peekCountSelector = (
+		<PeekMessageCountSelector
+			value={peekMessageCount}
+			disabled={pendingAction !== null}
+			onApply={(count) => {
+				void handlePeekMessageCountApply(count);
+			}}
+		/>
+	);
+
+	const searchControl = (
+		<div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+			<span className="inline-flex items-center border-0 pl-3 pr-1 text-slate-400 dark:text-slate-500">
+				<span aria-hidden="true" className="material-icons-round text-sm">
+					search
+				</span>
+			</span>			<input
+				type="text"
+				className="w-44 border-0 bg-transparent py-1.5 pl-1 pr-3 text-xs text-slate-700 transition placeholder:text-slate-400 focus:ring-0 dark:text-slate-100 dark:placeholder:text-slate-500"
+				placeholder={deadLetterMode ? 'Search dead-lettered messages' : 'Search peeked messages'}
+				aria-label={deadLetterMode ? 'Search dead-lettered messages' : 'Search peeked messages'}
+				value={messageSearchText}
+				onChange={(event) => setMessageSearchText(event.target.value)}
+			/>
+			<button
+				type="button"
+				className="inline-flex items-center border-l border-slate-200 px-2 py-1.5 text-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-800 dark:hover:bg-zinc-800"
+				aria-label="Clear search"
+				title="Clear search"
+				disabled={messageSearchText.length === 0}
+				onClick={() => setMessageSearchText('')}
+			>
+				<span aria-hidden="true" className="material-icons-round text-sm">
+					close
+				</span>
+			</button>
+		</div>
+	);
+
 	const toggleExpandedRow = (rowKey: string) => {
 		setExpandedRows((current) => {
 			const next = new Set(current);
@@ -793,65 +1028,6 @@ export function ViewerPage() {
 									</div>
 								</div>
 							</div>
-
-							<div className="flex flex-wrap items-center gap-5">
-								<button
-									type="button"
-									className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-									aria-busy={pendingAction === 'refresh'}
-									disabled={pendingAction === 'refresh'}
-									onClick={() => {
-										void handleRefresh();
-									}}
-								>
-									<span
-										className={`material-icons-round text-sm${pendingAction === 'refresh' ? ' animate-spin' : ''}`}
-									>
-										refresh
-									</span>
-									Refresh
-								</button>
-
-								<button
-									type="button"
-									className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-										deadLetterMode
-											? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300'
-											: 'border-slate-200 bg-white hover:bg-slate-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800'
-									}`}
-									aria-pressed={deadLetterMode}
-									aria-busy={deadLetterMode && pendingAction === 'refresh'}
-									disabled={Boolean(currentViewer) && pendingAction !== null}
-									onClick={() => {
-										void handleToggleDeadLetter();
-									}}
-								>
-									<span className="material-icons-round text-sm">inventory_2</span>
-									Dead Letter
-								</button>
-
-								<div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-									<input
-										type="text"
-										className="w-44 border-0 bg-transparent px-3 py-1.5 text-xs text-slate-700 transition placeholder:text-slate-400 focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-zinc-950"
-										placeholder="Session ID"
-										value={receiveSessionId}
-										disabled={!currentViewer?.requiresSession}
-										onChange={(event) => setReceiveSessionId(event.target.value)}
-									/>
-									<button
-										type="button"
-										className="inline-flex items-center gap-1.5 border-l border-slate-200 px-3 py-1.5 text-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:hover:bg-zinc-800"
-										disabled={pendingAction === 'receive'}
-										onClick={() => {
-											void handleReceive();
-										}}
-									>
-										<span className="material-icons-round text-sm">download</span>
-										{pendingAction === 'receive' ? 'Receiving...' : 'Receive'}
-									</button>
-								</div>
-							</div>
 						</div>
 
 						<div className="custom-scrollbar flex-1 overflow-y-auto p-4 lg:p-6">
@@ -870,14 +1046,37 @@ export function ViewerPage() {
 							/>
 
 							<section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
-								<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40">
+								<div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40">
 									<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
 										Last Received Message
 									</h2>
-									<CopyFullMessageButton
-										message={currentViewer?.displayedMessage ?? null}
-										disabled={!currentViewer?.displayedMessage}
-									/>
+									<div className="flex items-center gap-2">
+										<CopyFullMessageButton
+											message={currentViewer?.displayedMessage ?? null}
+											disabled={!currentViewer?.displayedMessage}
+										/>
+										<div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+											<input
+												type="text"
+												className="w-44 border-0 bg-transparent px-3 py-1.5 text-xs text-slate-700 transition placeholder:text-slate-400 focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-zinc-950"
+												placeholder="Session ID"
+												value={receiveSessionId}
+												disabled={!currentViewer?.requiresSession}
+												onChange={(event) => setReceiveSessionId(event.target.value)}
+											/>
+											<button
+												type="button"
+												className="inline-flex items-center gap-1.5 border-l border-slate-200 px-3 py-1.5 text-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:hover:bg-zinc-800"
+												disabled={pendingAction === 'receive'}
+												onClick={() => {
+													void handleReceive();
+												}}
+											>
+												<span className="material-icons-round text-sm">download</span>
+												{pendingAction === 'receive' ? 'Receiving...' : 'Receive'}
+											</button>
+										</div>
+									</div>
 								</div>
 
 								<div className="p-4 lg:p-6">
@@ -976,7 +1175,9 @@ export function ViewerPage() {
 							</section>
 
 							<section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
-								<div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 md:flex-row md:items-center md:justify-between">
+								<div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+									{/* The two blocks share one row while they fit; when space runs out the actions
+									   block wraps to a second line and ml-auto keeps it right-aligned. */}
 									<div className="flex items-center gap-2">
 										<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
 											{deadLetterMode ? 'Dead-Lettered Messages' : 'Peeked Messages'}
@@ -984,43 +1185,18 @@ export function ViewerPage() {
 										<span className="rounded-xl bg-slate-100 px-2 py-1 text-[0.6875rem] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
 											{peekedMessageSummary}
 										</span>
+										{peekCountSelector}
+									</div>
+
+									<div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+										{switchModeButton}
+										{searchControl}
+										{refreshButton}
 									</div>
 
 									{deadLetterMode ? (
-										<div className="flex items-center gap-2">
-											<RepublishStrategyMenu
-												align="right"
-												ariaBusy={pendingAction === 'republish'}
-												buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-brand-500 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 shadow-sm transition hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300 dark:hover:bg-brand-950/50"
-												buttonContent={
-													<>
-														<span className="material-icons-round text-sm">upload</span>
-														{pendingAction === 'republish' ? 'Republishing...' : 'Republish All'}
-														<span className="material-icons-round text-sm">arrow_drop_down</span>
-													</>
-												}
-												disabled={deadLetterOperationInProgress || activeMessages.length === 0}
-												menuTitle="Republish"
-												options={bulkRepublishStrategyOptions}
-												onPick={handleBulkStrategyPick}
-											/>
-											<button
-												type="button"
-												className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
-												aria-busy={pendingAction === 'drop'}
-												disabled={
-													deadLetterOperationInProgress ||
-													activeMessages.length === 0
-												}
-												onClick={() => {
-													setDropConfirmOpen(true);
-												}}
-											>
-												<span className="material-icons-round inline-block rotate-180 text-sm">
-													upload
-												</span>
-												{pendingAction === 'drop' ? 'Dropping...' : 'Drop All'}
-											</button>
+										<div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+											{deadLetterBulkActions}
 										</div>
 									) : null}
 								</div>
@@ -1082,20 +1258,20 @@ export function ViewerPage() {
 										<table className="min-w-full text-left text-sm">
 											<thead className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
 												<tr>
-													<th className="px-4 py-3 font-medium">Message ID</th>
+													<th className="px-4 py-3 font-medium">{renderSortableHeader('messageId', 'Message ID')}</th>
 													{showPartitionKey && <th className="col-partition-key px-4 py-3 font-medium">Partition Key</th>}
-													<th className="col-session px-4 py-3 font-medium">Session</th>
-													<th className="col-delivery-count px-4 py-3 font-medium">Delivery Count</th>
-													<th className="col-enqueued-time px-4 py-3 font-medium">Enqueued Time / TTL</th>
+													<th className="col-session px-4 py-3 font-medium">{renderSortableHeader('session', 'Session')}</th>
+													<th className="col-delivery-count px-4 py-3 font-medium">{renderSortableHeader('deliveryCount', 'Delivery Count')}</th>
+													<th className="col-enqueued-time px-4 py-3 font-medium">{renderSortableHeader('enqueuedTime', 'Enqueued Time / TTL')}</th>
 													{showScheduledEnqueue && <th className="col-scheduled-enqueue px-4 py-3 font-medium">Scheduled Enqueue</th>}
-													{!deadLetterMode && <th className="col-content-type px-4 py-3 font-medium">Content Type</th>}
-													{deadLetterMode && <th className="px-4 py-3 font-medium">Dead Letter Reason</th>}
+													{!deadLetterMode && <th className="col-content-type px-4 py-3 font-medium">{renderSortableHeader('contentType', 'Content Type')}</th>}
+													{deadLetterMode && <th className="px-4 py-3 font-medium">{renderSortableHeader('deadLetterReason', 'Dead Letter Reason')}</th>}
 													<th className="px-4 py-3 text-center font-medium">Actions</th>
 												</tr>
 											</thead>
 											<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-												{activeMessages.map((message, index) => {
-													const rowKey = createMessageRowKey(message, index);
+												{displayedMessageRows.map(({ loadIndex, message }) => {
+													const rowKey = createMessageRowKey(message, loadIndex);
 													const isExpanded = expandedRows.has(rowKey);
 													const deadLetterPropertyRows: Array<[string, string]> = deadLetterMode
 														? [
@@ -1137,7 +1313,7 @@ export function ViewerPage() {
 
 													return (
 														<Fragment key={rowKey}>
-															<tr className={`align-top transition hover:bg-slate-50 dark:hover:bg-slate-950/40${removingMessageIds.get(message.properties.messageId) === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId) ? ' message-row-removing' : ''}`}>
+															<tr className={`${MESSAGE_ROW_BASE_CLASS}${removingMessageIds.get(message.properties.messageId) === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId) ? ' message-row-removing' : ''}`}>
 																<td className="px-4 py-3">
 																	<div className="font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{message.properties.messageId}
@@ -1308,7 +1484,15 @@ export function ViewerPage() {
 					/>
 				) : null}
 
-				{dropConfirmOpen ? (
+				{republishAllConfirmStrategy !== null ? (
+				<RepublishAllConfirmPrompt
+					onCancel={handleRepublishAllCancel}
+					onConfirm={handleRepublishAllConfirm}
+					visibleCount={deadLetterViewer?.messages.length ?? 0}
+				/>
+			) : null}
+
+			{dropConfirmOpen ? (
 					<DropAllConfirmPrompt
 						onCancel={handleDropAllCancel}
 						onConfirm={handleDropAllConfirm}

@@ -8,6 +8,7 @@ using ServiceBusViewer.Api.Endpoints.Viewer.RefreshDeadLetter;
 using ServiceBusViewer.Api.Endpoints.Viewer.RepublishDeadLetter;
 using ServiceBusViewer.Api.Endpoints.Viewer.SelectEntity;
 using ServiceBusViewer.Api.Endpoints.Viewer.Send;
+using ServiceBusViewer.Api.Endpoints.Viewer.UpdatePeekMessageCount;
 
 internal static class ViewerGroupBuilder
 {
@@ -22,6 +23,7 @@ internal static class ViewerGroupBuilder
 		viewerGroup.MapPost("/drop-dlq", DropDeadLettersRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/select-entity", SelectEntityRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/receive", ReceiveRequestHandler.HandleAsync);
+		viewerGroup.MapPost("/peek-message-count", UpdatePeekMessageCountRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/send", SendRequestHandler.HandleAsync);
 
 		return endpoints;

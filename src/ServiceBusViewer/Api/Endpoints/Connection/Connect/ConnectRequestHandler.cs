@@ -32,6 +32,7 @@ internal static class ConnectRequestHandler
 		ServiceBusViewer.Business.Viewer.Contracts.ViewerState result = await service.ConnectAsync(
 			context.GetClientSessionState(),
 			settings,
+			request.PeekMessageCount,
 			cancellationToken);
 
 		return TypedResults.Ok(ToConnectResponse(result));

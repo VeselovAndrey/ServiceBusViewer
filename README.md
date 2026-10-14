@@ -8,7 +8,7 @@ The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Asp
 
 - Automatically browse an Azure namespace when the primary connection has Manage permission, or connect directly to a queue or subscription.
 - Browse queues, topics, subscriptions, entity properties, and subscription filters.
-- Peek and receive messages from queues or topic subscriptions, including session-enabled entities.
+- Peek and receive messages from queues or topic subscriptions, including session-enabled entities, with a configurable peek count (presets 1-100 or a custom value up to 500) persisted in the browser.
 - View the selected entity's dead-lettered messages with their dead-letter reason and source, and refresh the dead-letter list as the queue's contents change.
 - Republish dead-lettered messages to the original entity, one at a time or in bulk, choosing how the republished copy's message id is assigned.
 - Drop dead-lettered messages, one at a time or the entire dead-letter queue with a confirmation, with the affected and failed counts reported for the operation.
@@ -51,6 +51,7 @@ Settings entered on the connection page apply to the current browser session. Th
 | `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING` | Optional emulator-only administration connection used to browse and refresh entities. | Not set |
 | `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` | Queue to open directly, or parent topic when a subscription is also configured. | Empty |
 | `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` | Optional subscription to open under the configured parent topic. | Not set |
+| `SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT` | Controls whether the connect screen shows the emulator connect hint and the insert button. | Shown (hidden only when set to `false`) |
 
 For example, the following command preconfigures namespace browsing for an emulator running on the Docker host:
 
@@ -90,6 +91,8 @@ Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey
 Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
 ```
 
+For a Podman container host, replace `host.docker.internal` above with `host.containers.internal`.
+
 ## Browser-session isolation
 
 The API keeps viewer state in a server-side bucket identified by the `sbv-session` cookie. Different browser profiles and private browsing sessions have isolated viewer state. 
@@ -97,19 +100,28 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
+## 1.0.0-rc2 (2026-10-14)
+
+- **Added:** Peek count selection on the Viewer page — presets (1, 5, 10, 30, 50, 100) or a custom value up to 500 — applied without reconnecting; the choice is saved in the browser.
+- **Added:** A theme option that follows the OS light/dark setting live; the choice is saved in the browser.
+- **Added:** Emulator connect hint on the Connect screen, with a button that fills in the emulator connection strings (separate Docker and Podman buttons when the viewer runs in a container).
+- **Added:** Sortable message-list columns with direction indicators, and a search box over the loaded messages — in both peeked and dead-letter modes.
+- **Added:** Confirmation prompt for Republish All, matching the Drop All confirmation.
+- **Changed:** The Dead Letter toggle now shows its target — "To Dead Letter" / "To Active" — with a matching archive/inbox icon and a fixed button width.
+- **Changed:** Republish All uses the same neutral button style as the other buttons on the page.
+- **Changed:** Viewer header layout: Refresh, the mode toggle ("To Dead Letter" / "To Active"), search, and the receive controls moved into the message-list and Last Received Message headers; in dead-letter mode Republish All and Drop All sit on a separate line below a divider.
+- **Fixed:** Dark-mode tints (dead-letter toggle, dead-letter header bar, button shadows) that were not rendering because the brand-950 theme color was missing.
+- **Fixed:** Page flicker while resizing the window near layout wrap points.
+
 ## 1.0.0-rc1 (2026-10-11)
 
-- **Added:** Republish dead-lettered messages to the original entity or permanently drop them — per message, or the entire dead-letter queue with Republish All / Drop All (with a confirmation dialog).
-- **Added:** A dropdown on both buttons for how the republished copy's message id is assigned: keep the original (hidden when the target has duplicate detection), Service Bus auto-generate, a new GUID or GUID v7, or a manual id for a single message.
-- **Added:** Republish results show the affected and failed counts plus the first failure detail; failed messages remain in the dead-letter queue.
-- **Added:** A Dead Letter toggle that displays the selected entity's dead-letter queue (the queue's $DeadLetterQueue, or the subscription's queue); the list adds Dead Letter Reason and Dead Letter Source columns, and the expanded message shows the reason, source, and error description.
-- **Added:** Bulk Republish All / Drop All run as bounded steps with a progress indicator and a Cancel button.
-- **Added:** The message list header shows the entity's total message count when reliable counts are available.
-- **Changed:** Dead letter mode: its own heading and empty state, Refresh reloads the dead-letter list, and selecting another entity exits the mode.
-- **Changed:** Single drop/republish animates the message row out of the list; bulk success shows a transient message in the empty-list placeholder; errors and cancelled operations appear as dismissible messages.
-- **Changed:** Drop and republish buttons are disabled while any dead-letter operation is running.
-- **Changed:** Upgraded dependencies to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
-- **Fixed:** Dead-letter drop and republish operations now allow enough time for the initial receive on session-enabled queues and subscriptions.
+- **Added:** Dead Letter toggle showing the selected entity's dead-letter queue with the dead-letter reason, source, and error description.
+- **Added:** Republish dead-lettered messages to the original entity or drop them permanently — per message or in bulk (Republish All / Drop All with confirmation), with progress, cancellation, and affected/failed counts.
+- **Added:** Message-id strategy dropdown for republishing: keep original (hidden with duplicate detection), auto-generate, GUID or GUID v7, or a manual id for a single message.
+- **Added:** Total message count in the message list header when reliable counts are available.
+- **Changed:** In dead letter mode, Refresh reloads the dead-letter list and selecting another entity exits the mode; single drop/republish animates the row out; dead-letter buttons stay disabled while an operation runs.
+- **Changed:** Upgraded to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
+- **Fixed:** Dead-letter drop and republish now allow enough time for the initial receive on session-enabled entities.
 
 ## 0.48.0 (2026-08-23)
 
@@ -127,14 +139,6 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Fixed:** Sending a message with a Scheduled Enqueue Time or Time to Live that cannot be parsed now returns a validation error instead of silently dropping the property.
 - **Fixed:** The Partition Key in the Send Message window is now limited to 128 characters with client-side and API validation, matching the Azure Service Bus limit.
 - **Fixed:** A number of additional minor bugs, with small usability and display improvements.
-
-## 0.45.0 (2026-08-20)
-
-- **Added:** Full-message JSON copy button for received and peeked messages that copies the message body, system properties, and application properties as valid JSON, alongside the existing body-only copy action.
-- **Added:** Paste-from-clipboard action in the Send Message window that loads a full-message JSON payload copied from a received or peeked message into the payload editor, message properties, and application properties, updating only the fields present in the JSON.
-- **Added:** Warning indicator on the Message ID field when the selected queue or topic (the parent topic of a selected subscription) has duplicate detection enabled and the pasted JSON carries a non-empty message ID; the warning resets when the message ID is edited or after a successful send, and a failed send keeps it.
-- **Added:** Copy button for received and peeked message bodies that copies the original message body text as plain text.
-- **Added:** Received and peeked message details now display each application property's type alongside its name and value.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 

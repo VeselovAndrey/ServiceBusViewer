@@ -22,6 +22,9 @@ public interface IViewerSessionState : IAsyncDisposable
 	/// </summary>
 	ConnectionSettings ConnectionSettings { get; set; }
 
+	/// <summary>Gets the application-configured connection settings captured when the session was created.</summary>
+	ConnectionSettings ApplicationConfiguredConnectionSettings { get; }
+
 	/// <summary>
 	/// The currently opened Service Bus connection context for this session, or <c>null</c> when disconnected.
 	/// </summary>
@@ -46,6 +49,11 @@ public interface IViewerSessionState : IAsyncDisposable
 	/// The session id used for session-enabled receives. When <c>null</c>, no specific session is pinned.
 	/// </summary>
 	string? ReceiveSessionId { get; set; }
+
+	/// <summary>
+	/// The number of messages peeked for the viewer message list in this session.
+	/// </summary>
+	int PeekMessageCount { get; set; }
 
 	/// <summary>
 	/// A short human-readable result from the last send operation that can be shown to the viewer.
