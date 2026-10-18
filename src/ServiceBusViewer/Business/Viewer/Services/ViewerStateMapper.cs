@@ -20,13 +20,14 @@ internal static class ViewerStateMapper
 			(selectedEntity as SubscriptionEntityProperties)?.TopicName,
 			requiresSession,
 			connection.IsManagementApiAvailable,
-			[.. connection.AvailableEntities.Select(x => x.ToEntityId())],
+			[.. connection.AvailableEntities],
 			session.CurrentMessages.Messages,
 			session.CurrentMessages.HasMore,
 			session.DisplayedMessage,
 			session.SendResultMessage,
 			requiresSession ? session.ReceiveSessionId : null,
-			session.CurrentMessages.TotalCount);
+			session.CurrentMessages.TotalCount,
+			connection.UsesDevelopmentEmulator);
 	}
 
 }

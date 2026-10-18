@@ -15,16 +15,18 @@ using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 /// <param name="SendResultMessage">Optional result message after a send operation (success/error).</param>
 /// <param name="ReceiveSessionId">Optional active receive session identifier for session-enabled entities.</param>
 /// <param name="TotalMessageCount">Total number of messages in the selected entity (dead-letter count for a dead-letter list), when known from the management API; otherwise null.</param>
+/// <param name="UsesDevelopmentEmulator">Whether the connection targets the local Service Bus emulator, whose runtime message counts are unavailable.</param>
 public sealed record ViewerState(
 	string ServiceBusHostName,
 	string? EntityName,
 	string? TopicName,
 	bool RequiresSession,
 	bool IsManagementApiAvailable,
-	IReadOnlyList<EntityId> AvailableEntities,
+	IReadOnlyList<EntityProperties> AvailableEntities,
 	IReadOnlyList<ReceivedMessage> Messages,
 	bool HasMoreMessages,
 	ReceivedMessage? DisplayedMessage,
 	string? SendResultMessage,
 	string? ReceiveSessionId,
-	long? TotalMessageCount);
+	long? TotalMessageCount,
+	bool UsesDevelopmentEmulator);

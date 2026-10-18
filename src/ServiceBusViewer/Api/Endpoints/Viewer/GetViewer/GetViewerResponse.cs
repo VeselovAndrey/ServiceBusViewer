@@ -17,19 +17,21 @@ using ServiceBusViewer.Api.Models;
 /// <param name="SendResultMessage">Result message from the last send operation or null.</param>
 /// <param name="ReceiveSessionId">Session id used for receive or null.</param>
 /// <param name="TotalMessageCount">Total number of messages in the selected entity (dead-letter count for a dead-letter list), when known from the management API; otherwise null.</param>
+/// <param name="UsesDevelopmentEmulator">Whether the connection targets the local Service Bus emulator, whose runtime message counts are unavailable.</param>
 public sealed record GetViewerResponse(
 	string ServiceBusHostName,
 	string? EntityName,
 	string? TopicName,
 	bool RequiresSession,
 	bool IsManagementApiAvailable,
-	IReadOnlyList<EntityId> AvailableEntities,
+	IReadOnlyList<AvailableEntity> AvailableEntities,
 	IReadOnlyList<ReceivedMessage> Messages,
 	bool HasMoreMessages,
 	ReceivedMessage? DisplayedMessage,
 	string? SendResultMessage,
 	string? ReceiveSessionId,
-	long? TotalMessageCount)
+	long? TotalMessageCount,
+	bool UsesDevelopmentEmulator)
 	: ViewerState(
 		ServiceBusHostName,
 		EntityName,
@@ -42,4 +44,5 @@ public sealed record GetViewerResponse(
 		DisplayedMessage,
 		SendResultMessage,
 		ReceiveSessionId,
-		TotalMessageCount);
+		TotalMessageCount,
+		UsesDevelopmentEmulator);

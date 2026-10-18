@@ -24,6 +24,7 @@ ENV SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING=""
 ENV SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME=""
 ENV SERVICEBUSVIEWER_SUBSCRIPTION_NAME=""
 ENV SERVICEBUSVIEWER_RUNNING_IN_CONTAINER=true
+ENV ServiceBusViewer__EntityCountAutoRefresh__Enabled=true
 LABEL org.opencontainers.image.description="Service Bus Viewer SPA and API."
 COPY --from=build /app/publish .
 COPY --from=frontend-build /workspace/dist ./wwwroot

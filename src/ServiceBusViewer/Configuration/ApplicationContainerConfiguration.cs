@@ -13,10 +13,12 @@ using ServiceBusViewer.Infrastructure.ServiceBus;
 
 internal static class ApplicationContainerConfiguration
 {
-	public static IServiceCollection AddApplicationServices(this IServiceCollection services)
+	public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
 	{
 		// Application metadata
 		services.AddSingleton<IApplicationInfoProviderSettings, ApplicationInfoProviderSettings>();
+		services.Configure<EntityCountAutoRefreshOptions>(configuration.GetSection("ServiceBusViewer:EntityCountAutoRefresh"));
+		services.AddSingleton<IEntityCountAutoRefreshSettings, EntityCountAutoRefreshSettings>();
 		services.AddSingleton<IApplicationInfoProvider, ApplicationInfoProvider>();
 
 		// Session state

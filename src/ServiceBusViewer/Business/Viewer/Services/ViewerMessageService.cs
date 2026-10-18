@@ -32,6 +32,8 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 
 			session.SendResultMessage = null;
 
+			await RefreshAllEntityMessageCountsAsync(connection, operationCancellationToken);
+
 			return session.ToViewerState(connection);
 		}
 		finally {
@@ -99,13 +101,17 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			if (strategy is RepublishMessageIdStrategy.KeepOriginal && requiresDuplicateDetection)
 				throw new ArgumentException("A new message id is required when republishing to a target with duplicate detection enabled.");
 
-			return await connection.RepublishDeadLetterMessagesAsync(
+			DeadLetterOperationResult result = await connection.RepublishDeadLetterMessagesAsync(
 				entityId,
 				messageId is null ? null : [messageId],
 				strategy,
 				manualMessageId,
 				maxMessages,
 				operationCancellationSource.Token);
+
+			await connection.RefreshEntityMessageCountsAsync(entityId, operationCancellationSource.Token);
+
+			return result;
 		}
 		finally {
 			session.Gate.Release();
@@ -126,11 +132,15 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
 			EntityId entityId = session.SelectedEntityId ?? throw new InvalidOperationException("No entity selected.");
 
-			return await connection.DropDeadLetterMessagesAsync(
+			DeadLetterOperationResult result = await connection.DropDeadLetterMessagesAsync(
 				entityId,
 				messageId is null ? null : [messageId],
 				maxMessages,
 				operationCancellationSource.Token);
+
+			await connection.RefreshEntityMessageCountsAsync(entityId, operationCancellationSource.Token);
+
+			return result;
 		}
 		finally {
 			session.Gate.Release();
@@ -180,6 +190,8 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 					"Message receive succeeded, but refreshing the peeked message list failed. Error type: {ErrorType}.",
 					exception.GetType().FullName);
 			}
+
+			await connection.RefreshEntityMessageCountsAsync(entityId, operationCancellationToken);
 
 			return session.ToViewerState(connection);
 		}
@@ -234,9 +246,27 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 
 			if (!entity.RequiresSession)
 				session.ReceiveSessionId = null;
+
+			await connection.RefreshEntityMessageCountsAsync(entityId, operationCancellationToken);
 		}
 		finally {
 			session.Gate.Release();
+		}
+	}
+
+	// Refreshes the runtime counts of every discovered entity; subscriptions are covered through their parent topic. The entity list is
+	// snapshotted because the connection replaces refreshed entries while iterating.
+	private static async Task RefreshAllEntityMessageCountsAsync(IServiceBusConnection connection, CancellationToken cancellationToken)
+	{
+		foreach (EntityProperties entity in connection.AvailableEntities.ToList()) {
+			EntityId? refreshId = entity switch {
+				QueueEntityProperties queue => new QueueEntityId(queue.Name),
+				TopicEntityProperties topic => new TopicEntityId(topic.Name),
+				_ => null
+			};
+
+			if (refreshId is not null)
+				await connection.RefreshEntityMessageCountsAsync(refreshId, cancellationToken);
 		}
 	}
 }

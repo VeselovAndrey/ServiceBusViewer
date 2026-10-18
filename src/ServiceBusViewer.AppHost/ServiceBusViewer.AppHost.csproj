@@ -13,6 +13,8 @@
 
 		<AnalysisLevel>latest</AnalysisLevel>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<!-- NU1902: MessagePack (transitive via Aspire.Hosting) has a moderate advisory; keep the warning visible without failing the build. -->
+		<WarningsNotAsErrors>NU1902</WarningsNotAsErrors>
 
 		<AspireUseCliBundle>true</AspireUseCliBundle>
 	</PropertyGroup>

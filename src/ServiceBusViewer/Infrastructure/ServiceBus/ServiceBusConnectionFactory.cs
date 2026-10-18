@@ -29,13 +29,13 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 					return CreateScopedEntityConnection(client, settings, connectionProperties.FullyQualifiedNamespace);
 
 				ServiceBusAdministrationClient emulatorAdminClient = new(settings.EmulatorManagementConnectionString!);
-				return await CreateNamespaceConnectionAsync(client, emulatorAdminClient, connectionProperties.FullyQualifiedNamespace, cancellationToken);
+				return await CreateNamespaceConnectionAsync(client, emulatorAdminClient, connectionProperties.FullyQualifiedNamespace, usesDevelopmentEmulator: true, cancellationToken);
 			}
 
 			ServiceBusAdministrationClient adminClient = new(settings.ConnectionString);
 
 			try {
-				return await CreateNamespaceConnectionAsync(client, adminClient, connectionProperties.FullyQualifiedNamespace, cancellationToken);
+				return await CreateNamespaceConnectionAsync(client, adminClient, connectionProperties.FullyQualifiedNamespace, usesDevelopmentEmulator: false, cancellationToken);
 			}
 			catch (Exception exception) when (IsManagementAuthorizationFailure(exception)) {
 				return CreateScopedEntityConnection(client, settings, connectionProperties.FullyQualifiedNamespace);
@@ -51,9 +51,10 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 		ServiceBusClient client,
 		ServiceBusAdministrationClient adminClient,
 		string namespaceHost,
+		bool usesDevelopmentEmulator,
 		CancellationToken cancellationToken)
 	{
-		var connection = new ServiceBusConnection(client, adminClient, namespaceHost);
+		var connection = new ServiceBusConnection(client, adminClient, namespaceHost, usesDevelopmentEmulator);
 		await connection.RefreshEntitiesAsync(cancellationToken);
 
 		return connection;
@@ -107,6 +108,7 @@ internal sealed class ServiceBusConnectionFactory : IServiceBusConnectionFactory
 			client,
 			null,
 			namespaceHost,
+			usesDevelopmentEmulator: false,
 			availableEntities);
 	}
 

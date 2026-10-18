@@ -58,6 +58,7 @@ else {
 	IResourceBuilder<ProjectResource> serviceBusViewerApi = builder.AddProject<ServiceBusViewer>("ServiceBusViewer-API")
 		.WithEnvironment("SERVICEBUSVIEWER_CONNECTION_STRING", serviceBusEmulatorConnectionString)
 		.WithEnvironment("SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING", serviceBusEmulatorManagementConnectionString)
+		.WithEnvironment("ServiceBusViewer__EntityCountAutoRefresh__Enabled", "true")
 		.WithExternalHttpEndpoints()
 		.WaitFor(serviceBusEmulator, WaitBehavior.WaitOnResourceUnavailable);
 

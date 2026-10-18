@@ -2,21 +2,24 @@ namespace ServiceBusViewer.Api.Endpoints.SessionState.GetSessionState;
 
 using ServiceBusViewer.Api.Converters;
 using ServiceBusViewer.Business.Application.Contracts;
+using ServiceBusViewer.Business.Application.Dependencies;
 using ServiceBusViewer.Business.Viewer.Contracts;
 using ServiceBusViewer.Infrastructure.ClientSession;
 
 internal static class GetSessionStateRequestHandler
 {
-	public static async Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service, IApplicationInfoProvider applicationInfoProvider, CancellationToken cancellationToken)
+	public static async Task<IResult> HandleAsync(HttpContext context, IViewerConnectionService service, IApplicationInfoProvider applicationInfoProvider, IEntityCountAutoRefreshSettings entityCountAutoRefreshSettings, CancellationToken cancellationToken)
 	{
 		ViewerConnectionSnapshot viewerConnectionSnapshot = await service.GetSnapshotAsync(context.GetClientSessionState(), cancellationToken);
 
-		return TypedResults.Ok(new SessionStateResponse(
+		return TypedResults.Ok(
+			new SessionStateResponse(
 				applicationInfoProvider.ApplicationVersion,
 				applicationInfoProvider.IsRunningInContainer,
 				applicationInfoProvider.ShowEmulatorConnectHint,
 				viewerConnectionSnapshot.ToConnectionApiModel(),
 				viewerConnectionSnapshot.Viewer?.ToApiModel(),
-				viewerConnectionSnapshot.IsConnected));
+				viewerConnectionSnapshot.IsConnected,
+				entityCountAutoRefreshSettings.EntityCountAutoRefreshEnabled));
 	}
 }

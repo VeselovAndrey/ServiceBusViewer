@@ -42,7 +42,7 @@ internal sealed class ViewerEntityService : IViewerEntityService
 			return new EntityDetailsResult(
 				connection.NamespaceHost,
 				connection.IsManagementApiAvailable,
-				[.. connection.AvailableEntities.Select(x => x.ToEntityId())],
+				[.. connection.AvailableEntities],
 				GetEntityType(entityId),
 				entityId.Name,
 				(entityId as SubscriptionEntityId)?.TopicName,

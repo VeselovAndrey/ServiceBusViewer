@@ -185,4 +185,129 @@ public sealed class ViewerMessageServiceTests
 		Assert.Null(session.ReceiveSessionId);
 		await connection.Received(1).SendMessageAsync(new QueueEntityId(queueName), command, Arg.Any<CancellationToken>());
 	}
+
+	[Fact]
+	public async Task ViewerMessageService_RefreshAsync_ConnectedSession_RefreshesCountsOfQueuesAndTopicsOnly()
+	{
+		// Arrange
+		QueueEntityProperties queue = EntitiesData.CreateQueueProperties("default-queue");
+		TopicEntityProperties topic = new("events", TimeSpan.FromDays(1), false, TimeSpan.FromMinutes(10), true, false, TimeSpan.FromDays(30));
+		SubscriptionEntityProperties subscription = new("sub-a", "events", false, TimeSpan.FromMinutes(1), 10, TimeSpan.FromDays(1), false, true, TimeSpan.FromDays(30), []);
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.AvailableEntities.Returns((IReadOnlyList<EntityProperties>)[queue, topic, subscription]);
+		connection.PeekMessagesAsync(Arg.Any<EntityId>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(ReceivedMessageList.Empty);
+
+		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
+
+		using var sessionScope = new ViewerSessionScope();
+		IViewerSessionState session = sessionScope.State;
+		session.Connection = connection;
+
+		// Act
+		await service.RefreshAsync(session, CancellationToken.None);
+
+		// Assert
+		await connection.Received(1).RefreshEntityMessageCountsAsync(new QueueEntityId("default-queue"), Arg.Any<CancellationToken>());
+		await connection.Received(1).RefreshEntityMessageCountsAsync(new TopicEntityId("events"), Arg.Any<CancellationToken>());
+		await connection.DidNotReceive().RefreshEntityMessageCountsAsync(Arg.Is<SubscriptionEntityId>(id => id.Name == "sub-a"), Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ViewerMessageService_SendAsync_SendCompleted_RefreshesAffectedEntityCounts()
+	{
+		// Arrange
+		const string queueName = "default-queue";
+		QueueEntityProperties queue = EntitiesData.CreateQueueProperties(queueName, requiresSession: false);
+		var command = new SendCommand("body", new MessageProperties(), []);
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
+
+		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
+		using var sessionScope = new ViewerSessionScope();
+		IViewerSessionState session = sessionScope.State;
+		session.Connection = connection;
+		session.SelectedEntityId = new QueueEntityId(queueName);
+
+		// Act
+		await service.SendAsync(session, command, CancellationToken.None);
+
+		// Assert
+		await connection.Received(1).RefreshEntityMessageCountsAsync(new QueueEntityId(queueName), Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ViewerMessageService_ReceiveAsync_ReceiveCompleted_RefreshesAffectedEntityCounts()
+	{
+		// Arrange
+		const string queueName = "default-queue";
+		QueueEntityProperties queue = EntitiesData.CreateQueueProperties(queueName);
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.AvailableEntities.Returns((IReadOnlyList<EntityProperties>)[queue]);
+		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
+		connection.ReceiveMessageAsync(new QueueEntityId(queueName), null, Arg.Any<CancellationToken>()).Returns((ReceivedMessage?)null);
+		connection.PeekMessagesAsync(new QueueEntityId(queueName), 50, Arg.Any<CancellationToken>()).Returns(ReceivedMessageList.Empty);
+
+		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
+		using var sessionScope = new ViewerSessionScope();
+		IViewerSessionState session = sessionScope.State;
+		session.Connection = connection;
+		session.SelectedEntityId = new QueueEntityId(queueName);
+
+		// Act
+		await service.ReceiveAsync(session, null, CancellationToken.None);
+
+		// Assert
+		await connection.Received(1).RefreshEntityMessageCountsAsync(new QueueEntityId(queueName), Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ViewerMessageService_DropDeadLetterMessagesAsync_OperationCompleted_RefreshesAffectedEntityCounts()
+	{
+		// Arrange
+		const string queueName = "default-queue";
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+			.Returns(new DeadLetterOperationResult(true, 1, 0, null));
+
+		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
+		using var sessionScope = new ViewerSessionScope();
+		IViewerSessionState session = sessionScope.State;
+		session.Connection = connection;
+		session.SelectedEntityId = new QueueEntityId(queueName);
+
+		// Act
+		await service.DropDeadLetterMessagesAsync(session, null, null, CancellationToken.None);
+
+		// Assert
+		await connection.Received(1).RefreshEntityMessageCountsAsync(new QueueEntityId(queueName), Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ViewerMessageService_RepublishDeadLetterMessagesAsync_OperationCompleted_RefreshesAffectedEntityCounts()
+	{
+		// Arrange
+		const string queueName = "default-queue";
+		QueueEntityProperties queue = EntitiesData.CreateQueueProperties(queueName);
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
+		connection.RepublishDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<RepublishMessageIdStrategy>(), Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+			.Returns(new DeadLetterOperationResult(true, 1, 0, null));
+
+		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
+		using var sessionScope = new ViewerSessionScope();
+		IViewerSessionState session = sessionScope.State;
+		session.Connection = connection;
+		session.SelectedEntityId = new QueueEntityId(queueName);
+
+		// Act
+		await service.RepublishDeadLetterMessagesAsync(session, null, RepublishMessageIdStrategy.Guid, null, null, CancellationToken.None);
+
+		// Assert
+		await connection.Received(1).RefreshEntityMessageCountsAsync(new QueueEntityId(queueName), Arg.Any<CancellationToken>());
+	}
 }

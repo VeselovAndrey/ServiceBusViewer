@@ -7,9 +7,14 @@ using BusinessConnectionSnapshot = ServiceBusViewer.Business.Viewer.Contracts.Vi
 using BusinessViewerState = ServiceBusViewer.Business.Viewer.Contracts.ViewerState;
 using BusinessEntityId = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.EntityId;
 using BusinessReceivedMessage = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.ReceivedMessage;
+using BusinessEntityMessageCounts = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.EntityMessageCounts;
+using EntityProperties = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.EntityProperties;
 using QueueEntityId = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.QueueEntityId;
+using QueueEntityProperties = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.QueueEntityProperties;
 using SubscriptionEntityId = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.SubscriptionEntityId;
+using SubscriptionEntityProperties = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.SubscriptionEntityProperties;
 using TopicEntityId = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.TopicEntityId;
+using TopicEntityProperties = ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.TopicEntityProperties;
 
 /// <summary>Maps business-contract models to API response models.</summary>
 internal static class BusinessModelMapping
@@ -33,6 +38,23 @@ internal static class BusinessModelMapping
 			SubscriptionEntityId subscription => new EntityId("Subscription", subscription.Name, subscription.TopicName),
 			_ => throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}", nameof(entity))
 		};
+
+	/// <summary>Maps business-contract entity properties to an available-entity API response model, including message counts.</summary>
+	internal static AvailableEntity ToApiModel(this EntityProperties entity)
+	{
+		EntityId id = entity switch {
+			QueueEntityProperties queue => new EntityId("Queue", queue.Name, null),
+			TopicEntityProperties => new EntityId("Topic", entity.Name, null),
+			SubscriptionEntityProperties subscription => new EntityId("Subscription", subscription.Name, subscription.TopicName),
+			_ => throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}", nameof(entity))
+		};
+
+		return new AvailableEntity(id.Type, id.Name, id.TopicName, entity.MessageCounts?.ToApiModel());
+	}
+
+	/// <summary>Maps business-contract entity message counts to an API response model.</summary>
+	internal static EntityMessageCounts ToApiModel(this BusinessEntityMessageCounts counts)
+		=> new(counts.ActiveMessageCount, counts.ScheduledMessageCount, counts.DeadLetterMessageCount);
 
 	/// <summary>Maps a business-contract received message to an API response model.</summary>
 	internal static ReceivedMessage ToApiModel(this BusinessReceivedMessage message)
@@ -73,5 +95,6 @@ internal static class BusinessModelMapping
 			state.DisplayedMessage?.ToApiModel(),
 			state.SendResultMessage,
 			state.ReceiveSessionId,
-			state.TotalMessageCount);
+			state.TotalMessageCount,
+			state.UsesDevelopmentEmulator);
 }

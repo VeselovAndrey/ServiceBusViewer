@@ -9,10 +9,12 @@ using ServiceBusViewer.Api.Models;
 /// <param name="Connection">Connection settings snapshot, or null when the session's settings do not match the application-configured settings.</param>
 /// <param name="Viewer">Current viewer state or null.</param>
 /// <param name="IsConnected">Whether the viewer is currently connected.</param>
+/// <param name="EntityCountAutoRefreshEnabled">Whether the sidebar refresh control offers automatic entity message-count refresh.</param>
 public sealed record SessionStateResponse(
 	string ApplicationVersion,
 	bool IsRunningInContainer,
 	bool ShowEmulatorConnectHint,
 	ConnectionSettings? Connection,
 	ViewerState? Viewer,
-	bool IsConnected);
+	bool IsConnected,
+	bool EntityCountAutoRefreshEnabled);
