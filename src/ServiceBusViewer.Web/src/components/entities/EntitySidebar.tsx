@@ -7,6 +7,7 @@ import { useAppState } from '../../state/AppStateContext';
 import type { AvailableEntityDto, EntityIdDto } from '../../types/serviceBus';
 import { useEntityTooltip } from '../layout/EntityTooltipProvider';
 import { EntityMessageCountsBadge } from './EntityMessageCountsBadge';
+import { EntityRefreshControl } from './EntityRefreshControl';
 
 interface EntitySidebarProps {
   activeSelectionKey?: string | null;
@@ -39,9 +40,12 @@ export function EntitySidebar({
   const {
     appliedEntityFilterText,
     entityFilterText,
+    sessionState,
     setAppliedEntityFilterText,
     setEntityFilterText,
   } = useAppState();
+  // The emulator reports no reliable runtime counts: suppress the badges entirely.
+  const usesDevelopmentEmulator = sessionState?.viewer?.usesDevelopmentEmulator ?? false;
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -86,6 +90,7 @@ export function EntitySidebar({
         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
           Entities
         </span>
+        <EntityRefreshControl />
         <div className="pointer-events-none absolute right-3 bottom-0 left-3 h-px bg-slate-200 dark:bg-zinc-800" />
       </div>
 
@@ -161,7 +166,7 @@ export function EntitySidebar({
                     </button>
 
                     <EntityMessageCountsBadge
-                      counts={queue.messageCounts}
+                      counts={usesDevelopmentEmulator ? null : queue.messageCounts}
                       onClick={
                         onSelectEntity
                           ? () => {
@@ -228,7 +233,7 @@ export function EntitySidebar({
                         <span className="min-w-0 truncate">{topic.name}</span>
                       </div>
 
-                      <EntityMessageCountsBadge counts={topicCounts} />
+                      <EntityMessageCountsBadge counts={usesDevelopmentEmulator ? null : topicCounts} />
 
                       {displayPropertyLinks ? (
                         <Link
@@ -281,7 +286,7 @@ export function EntitySidebar({
                               </button>
 
                               <EntityMessageCountsBadge
-                                counts={subscription.messageCounts}
+                                counts={usesDevelopmentEmulator ? null : subscription.messageCounts}
                                 onClick={
                                   onSelectEntity
                                     ? () => {

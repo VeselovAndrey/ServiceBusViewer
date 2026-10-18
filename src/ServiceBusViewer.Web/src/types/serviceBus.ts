@@ -68,6 +68,7 @@ export interface ViewerState {
 	sendResultMessage: string | null;
 	receiveSessionId: string | null;
 	totalMessageCount: number | null;
+	usesDevelopmentEmulator: boolean;
 }
 
 export interface SessionStateDto {
@@ -77,6 +78,7 @@ export interface SessionStateDto {
 	connection: ConnectionSettingsDto | null;
 	viewer: ViewerState | null;
 	isConnected: boolean;
+	entityCountAutoRefreshEnabled: boolean;
 }
 
 export interface ConnectRequestDto {

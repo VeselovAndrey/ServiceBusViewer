@@ -42,6 +42,8 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 	public bool IsManagementApiAvailable => _adminClient is not null;
 
+	public bool UsesDevelopmentEmulator => _usesDevelopmentEmulator;
+
 	public IReadOnlyList<EntityProperties> AvailableEntities => _availableEntities;
 
 	public EntityProperties GetEntityProperties(EntityId entityId)
@@ -186,6 +188,87 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		}
 
 		return counts;
+	}
+
+	public async Task RefreshEntityMessageCountsAsync(EntityId entityId, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		EntityProperties entity = GetEntityProperties(entityId);
+
+		switch (entity) {
+			case QueueEntityProperties queue:
+				UpdateMessageCounts(entity, await GetQueueRuntimeCountsAsync(queue.Name, cancellationToken));
+				break;
+			case SubscriptionEntityProperties subscription:
+				UpdateMessageCounts(entity, await GetSubscriptionRuntimeCountsAsync(subscription.TopicName, subscription.Name, cancellationToken));
+				break;
+			case TopicEntityProperties topic:
+				// A topic holds no directly consumable messages: refresh the counts of its subscriptions instead.
+				Dictionary<string, EntityMessageCounts> subscriptionCounts = await GetRuntimeSubscriptionCountsAsync(topic.Name, cancellationToken);
+
+				foreach (SubscriptionEntityProperties subscription in _availableEntities.OfType<SubscriptionEntityProperties>().Where(s => s.TopicName == topic.Name).ToList())
+					UpdateMessageCounts(subscription, subscriptionCounts.TryGetValue(subscription.Name, out EntityMessageCounts counts) ? counts : null);
+				break;
+		}
+	}
+
+	// Best-effort single-entity runtime count retrieval: any failure leaves the counts unknown (null).
+	// The emulator reports zero counts even for non-empty entities, so its all-zero results are treated as unavailable.
+	private async Task<EntityMessageCounts?> GetQueueRuntimeCountsAsync(string queueName, CancellationToken cancellationToken)
+	{
+		if (_adminClient is null)
+			return null;
+
+		try {
+			QueueRuntimeProperties properties = await _adminClient.GetQueueRuntimePropertiesAsync(queueName, cancellationToken);
+			EntityMessageCounts counts = new(properties.ActiveMessageCount, properties.ScheduledMessageCount, properties.DeadLetterMessageCount);
+
+			if (_usesDevelopmentEmulator && counts is { ActiveMessageCount: 0, ScheduledMessageCount: 0, DeadLetterMessageCount: 0 })
+				return null;
+
+			return counts;
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+			throw;
+		}
+		catch (Exception) {
+			return null;
+		}
+	}
+
+	// Best-effort single-entity runtime count retrieval: any failure leaves the counts unknown (null).
+	// Subscriptions expose no scheduled count: scheduled messages reside at the topic level until their enqueue time.
+	// The emulator reports zero counts even for non-empty entities, so its all-zero results are treated as unavailable.
+	private async Task<EntityMessageCounts?> GetSubscriptionRuntimeCountsAsync(string topicName, string subscriptionName, CancellationToken cancellationToken)
+	{
+		if (_adminClient is null)
+			return null;
+
+		try {
+			SubscriptionRuntimeProperties properties = await _adminClient.GetSubscriptionRuntimePropertiesAsync(topicName, subscriptionName, cancellationToken);
+			EntityMessageCounts counts = new(properties.ActiveMessageCount, 0, properties.DeadLetterMessageCount);
+
+			if (_usesDevelopmentEmulator && counts is { ActiveMessageCount: 0, DeadLetterMessageCount: 0 })
+				return null;
+
+			return counts;
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+			throw;
+		}
+		catch (Exception) {
+			return null;
+		}
+	}
+
+	// Records are immutable: replace the cached entry with a copy carrying the refreshed counts.
+	private void UpdateMessageCounts(EntityProperties entity, EntityMessageCounts? counts)
+	{
+		int index = _availableEntities.IndexOf(entity);
+
+		if (index >= 0)
+			_availableEntities[index] = entity with { MessageCounts = counts };
 	}
 
 	public async Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(

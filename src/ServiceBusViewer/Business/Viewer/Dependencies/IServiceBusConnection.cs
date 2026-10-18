@@ -17,6 +17,9 @@ public interface IServiceBusConnection : IAsyncDisposable
 	/// <summary>Indicates whether the Service Bus management API is available for this connection (used for entity discovery, management operations, etc.).</summary>
 	bool IsManagementApiAvailable { get; }
 
+	/// <summary>Indicates whether this connection targets the local Service Bus emulator, whose runtime message counts are unavailable.</summary>
+	bool UsesDevelopmentEmulator { get; }
+
 	/// <summary>
 	/// A read-only list of discovered entities in the connected namespace. Empty when discovery is unavailable or none found.
 	/// </summary>
@@ -26,6 +29,15 @@ public interface IServiceBusConnection : IAsyncDisposable
 	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>A task that completes when the refresh finishes.</returns>
 	Task RefreshEntitiesAsync(CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Refreshes the runtime message counts of a single discovered entity from the management API without loading messages; for a topic, refreshes the counts of
+	/// its subscriptions. Best-effort: the affected counts become <c>null</c> when retrieval is unavailable or fails.
+	/// </summary>
+	/// <param name="entityId">The identity of the entity whose message counts are refreshed.</param>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
+	/// <returns>A task that completes when the refresh finishes.</returns>
+	Task RefreshEntityMessageCountsAsync(EntityId entityId, CancellationToken cancellationToken);
 
 	/// <summary>Retrieves the properties for a specific entity previously discovered.</summary>
 	/// <param name="entityId">The identity of the entity whose properties are requested.</param>

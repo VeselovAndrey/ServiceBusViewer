@@ -26,7 +26,8 @@ internal static class ViewerStateMapper
 			session.DisplayedMessage,
 			session.SendResultMessage,
 			requiresSession ? session.ReceiveSessionId : null,
-			session.CurrentMessages.TotalCount);
+			session.CurrentMessages.TotalCount,
+			connection.UsesDevelopmentEmulator);
 	}
 
 }
