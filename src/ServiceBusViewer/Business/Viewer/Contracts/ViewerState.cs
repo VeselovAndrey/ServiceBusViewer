@@ -21,7 +21,7 @@ public sealed record ViewerState(
 	string? TopicName,
 	bool RequiresSession,
 	bool IsManagementApiAvailable,
-	IReadOnlyList<EntityId> AvailableEntities,
+	IReadOnlyList<EntityProperties> AvailableEntities,
 	IReadOnlyList<ReceivedMessage> Messages,
 	bool HasMoreMessages,
 	ReceivedMessage? DisplayedMessage,

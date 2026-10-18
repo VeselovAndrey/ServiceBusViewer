@@ -15,7 +15,7 @@ using ServiceBusViewer.Api.Models;
 public sealed record DetailsResponse(
 	string ServiceBusHostName,
 	bool IsManagementApiAvailable,
-	IReadOnlyList<EntityId> AvailableEntities,
+	IReadOnlyList<AvailableEntity> AvailableEntities,
 	string Type,
 	string Name,
 	string? TopicName,

@@ -23,7 +23,7 @@ public sealed record SelectEntityResponse(
 	string? TopicName,
 	bool RequiresSession,
 	bool IsManagementApiAvailable,
-	IReadOnlyList<EntityId> AvailableEntities,
+	IReadOnlyList<AvailableEntity> AvailableEntities,
 	IReadOnlyList<ReceivedMessage> Messages,
 	bool HasMoreMessages,
 	ReceivedMessage? DisplayedMessage,

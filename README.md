@@ -100,6 +100,11 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
+## 1.0.0 (2026-10-18)
+
+- **Added:** Message count badges in the entity menu: queues and subscriptions show active, scheduled, and dead-letter counts (e.g. `5 | 0 | 2`); topics show the sums across their subscriptions. Counts load on connect and are omitted when unavailable or unreliable (e.g. the Service Bus emulator).
+- **Added:** Hover/focus hint on each counter naming its category (e.g. "DLQ: 2"); clicking a counter selects the entity.
+
 ## 1.0.0-rc2 (2026-10-14)
 
 - **Added:** Peek count selection on the Viewer page — presets (1, 5, 10, 30, 50, 100) or a custom value up to 500 — applied without reconnecting; the choice is saved in the browser.
@@ -122,23 +127,6 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Changed:** In dead letter mode, Refresh reloads the dead-letter list and selecting another entity exits the mode; single drop/republish animates the row out; dead-letter buttons stay disabled while an operation runs.
 - **Changed:** Upgraded to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
 - **Fixed:** Dead-letter drop and republish now allow enough time for the initial receive on session-enabled entities.
-
-## 0.48.0 (2026-08-23)
-
-- **Added:** Per-message Delivery Count based on SystemProperties.DeliveryCount as reported by Azure Service Bus, shown as a column in the Peeked Messages list and in the Last Received Message details.
-- **Added:** Optional To, Reply To, Subject, and Partition Key fields in the Send Message window, with the values sent on the outgoing message and displayed in received and expanded peeked message details.
-- **Added:** Advanced toggle in the Send Message header that shows or hides the new fields; the choice is saved in a browser cookie and defaults to off.
-- **Changed:** The delivery count is display-only: it does not affect receiving, completing, or dead-lettering messages and adds no badges, warnings, or color coding.
-- **Changed:** The Peeked Messages table shows the partition key as a sub-value under the entity name for partitioned queues and topics.
-- **Changed:** Renamed the Application Properties section in the send and receive views to Custom Properties.
-- **Changed:** The Aspire AppHost and the `SolidCode.Aspire.Hosting.ServiceBusViewer` support library are now built against Aspire 13.5.2.
-- **Changed:** The `SolidCode.Aspire.Hosting.ServiceBusViewer` package version is now aligned with the Aspire version it targets, and future releases will continue to carry the same version number as their target Aspire release.
-- **Changed:** Paste From Clipboard now skips the Diagnostic-Id application property when loading a copied message into the send window.
-- **Changed:** The duplicate-detection warning for the Message ID field is now always visible with its icon and text on entities with duplicate detection enabled, instead of appearing only after a paste.
-- **Fixed:** The "Duplicate detection enabled" indicator in the Send Message window no longer mixes information and warning semantics. It shows as a neutral info notice when duplicate detection is enabled, and the amber warning styling applies to the indicator and Message ID field only when the warning is armed with a non-empty Message ID.
-- **Fixed:** Sending a message with a Scheduled Enqueue Time or Time to Live that cannot be parsed now returns a validation error instead of silently dropping the property.
-- **Fixed:** The Partition Key in the Send Message window is now limited to 128 characters with client-side and API validation, matching the Azure Service Bus limit.
-- **Fixed:** A number of additional minor bugs, with small usability and display improvements.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 

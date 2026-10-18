@@ -20,7 +20,7 @@ interface TooltipContextValue {
 }
 
 const TooltipContext = createContext<TooltipContextValue | null>(null);
-const tooltipDelayMs = 3000;
+const tooltipDelayMs = 2000;
 const tooltipHideDelayMs = 150;
 const tooltipAnchorName = '--entity-tooltip';
 

@@ -18,6 +18,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 	private readonly ServiceBusClient _client;
 	private readonly ServiceBusAdministrationClient? _adminClient;
+	private readonly bool _usesDevelopmentEmulator;
 	private readonly List<EntityProperties> _availableEntities = [];
 	private bool _disposed;
 
@@ -25,10 +26,12 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		ServiceBusClient client,
 		ServiceBusAdministrationClient? adminClient,
 		string namespaceHost,
+		bool usesDevelopmentEmulator = false,
 		IEnumerable<EntityProperties>? availableEntities = null)
 	{
 		_client = client;
 		_adminClient = adminClient;
+		_usesDevelopmentEmulator = usesDevelopmentEmulator;
 		NamespaceHost = namespaceHost;
 
 		if (availableEntities is not null)
@@ -130,6 +133,59 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		catch (Exception) {
 			return null;
 		}
+	}
+
+	// Best-effort batched runtime count retrieval: any failure leaves the counts unknown (null) instead of failing entity discovery.
+	// The emulator reports zero counts even for non-empty entities, so its all-zero results are treated as unavailable.
+	private async Task<Dictionary<string, EntityMessageCounts>> GetRuntimeQueueCountsAsync(CancellationToken cancellationToken)
+	{
+		Dictionary<string, EntityMessageCounts> counts = new(StringComparer.Ordinal);
+
+		try {
+			await foreach (QueueRuntimeProperties properties in _adminClient!.GetQueuesRuntimePropertiesAsync(cancellationToken)) {
+				EntityMessageCounts entityCounts = new(properties.ActiveMessageCount, properties.ScheduledMessageCount, properties.DeadLetterMessageCount);
+
+				if (_usesDevelopmentEmulator && entityCounts is { ActiveMessageCount: 0, ScheduledMessageCount: 0, DeadLetterMessageCount: 0 })
+					continue;
+
+				counts[properties.Name] = entityCounts;
+			}
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+			throw;
+		}
+		catch (Exception) {
+			counts.Clear();
+		}
+
+		return counts;
+	}
+
+	// Best-effort batched runtime count retrieval: any failure leaves the counts unknown (null) instead of failing entity discovery.
+	// The emulator reports zero counts even for non-empty entities, so its all-zero results are treated as unavailable.
+	private async Task<Dictionary<string, EntityMessageCounts>> GetRuntimeSubscriptionCountsAsync(string topicName, CancellationToken cancellationToken)
+	{
+		Dictionary<string, EntityMessageCounts> counts = new(StringComparer.Ordinal);
+
+		try {
+			await foreach (SubscriptionRuntimeProperties properties in _adminClient!.GetSubscriptionsRuntimePropertiesAsync(topicName, cancellationToken)) {
+				// Subscriptions expose no scheduled count: scheduled messages reside at the topic level until their enqueue time.
+				EntityMessageCounts entityCounts = new(properties.ActiveMessageCount, 0, properties.DeadLetterMessageCount);
+
+				if (_usesDevelopmentEmulator && entityCounts is { ActiveMessageCount: 0, DeadLetterMessageCount: 0 })
+					continue;
+
+				counts[properties.SubscriptionName] = entityCounts;
+			}
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+			throw;
+		}
+		catch (Exception) {
+			counts.Clear();
+		}
+
+		return counts;
 	}
 
 	public async Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(
@@ -324,12 +380,16 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 		_availableEntities.Clear();
 
+		Dictionary<string, EntityMessageCounts> queueCounts = await GetRuntimeQueueCountsAsync(cancellationToken);
+
 		await foreach (QueueProperties queue in _adminClient.GetQueuesAsync(cancellationToken)) {
 			_availableEntities.Add(new QueueEntityProperties(
 				queue.Name,
 				queue.RequiresSession,
 				queue.LockDuration,
-				queue.MaxDeliveryCount, queue.DefaultMessageTimeToLive, queue.RequiresDuplicateDetection, queue.DuplicateDetectionHistoryTimeWindow, queue.DeadLetteringOnMessageExpiration, queue.EnableBatchedOperations, queue.EnablePartitioning, queue.AutoDeleteOnIdle));
+				queue.MaxDeliveryCount, queue.DefaultMessageTimeToLive, queue.RequiresDuplicateDetection, queue.DuplicateDetectionHistoryTimeWindow, queue.DeadLetteringOnMessageExpiration, queue.EnableBatchedOperations, queue.EnablePartitioning, queue.AutoDeleteOnIdle) {
+				MessageCounts = queueCounts.TryGetValue(queue.Name, out EntityMessageCounts counts) ? counts : null
+			});
 		}
 
 		await foreach (TopicProperties topic in _adminClient.GetTopicsAsync(cancellationToken)) {
@@ -341,6 +401,8 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				topic.EnableBatchedOperations,
 				topic.EnablePartitioning,
 				topic.AutoDeleteOnIdle));
+
+			Dictionary<string, EntityMessageCounts> subscriptionCounts = await GetRuntimeSubscriptionCountsAsync(topic.Name, cancellationToken);
 
 			await foreach (SubscriptionProperties subscription in _adminClient.GetSubscriptionsAsync(topic.Name, cancellationToken)) {
 				List<SubscriptionFilterRule> rules = [];
@@ -355,7 +417,9 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 					subscription.RequiresSession,
 					subscription.LockDuration,
 					subscription.MaxDeliveryCount,
-					subscription.DefaultMessageTimeToLive, subscription.DeadLetteringOnMessageExpiration, subscription.EnableBatchedOperations, subscription.AutoDeleteOnIdle, rules));
+					subscription.DefaultMessageTimeToLive, subscription.DeadLetteringOnMessageExpiration, subscription.EnableBatchedOperations, subscription.AutoDeleteOnIdle, rules) {
+					MessageCounts = subscriptionCounts.TryGetValue(subscription.SubscriptionName, out EntityMessageCounts counts) ? counts : null
+				});
 			}
 		}
 	}

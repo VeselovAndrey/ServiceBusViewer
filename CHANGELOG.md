@@ -1,5 +1,10 @@
 # Service Bus Viewer Version History
 
+## 1.0.0 (2026-10-18)
+
+- **Added:** Message count badges in the entity menu: queues and subscriptions show active, scheduled, and dead-letter counts (e.g. `5 | 0 | 2`); topics show the sums across their subscriptions. Counts load on connect and are omitted when unavailable or unreliable (e.g. the Service Bus emulator).
+- **Added:** Hover/focus hint on each counter naming its category (e.g. "DLQ: 2"); clicking a counter selects the entity.
+
 ## 1.0.0-rc2 (2026-10-14)
 
 - **Added:** Peek count selection on the Viewer page — presets (1, 5, 10, 30, 50, 100) or a custom value up to 500 — applied without reconnecting; the choice is saved in the browser.
