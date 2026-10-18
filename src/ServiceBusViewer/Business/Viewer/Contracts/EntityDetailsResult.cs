@@ -13,7 +13,7 @@ using ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 public sealed record EntityDetailsResult(
 	string ServiceBusHostName,
 	bool IsManagementApiAvailable,
-	IReadOnlyList<EntityId> AvailableEntities,
+	IReadOnlyList<EntityProperties> AvailableEntities,
 	string Type,
 	string Name,
 	string? TopicName,

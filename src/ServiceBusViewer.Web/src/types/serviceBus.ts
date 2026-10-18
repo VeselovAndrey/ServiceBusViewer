@@ -13,6 +13,19 @@ export interface EntityIdDto {
 	topicName: string | null;
 }
 
+export interface EntityMessageCountsDto {
+	activeMessageCount: number;
+	scheduledMessageCount: number;
+	deadLetterMessageCount: number;
+}
+
+export interface AvailableEntityDto {
+	type: EntityType;
+	name: string;
+	topicName: string | null;
+	messageCounts: EntityMessageCountsDto | null;
+}
+
 export interface ReceivedMessagePropertiesDto {
 	messageId: string;
 	partitionKey: string | null;
@@ -48,7 +61,7 @@ export interface ViewerState {
 	topicName: string | null;
 	requiresSession: boolean;
 	isManagementApiAvailable: boolean;
-	availableEntities: EntityIdDto[];
+	availableEntities: AvailableEntityDto[];
 	messages: ReceivedMessageDto[];
 	hasMoreMessages: boolean;
 	displayedMessage: ReceivedMessageDto | null;
@@ -133,7 +146,7 @@ export interface SendMessageRequestDto {
 export interface EntityDetailsDto {
 	serviceBusHostName: string;
 	isManagementApiAvailable: boolean;
-	availableEntities: EntityIdDto[];
+	availableEntities: AvailableEntityDto[];
 	type: EntityType;
 	name: string;
 	topicName: string | null;

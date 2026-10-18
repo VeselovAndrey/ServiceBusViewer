@@ -115,7 +115,7 @@ public sealed class ViewerEntityServiceTests
 		// Assert
 		Assert.Equal("test.servicebus.windows.net", details.ServiceBusHostName);
 		Assert.True(details.IsManagementApiAvailable);
-		Assert.Equal([entityId], details.AvailableEntities);
+		Assert.Equal((IReadOnlyList<EntityProperties>)[subscription], details.AvailableEntities);
 		Assert.Equal("Subscription", details.Type);
 		Assert.Equal("processed", details.Name);
 		Assert.Equal("orders", details.TopicName);

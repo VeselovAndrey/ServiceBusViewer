@@ -2,13 +2,15 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { cx } from '../../lib/cx';
 import { getEntityKey } from '../../lib/formatters';
+import { sumMessageCounts } from '../../lib/messageCounts';
 import { useAppState } from '../../state/AppStateContext';
-import type { EntityIdDto } from '../../types/serviceBus';
+import type { AvailableEntityDto, EntityIdDto } from '../../types/serviceBus';
 import { useEntityTooltip } from '../layout/EntityTooltipProvider';
+import { EntityMessageCountsBadge } from './EntityMessageCountsBadge';
 
 interface EntitySidebarProps {
   activeSelectionKey?: string | null;
-  availableEntities: EntityIdDto[];
+  availableEntities: AvailableEntityDto[];
   displayPropertyLinks: boolean;
   entityName: string | null;
   onSelectEntity?: (entity: EntityIdDto) => Promise<void> | void;
@@ -17,8 +19,7 @@ interface EntitySidebarProps {
 
 const entityFilterDelayMilliseconds = 500;
 
-function buildDetailsPath(entity: EntityIdDto): string {
-  const searchParams = new URLSearchParams({ name: entity.name, type: entity.type });
+function buildDetailsPath(entity: EntityIdDto): string {  const searchParams = new URLSearchParams({ name: entity.name, type: entity.type });
   if (entity.topicName) {
     searchParams.set('topicName', entity.topicName);
   }
@@ -64,7 +65,7 @@ export function EntitySidebar({
         left.name.localeCompare(right.name),
     );
   const isFiltering = appliedEntityFilterText.length > 0;
-  const matchesFilter = (entity: EntityIdDto) =>
+  const matchesFilter = (entity: AvailableEntityDto) =>
     entity.name.toLocaleLowerCase().includes(appliedEntityFilterText);
   const queues = isFiltering ? unfilteredQueues.filter(matchesFilter) : unfilteredQueues;
   const subscriptions = isFiltering
@@ -114,7 +115,7 @@ export function EntitySidebar({
         </label>
       </div>
 
-      <nav className="custom-scrollbar flex-1 space-y-1 overflow-y-auto p-2">
+      <nav className="custom-scrollbar flex-1 space-y-1 overflow-y-auto py-2 pr-[3px] pl-2 [scrollbar-gutter:auto]">
         {queues.length === 0 && topics.length === 0 ? (
           <div className="rounded border border-dashed border-slate-300 bg-white/80 px-4 py-6 text-center text-sm text-slate-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-slate-400">
             {isFiltering ? 'No entities match your filter' : 'No entities available'}
@@ -132,14 +133,20 @@ export function EntitySidebar({
                 const entityKey = getEntityKey(queue);
 
                 return (
-                  <div key={entityKey} className="flex items-stretch justify-between gap-1 text-sm">
+                  <div
+                    key={entityKey}
+                    className={cx(
+                      'flex items-stretch justify-between gap-0.5 rounded text-sm transition',
+                      isActive ? 'bg-brand-50 dark:bg-brand-500/20' : 'hover:bg-slate-200 dark:hover:bg-zinc-800',
+                    )}
+                  >
                     <button
                       type="button"
                       className={cx(
                         'flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left transition',
                         isActive
-                          ? 'bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/20 dark:text-brand-100'
-                          : 'text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-zinc-800',
+                          ? 'font-medium text-brand-600 dark:text-brand-100'
+                          : 'text-slate-600 dark:text-slate-300',
                       )}
                       disabled={!onSelectEntity || activeSelectionKey === entityKey}
                       onClick={() => {
@@ -152,6 +159,17 @@ export function EntitySidebar({
                       <span className="material-icons-round text-sm">view_headline</span>
                       <span className="min-w-0 truncate">{queue.name}</span>
                     </button>
+
+                    <EntityMessageCountsBadge
+                      counts={queue.messageCounts}
+                      onClick={
+                        onSelectEntity
+                          ? () => {
+                              void onSelectEntity(queue);
+                            }
+                          : undefined
+                      }
+                    />
 
                     {displayPropertyLinks ? (
                       <Link
@@ -181,15 +199,26 @@ export function EntitySidebar({
                 const topicSubscriptions = subscriptions.filter(
                   (subscription) => subscription.topicName === topic.name,
                 );
+                // Aggregate over all of the topic's subscriptions, not only the ones passing the current filter.
+                const topicCounts = sumMessageCounts(
+                  unfilteredSubscriptions.filter(
+                    (subscription) => subscription.topicName === topic.name,
+                  ),
+                );
 
                 return (
                   <div key={getEntityKey(topic)} className="rounded">
-                    <div className="flex items-stretch justify-between gap-1 text-sm">
+                    <div
+                      className={cx(
+                        'flex items-stretch justify-between gap-0.5 rounded text-sm transition',
+                        isActiveTopic ? 'bg-brand-50 dark:bg-brand-500/20' : 'hover:bg-slate-200 dark:hover:bg-zinc-800',
+                      )}
+                    >
                       <div
                         className={cx(
                           'flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5',
                           isActiveTopic
-                            ? 'bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/20 dark:text-brand-100'
+                            ? 'font-medium text-brand-600 dark:text-brand-100'
                             : 'text-slate-600 dark:text-slate-300',
                         )}
                         tabIndex={0}
@@ -198,6 +227,8 @@ export function EntitySidebar({
                         <span className="material-icons-round text-sm">share</span>
                         <span className="min-w-0 truncate">{topic.name}</span>
                       </div>
+
+                      <EntityMessageCountsBadge counts={topicCounts} />
 
                       {displayPropertyLinks ? (
                         <Link
@@ -222,15 +253,20 @@ export function EntitySidebar({
                           return (
                             <div
                               key={entityKey}
-                              className="flex items-stretch justify-between gap-1 text-sm"
+                              className={cx(
+                                'flex items-stretch justify-between gap-0.5 rounded text-sm transition',
+                                isActiveSubscription
+                                  ? 'bg-brand-50 dark:bg-brand-500/20'
+                                  : 'hover:bg-slate-200 dark:hover:bg-zinc-800',
+                              )}
                             >
                               <button
                                 type="button"
                                 className={cx(
                                   'flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left transition',
                                   isActiveSubscription
-                                    ? 'bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/20 dark:text-brand-100'
-                                    : 'text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-zinc-800',
+                                    ? 'font-medium text-brand-600 dark:text-brand-100'
+                                    : 'text-slate-600 dark:text-slate-300',
                                 )}
                                 disabled={!onSelectEntity || activeSelectionKey === entityKey}
                                 onClick={() => {
@@ -243,6 +279,17 @@ export function EntitySidebar({
                                 <span className="material-icons-round text-sm">subtitles</span>
                                 <span className="min-w-0 truncate">{subscription.name}</span>
                               </button>
+
+                              <EntityMessageCountsBadge
+                                counts={subscription.messageCounts}
+                                onClick={
+                                  onSelectEntity
+                                    ? () => {
+                                        void onSelectEntity(subscription);
+                                      }
+                                    : undefined
+                                }
+                              />
 
                               {displayPropertyLinks ? (
                                 <Link

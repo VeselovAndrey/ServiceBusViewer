@@ -70,5 +70,5 @@ public sealed class ServiceBusConnectionTests
 			new ServiceBusClient("Endpoint=sb://localhost/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;"),
 			null,
 			"localhost",
-			entities);
+			availableEntities: entities);
 }
