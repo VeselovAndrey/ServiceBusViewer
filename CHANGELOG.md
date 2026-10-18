@@ -4,6 +4,8 @@
 
 - **Added:** Message count badges in the entity menu: queues and subscriptions show active, scheduled, and dead-letter counts (e.g. `5 | 0 | 2`); topics show the sums across their subscriptions. Counts load on connect and are omitted when unavailable or unreliable (e.g. the Service Bus emulator).
 - **Added:** Hover/focus hint on each counter naming its category (e.g. "DLQ: 2"); clicking a counter selects the entity.
+- **Added:** Entity counts refresh automatically after viewer message operations (send, receive, dead-letter drop/republish) and on demand via the refresh control in the entity menu.
+- **Added:** Optional auto-refresh mode on the entity-menu refresh control with presets (1, 3, 5, 10, 15, 30, 60 seconds) or a custom interval saved in the browser. Auto mode is offered only when enabled in application configuration (`ServiceBusViewer:EntityCountAutoRefresh:Enabled`, disabled by default; enabled in the Docker image and the Aspire AppHost).
 
 ## 1.0.0-rc2 (2026-10-14)
 

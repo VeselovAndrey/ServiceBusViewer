@@ -50,6 +50,7 @@
 - `SERVICEBUSVIEWER_QUEUE_OR_TOPIC_NAME` selects a queue for direct access, or the parent topic when a subscription is also configured.
 - `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` optionally selects a subscription under the configured parent topic; standalone topic access is not supported without management access.
 - `SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT` controls whether the connect screen shows the emulator connect hint and insert button; shown by default, hidden only when set to `false`.
+- `ServiceBusViewer:EntityCountAutoRefresh:Enabled` (env: `ServiceBusViewer__EntityCountAutoRefresh__Enabled`) enables the auto mode of the entity-menu refresh control; disabled by default. The refresh interval is a per-browser user setting, not application configuration.
 - `ASPNETCORE_URLS` can be used to pin the backend port for local development and container scenarios.
 - `VITE_PROXY_TARGET` should match the backend URL when running the SPA separately.
 - `VITE_API_BASE_PATH` sets the API base path embedded in the SPA during Vite development or build and defaults to `/api`.

@@ -53,6 +53,12 @@ Settings entered on the connection page apply to the current browser session. Th
 | `SERVICEBUSVIEWER_SUBSCRIPTION_NAME` | Optional subscription to open under the configured parent topic. | Not set |
 | `SERVICEBUSVIEWER_SHOW_EMULATOR_CONNECT_HINT` | Controls whether the connect screen shows the emulator connect hint and the insert button. | Shown (hidden only when set to `false`) |
 
+Automatic entity message-count refresh in the entity menu is configured through the `ServiceBusViewer:EntityCountAutoRefresh` configuration section instead, available from `appsettings.json` or environment variables:
+
+| Configuration key | Environment variable | Purpose | Default |
+| --- | --- | --- | --- |
+| `ServiceBusViewer:EntityCountAutoRefresh:Enabled` | `ServiceBusViewer__EntityCountAutoRefresh__Enabled` | Offers an auto mode on the entity-menu refresh control. The refresh interval is chosen per browser (presets or custom). | `false` |
+
 For example, the following command preconfigures namespace browsing for an emulator running on the Docker host:
 
 ```powershell
@@ -104,6 +110,8 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 - **Added:** Message count badges in the entity menu: queues and subscriptions show active, scheduled, and dead-letter counts (e.g. `5 | 0 | 2`); topics show the sums across their subscriptions. Counts load on connect and are omitted when unavailable or unreliable (e.g. the Service Bus emulator).
 - **Added:** Hover/focus hint on each counter naming its category (e.g. "DLQ: 2"); clicking a counter selects the entity.
+- **Added:** Entity counts refresh automatically after viewer message operations (send, receive, dead-letter drop/republish) and on demand via the refresh control in the entity menu.
+- **Added:** Optional auto-refresh mode on the entity-menu refresh control with presets (1, 3, 5, 10, 15, 30, 60 seconds) or a custom interval saved in the browser. Auto mode is offered only when enabled in application configuration (`ServiceBusViewer:EntityCountAutoRefresh:Enabled`, disabled by default; enabled in the Docker image and the Aspire AppHost).
 
 ## 1.0.0-rc2 (2026-10-14)
 

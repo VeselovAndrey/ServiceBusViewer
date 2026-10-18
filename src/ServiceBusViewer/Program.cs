@@ -20,7 +20,7 @@ builder.Services.AddCors(options => options.AddPolicy("LocalDevelopment", policy
 	.AllowAnyHeader()
 	.AllowAnyMethod()
 	.AllowCredentials()));
-builder.Services.AddApplicationServices();
+builder.Services.AddApplicationServices(builder.Configuration);
 
 WebApplication app = builder.Build();
 

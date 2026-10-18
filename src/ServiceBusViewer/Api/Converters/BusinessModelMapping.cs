@@ -95,5 +95,6 @@ internal static class BusinessModelMapping
 			state.DisplayedMessage?.ToApiModel(),
 			state.SendResultMessage,
 			state.ReceiveSessionId,
-			state.TotalMessageCount);
+			state.TotalMessageCount,
+			state.UsesDevelopmentEmulator);
 }
