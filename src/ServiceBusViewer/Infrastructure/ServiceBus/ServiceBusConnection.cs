@@ -274,6 +274,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 	public async Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(
 		EntityId entityId,
 		IReadOnlyCollection<string>? messageIds,
+		long? sequenceNumber,
 		RepublishMessageIdStrategy strategy,
 		string? manualMessageId,
 		int? maxMessages,
@@ -285,7 +286,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			throw new ArgumentOutOfRangeException(nameof(maxMessages), maxMessages, "The message bound must be a positive integer when set.");
 
 		EntityProperties entity = GetEntityProperties(entityId);
-		bool isBulk = messageIds is null;
+		bool isBulk = sequenceNumber is null && messageIds is null;
 		HashSet<string> requestedMessageIds = [];
 
 		if (messageIds is not null)
@@ -304,7 +305,11 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 			foreach (ServiceBusReceivedMessage message in batch) {
 				bool isUnseen = seenMessageIds.Add(message.MessageId);
-				bool isRequested = isBulk || requestedMessageIds.Contains(message.MessageId);
+
+				// A supplied sequence number identifies exactly one broker message regardless of its message id; otherwise the message-id selection applies.
+				bool isRequested = sequenceNumber is not null
+					? message.SequenceNumber == sequenceNumber.Value
+					: isBulk || requestedMessageIds.Contains(message.MessageId);
 
 				if (isRequested && isUnseen && !IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount)) {
 					unseenRequestedCount++;
@@ -330,7 +335,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				break;
 		}
 
-		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, "republished", requestedMessageIds, affectedCount, failedCount, failureDetails);
+		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, sequenceNumber, "republished", requestedMessageIds, affectedCount, failedCount, failureDetails);
 
 		return result;
 	}
@@ -338,6 +343,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 	public async Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(
 		EntityId entityId,
 		IReadOnlyCollection<string>? messageIds,
+		long? sequenceNumber,
 		int? maxMessages,
 		CancellationToken cancellationToken)
 	{
@@ -347,7 +353,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			throw new ArgumentOutOfRangeException(nameof(maxMessages), maxMessages, "The message bound must be a positive integer when set.");
 
 		EntityProperties entity = GetEntityProperties(entityId);
-		bool isBulk = messageIds is null;
+		bool isBulk = sequenceNumber is null && messageIds is null;
 		HashSet<string> requestedMessageIds = [];
 
 		if (messageIds is not null)
@@ -365,7 +371,11 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 			foreach (ServiceBusReceivedMessage message in batch) {
 				bool isUnseen = seenMessageIds.Add(message.MessageId);
-				bool isRequested = isBulk || requestedMessageIds.Contains(message.MessageId);
+
+				// A supplied sequence number identifies exactly one broker message regardless of its message id; otherwise the message-id selection applies.
+				bool isRequested = sequenceNumber is not null
+					? message.SequenceNumber == sequenceNumber.Value
+					: isBulk || requestedMessageIds.Contains(message.MessageId);
 
 				if (isRequested && isUnseen && !IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount)) {
 					unseenRequestedCount++;
@@ -391,7 +401,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				break;
 		}
 
-		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, "dropped", requestedMessageIds, affectedCount, failedCount, failureDetails);
+		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, sequenceNumber, "dropped", requestedMessageIds, affectedCount, failedCount, failureDetails);
 
 		return result;
 	}
@@ -588,13 +598,16 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 	private static DeadLetterOperationResult BuildDeadLetterOperationResult(
 		bool isBulk,
+		long? sequenceNumber,
 		string operationVerb,
 		HashSet<string> requestedMessageIds,
 		int affectedCount,
 		int failedCount,
 		List<string> failureDetails)
 	{
-		if (failedCount is 0 && (isBulk || affectedCount == requestedMessageIds.Count))
+		int requiredCount = isBulk ? 0 : sequenceNumber is not null ? 1 : requestedMessageIds.Count;
+
+		if (failedCount is 0 && (isBulk || affectedCount == requiredCount))
 			return new DeadLetterOperationResult(true, affectedCount, failedCount, null);
 
 		StringBuilder detail = new();
@@ -606,11 +619,19 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				detail.Append(CultureInfo.InvariantCulture, $" First failure: {failureDetails[0]}");
 		}
 
-		if (!isBulk && affectedCount < requestedMessageIds.Count) {
-			if (detail.Length > 0)
-				detail.Append(' ');
+		if (!isBulk && affectedCount < requiredCount) {
+			// A sequence-number request that already failed was found and processed unsuccessfully, so only an unprocessed request counts as not found.
+			bool sequenceMissing = sequenceNumber is not null && failedCount is 0;
 
-			detail.Append(CultureInfo.InvariantCulture, $"Message id(s) were not found in the dead-letter queue: {string.Join(", ", requestedMessageIds)}.");
+			if (sequenceMissing || affectedCount < requestedMessageIds.Count) {
+				if (detail.Length > 0)
+					detail.Append(' ');
+
+				if (sequenceNumber is not null)
+					detail.Append(CultureInfo.InvariantCulture, $"The message with sequence number {sequenceNumber.Value} was not found in the dead-letter queue.");
+				else
+					detail.Append(CultureInfo.InvariantCulture, $"Message id(s) were not found in the dead-letter queue: {string.Join(", ", requestedMessageIds)}.");
+			}
 		}
 
 		return new DeadLetterOperationResult(false, affectedCount, failedCount, detail.Length > 0 ? detail.ToString() : null);
@@ -730,6 +751,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 	{
 		ReceivedMessageProperties properties = new(
 			message.MessageId,
+			message.SequenceNumber,
 			message.PartitionKey,
 			message.SessionId,
 			message.CorrelationId,

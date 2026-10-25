@@ -105,7 +105,8 @@ export function ViewerPage() {
 	const [republishErrorMessages, setRepublishErrorMessages] = useState<string[]>([]);
 	const [republishPrompt, setRepublishPrompt] = useState<{
 		kind: 'manual';
-		messageId: string;
+		messageId: string | null;
+		sequenceNumber: string;
 	} | null>(null);
 	const [republishTargetRequiresDuplicateDetection, setRepublishTargetRequiresDuplicateDetection] =
 		useState<boolean | null>(null);
@@ -115,7 +116,10 @@ export function ViewerPage() {
 	const [dropConfirmOpen, setDropConfirmOpen] = useState(false);
 	const [republishAllConfirmStrategy, setRepublishAllConfirmStrategy] =
 		useState<RepublishMessageIdStrategy | null>(null);
-	const [dropSingleTarget, setDropSingleTarget] = useState<string | null>(null);
+	const [dropSingleTarget, setDropSingleTarget] = useState<{
+		messageId: string | null;
+		sequenceNumber: string;
+	} | null>(null);
 	const [bulkProgress, setBulkProgress] = useState<BulkOperationProgress | null>(null);
 	const bulkCancelRequestedRef = useRef(false);
 	// Lock entity selection and property navigation synchronously from bulk confirmation through the final step.
@@ -125,7 +129,9 @@ export function ViewerPage() {
 		bulkOperationLockRef.current = locked;
 		setIsEntitySelectionLocked(locked);
 	};
-	const [removingMessageIds, setRemovingMessageIds] = useState<Map<string, 'drop' | 'republish'>>(new Map());
+	// Rows animating out of the list after a successful single drop/republish, keyed by the exact broker
+	// sequence number so duplicate message ids never remove more than the processed row.
+	const [removingSequenceNumbers, setRemovingSequenceNumbers] = useState<Map<string, 'drop' | 'republish'>>(new Map());
 	const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
 	const [peekMessageCount, setPeekMessageCount] = usePeekMessageCount();
 	const [messageSort, setMessageSort] = useState<PeekedMessageSort | null>(null);
@@ -311,7 +317,7 @@ export function ViewerPage() {
 	const activeMessages = activeMessageSource?.messages ?? [];
 	// Drop/republish buttons stay disabled while any operation runs, including the row-removal
 	// animation window after a single republish succeeds (pendingAction already cleared by then).
-	const deadLetterOperationInProgress = selectionKey !== null || pendingAction !== null || removingMessageIds.size > 0;
+	const deadLetterOperationInProgress = selectionKey !== null || pendingAction !== null || removingSequenceNumbers.size > 0;
 	// With management access, the total count comes from runtime properties, so no full read is needed; it covers the live list and the dead-letter list alike.
 	const totalMessageCount = activeMessageSource?.totalMessageCount ?? null;
 	const peekedMessageSummary =
@@ -518,8 +524,10 @@ export function ViewerPage() {
 
 			const republishSucceeded = !cancelled && allStepsSucceeded;
 
-			if (!isBulk && republishSucceeded) {
-				animateAndRemoveMessage(request.messageId!, 'republish');
+			// Only a genuinely processed single message animates out; with nothing affected, fall through
+			// to the list refresh so the displayed rows stay in sync with the dead-letter queue.
+			if (!isBulk && republishSucceeded && totalAffected > 0 && request.sequenceNumber !== null && request.sequenceNumber !== undefined) {
+				animateAndRemoveMessage(request.sequenceNumber, 'republish');
 				return;
 			}
 
@@ -563,27 +571,22 @@ export function ViewerPage() {
 		}
 	};
 
-	const canStartSingleRepublish = (messageId: string | null): messageId is string => {
-		if (messageId !== null) {
-			return true;
-		}
-
-		setRepublishOutcome(null);
-		setRepublishCancelled(false);
-		setRepublishErrorMessages(['Single-message republish requires a message ID.']);
-		return false;
-	};
-
 	const startSingleRepublish = (
+		sequenceNumber: string,
 		messageId: string | null,
 		strategy: RepublishMessageIdStrategy,
 		manualMessageId: string | null = null,
 	) => {
-		if (!canStartSingleRepublish(messageId)) {
+		// The broker sequence number pins the exact message, so a null message id no longer blocks the
+		// single-message operation; only the Manual strategy still requires the current id.
+		if (strategy === 'Manual' && (messageId === null || messageId.trim().length === 0)) {
+			setRepublishOutcome(null);
+			setRepublishCancelled(false);
+			setRepublishErrorMessages(['Single-message republish requires a message ID.']);
 			return;
 		}
 
-		void runRepublish({ messageId, strategy, manualMessageId }, false);
+		void runRepublish({ messageId, sequenceNumber, strategy, manualMessageId }, false);
 	};
 
 	const singleRepublishStrategyOptions =
@@ -595,17 +598,20 @@ export function ViewerPage() {
 		(option) => option.value !== 'Manual',
 	);
 
-	const handleSingleStrategyPick = (messageId: string | null, strategy: RepublishMessageIdStrategy) => {
-		if (!canStartSingleRepublish(messageId)) {
+	const handleSingleStrategyPick = (sequenceNumber: string, messageId: string | null, strategy: RepublishMessageIdStrategy) => {
+		if (strategy === 'Manual' && messageId === null) {
+			setRepublishOutcome(null);
+			setRepublishCancelled(false);
+			setRepublishErrorMessages(['Single-message republish requires a message ID.']);
 			return;
 		}
 
 		if (strategy === 'Manual') {
-			setRepublishPrompt({ kind: 'manual', messageId });
+			setRepublishPrompt({ kind: 'manual', messageId, sequenceNumber });
 			return;
 		}
 
-		startSingleRepublish(messageId, strategy);
+		startSingleRepublish(sequenceNumber, messageId, strategy);
 	};
 
 	const handleBulkStrategyPick = (strategy: RepublishMessageIdStrategy) => {
@@ -640,11 +646,13 @@ export function ViewerPage() {
 		}
 
 		setRepublishPrompt(null);
-		startSingleRepublish(prompt.messageId, 'Manual', manualMessageId);
+		startSingleRepublish(prompt.sequenceNumber, prompt.messageId, 'Manual', manualMessageId);
 	};
 
-	const runDrop = async (messageId: string | null) => {
-		const isBulk = messageId === null;
+	const runDrop = async (messageId: string | null, sequenceNumber: string | null = null) => {
+		// The exact broker sequence number marks a single-message drop, so a null message id no longer
+		// turns a row action into a bulk drop.
+		const isBulk = sequenceNumber === null;
 		setPendingAction('drop');
 		setDropOutcome(null);
 		setDropCancelled(false);
@@ -667,7 +675,9 @@ export function ViewerPage() {
 			// zero messages or the user cancels. Single-message drop stays one unbounded request.
 			while (true) {
 				const step = await serviceBusApi.dropDeadLetters(
-					isBulk ? { messageId, maxCount: BULK_STEP_SIZE } : { messageId },
+					isBulk
+						? { messageId: null, sequenceNumber: null, maxCount: BULK_STEP_SIZE }
+						: { messageId, sequenceNumber },
 				);
 				totalAffected += step.affectedCount;
 				totalFailed += step.failedCount;
@@ -692,8 +702,10 @@ export function ViewerPage() {
 
 			const dropSucceeded = !cancelled && allStepsSucceeded;
 
-			if (!isBulk && dropSucceeded) {
-				animateAndRemoveMessage(messageId!, 'drop');
+			// Only a genuinely processed single message animates out; with nothing affected, fall through
+			// to the list refresh so the displayed rows stay in sync with the dead-letter queue.
+			if (!isBulk && dropSucceeded && totalAffected > 0 && sequenceNumber !== null) {
+				animateAndRemoveMessage(sequenceNumber, 'drop');
 				return;
 			}
 
@@ -741,17 +753,27 @@ export function ViewerPage() {
 		bulkCancelRequestedRef.current = true;
 	};
 
-	const removeMessageFromList = (messageId: string) => {
+	// Removes exactly the one row carrying the given broker sequence number (never all rows sharing a
+	// message id) and decrements the displayed total by the single processed message.
+	const removeMessageFromList = (sequenceNumber: string) => {
 		setDeadLetterViewer((current) => {
 			if (!current) {
 				return current;
 			}
 
+			const index = current.messages.findIndex(
+				(message) => message.properties.sequenceNumber === sequenceNumber,
+			);
+			if (index === -1) {
+				return current;
+			}
+
 			return {
 				...current,
-				messages: current.messages.filter(
-					(message) => message.properties.messageId !== messageId,
-				),
+				messages: [
+					...current.messages.slice(0, index),
+					...current.messages.slice(index + 1),
+				],
 				totalMessageCount:
 					current.totalMessageCount !== null ? current.totalMessageCount - 1 : null,
 			};
@@ -760,13 +782,13 @@ export function ViewerPage() {
 
 	// A successfully dropped or republished single message animates out of the list instead of a full
 	// refresh: drop turns the row gray and soft before shrinking it to zero; republish shrinks directly.
-	const animateAndRemoveMessage = (messageId: string, variant: 'drop' | 'republish') => {
-		setRemovingMessageIds((current) => new Map(current).set(messageId, variant));
+	const animateAndRemoveMessage = (sequenceNumber: string, variant: 'drop' | 'republish') => {
+		setRemovingSequenceNumbers((current) => new Map(current).set(sequenceNumber, variant));
 		window.setTimeout(() => {
-			removeMessageFromList(messageId);
-			setRemovingMessageIds((current) => {
+			removeMessageFromList(sequenceNumber);
+			setRemovingSequenceNumbers((current) => {
 				const next = new Map(current);
-				next.delete(messageId);
+				next.delete(sequenceNumber);
 				return next;
 			});
 		}, 300);
@@ -784,18 +806,16 @@ export function ViewerPage() {
 		setDropErrorMessages([]);
 	};
 
-	const handleDropSingle = (messageId: string | null) => {
-		if (messageId !== null) {
-			setDropSingleTarget(messageId);
-		}
+	const handleDropSingle = (messageId: string | null, sequenceNumber: string) => {
+		setDropSingleTarget({ messageId, sequenceNumber });
 	};
 
 	const handleDropSingleConfirm = () => {
-		const messageId = dropSingleTarget;
+		const target = dropSingleTarget;
 		setDropSingleTarget(null);
 
-		if (messageId !== null) {
-			void runDrop(messageId);
+		if (target !== null) {
+			void runDrop(target.messageId, target.sequenceNumber);
 		}
 	};
 
@@ -1366,7 +1386,7 @@ export function ViewerPage() {
 
 													return (
 														<Fragment key={rowKey}>
-															<tr className={`${MESSAGE_ROW_BASE_CLASS}${removingMessageIds.get(message.properties.messageId ?? '') === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId ?? '') ? ' message-row-removing' : ''}`}>
+															<tr className={`${MESSAGE_ROW_BASE_CLASS}${removingSequenceNumbers.get(message.properties.sequenceNumber) === 'drop' ? ' message-row-dropping' : removingSequenceNumbers.has(message.properties.sequenceNumber) ? ' message-row-removing' : ''}`}>
 																<td className="px-4 py-3">
 																	<div className="font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{message.properties.messageId}
@@ -1430,6 +1450,7 @@ export function ViewerPage() {
 																				options={singleRepublishStrategyOptions}
 																				onPick={(strategy) =>
 																					handleSingleStrategyPick(
+																						message.properties.sequenceNumber,
 																						message.properties.messageId,
 																						strategy,
 																					)
@@ -1446,6 +1467,7 @@ export function ViewerPage() {
 																				onClick={() =>
 																					handleDropSingle(
 																						message.properties.messageId,
+																						message.properties.sequenceNumber,
 																						)
 																				}
 																			>
@@ -1555,7 +1577,7 @@ export function ViewerPage() {
 
 				{dropSingleTarget !== null ? (
 					<DropSingleConfirmPrompt
-						messageId={dropSingleTarget}
+						messageId={dropSingleTarget.messageId}
 						onCancel={handleDropSingleCancel}
 						onConfirm={handleDropSingleConfirm}
 					/>

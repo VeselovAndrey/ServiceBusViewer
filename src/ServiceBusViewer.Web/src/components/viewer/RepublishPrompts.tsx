@@ -77,7 +77,7 @@ export function PromptDialogShell({
 }
 
 interface RepublishManualIdPromptProps {
-	messageId: string;
+	messageId: string | null;
 	onCancel: () => void;
 	onConfirm: (manualMessageId: string) => void;
 }
@@ -104,7 +104,7 @@ export function RepublishManualIdPrompt({
 		>
 			<p className="text-xs text-slate-500 dark:text-slate-400">
 				Current message id:
-				<span className="mt-1 block break-all font-mono text-slate-700 dark:text-slate-200">{messageId}</span>
+				<span className="mt-1 block break-all font-mono text-slate-700 dark:text-slate-200">{messageId ?? 'n/a'}</span>
 			</p>
 			<label
 				htmlFor="republish-manual-message-id"

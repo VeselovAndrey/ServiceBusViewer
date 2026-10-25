@@ -16,9 +16,25 @@ internal static class RepublishDeadLetterRequestHandler
 		ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.RepublishMessageIdStrategy strategy =
 			Enum.Parse<ServiceBusViewer.Business.Viewer.Contracts.ServiceBus.RepublishMessageIdStrategy>(request.Strategy!.Value.ToString(), ignoreCase: true);
 
+		long? sequenceNumber = null;
+
+		if (request.SequenceNumber is not null) {
+			if (!long.TryParse(request.SequenceNumber, out long parsedSequenceNumber)) {
+				Dictionary<string, string[]> sequenceValidationErrors = new()
+				{
+					[nameof(request.SequenceNumber)] = ["SequenceNumber must be a valid 64-bit sequence number, or null."]
+				};
+
+				return Results.ValidationProblem(sequenceValidationErrors, statusCode: StatusCodes.Status400BadRequest, title: "Validation failed");
+			}
+
+			sequenceNumber = parsedSequenceNumber;
+		}
+
 		DeadLetterOperationResult result = await service.RepublishDeadLetterMessagesAsync(
 			context.GetClientSessionState(),
 			request.MessageId,
+			sequenceNumber,
 			strategy,
 			request.ManualMessageId,
 			request.MaxCount,

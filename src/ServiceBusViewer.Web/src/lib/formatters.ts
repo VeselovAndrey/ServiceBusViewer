@@ -79,7 +79,9 @@ export function createMessageRowKey(
   message: ReceivedMessageDto,
   index: number,
 ): string {
-  return `${message.properties.messageId}:${message.properties.enqueuedTimeUtc}:${index}`;
+  // The broker sequence number is unique per entity, so the row key stays stable even for
+  // null or duplicate message ids.
+  return `${message.properties.sequenceNumber}:${index}`;
 }
 
 export function getViewerEntityMeta(viewer: ViewerState): {

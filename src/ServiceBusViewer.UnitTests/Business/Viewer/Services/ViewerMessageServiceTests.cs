@@ -270,7 +270,7 @@ public sealed class ViewerMessageServiceTests
 		const string queueName = "default-queue";
 
 		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
-		connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+		connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<long?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
 			.Returns(new DeadLetterOperationResult(true, 1, 0, null));
 
 		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
@@ -280,7 +280,7 @@ public sealed class ViewerMessageServiceTests
 		session.SelectedEntityId = new QueueEntityId(queueName);
 
 		// Act
-		await service.DropDeadLetterMessagesAsync(session, null, null, CancellationToken.None);
+		await service.DropDeadLetterMessagesAsync(session, null, null, null, CancellationToken.None);
 
 		// Assert
 		await connection.Received(1).RefreshEntityMessageCountsAsync(new QueueEntityId(queueName), Arg.Any<CancellationToken>());
@@ -295,7 +295,7 @@ public sealed class ViewerMessageServiceTests
 
 		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
 		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
-		connection.RepublishDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<RepublishMessageIdStrategy>(), Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+		connection.RepublishDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<long?>(), Arg.Any<RepublishMessageIdStrategy>(), Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
 			.Returns(new DeadLetterOperationResult(true, 1, 0, null));
 
 		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
@@ -305,7 +305,7 @@ public sealed class ViewerMessageServiceTests
 		session.SelectedEntityId = new QueueEntityId(queueName);
 
 		// Act
-		await service.RepublishDeadLetterMessagesAsync(session, null, RepublishMessageIdStrategy.Guid, null, null, CancellationToken.None);
+		await service.RepublishDeadLetterMessagesAsync(session, null, null, RepublishMessageIdStrategy.Guid, null, null, CancellationToken.None);
 
 		// Assert
 		await connection.Received(1).RefreshEntityMessageCountsAsync(new QueueEntityId(queueName), Arg.Any<CancellationToken>());

@@ -28,6 +28,7 @@ export interface AvailableEntityDto {
 
 export interface ReceivedMessagePropertiesDto {
 	messageId: string | null;
+	sequenceNumber: string;
 	partitionKey: string | null;
 	sessionId: string | null;
 	correlationId: string | null;
@@ -237,6 +238,7 @@ export type RepublishMessageIdStrategy = 'KeepOriginal' | 'AutoGenerate' | 'Guid
 
 export interface RepublishDeadLetterRequestDto {
 	messageId: string | null;
+	sequenceNumber?: string | null;
 	strategy: RepublishMessageIdStrategy;
 	manualMessageId: string | null;
 	maxCount?: number | null;
@@ -251,6 +253,7 @@ export interface RepublishDeadLetterResponseDto {
 
 export interface DropDeadLettersRequestDto {
 	messageId: string | null;
+	sequenceNumber?: string | null;
 	maxCount?: number | null;
 }
 
