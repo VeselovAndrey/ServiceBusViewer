@@ -87,8 +87,15 @@ function buildDropOutcomeMessages(outcome: DropDeadLettersResponseDto, cancelled
 
 export function ViewerPage() {
 	const navigate = useNavigate();
-	const { sessionState, refreshSessionState, setViewerState } = useAppState();
+	const {
+		sessionState,
+		getConnectionGeneration,
+		invalidateConnectionGeneration,
+		refreshSessionState,
+		setViewerState,
+	} = useAppState();
 	const viewer = sessionState?.viewer;
+	const selectionRequestRef = useRef(0);
 	const currentViewer = viewer;
 	// Pending count per action: every in-flight operation is tracked independently, so a shorter
 	// action finishing (e.g. a Refresh) can never clear the busy state of a longer one that is still
@@ -180,11 +187,12 @@ export function ViewerPage() {
 		}
 
 		let isDisposed = false;
+		const connectionGeneration = getConnectionGeneration();
 		void serviceBusApi
 			.getViewer()
 			.then((nextViewer) => {
 				if (!isDisposed) {
-					setViewerState(nextViewer);
+					setViewerState(nextViewer, connectionGeneration);
 				}
 			})
 			.catch((error: unknown) => {
@@ -196,7 +204,7 @@ export function ViewerPage() {
 		return () => {
 			isDisposed = true;
 		};
-	}, [sessionState?.isConnected, setViewerState, viewer]);
+	}, [getConnectionGeneration, sessionState?.isConnected, setViewerState, viewer]);
 
 	useEffect(() => {
 		setReceiveSessionId(viewer?.receiveSessionId ?? '');
@@ -264,11 +272,15 @@ export function ViewerPage() {
 	}, [deadLetterMode, currentViewer?.topicName, currentViewer?.entityName]);
 
 	const syncViewer = useCallback(
-		async (nextViewer: ViewerState) => {
-			setViewerState(nextViewer);
-			return nextViewer;
+		(nextViewer: ViewerState, connectionGeneration: number) => {
+			if (connectionGeneration !== getConnectionGeneration()) {
+				return false;
+			}
+
+			setViewerState(nextViewer, connectionGeneration);
+			return true;
 		},
-		[setViewerState],
+		[getConnectionGeneration, setViewerState],
 	);
 
 	const runAction = useCallback(
@@ -367,6 +379,9 @@ export function ViewerPage() {
 		6 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0);
 
 	const handleDisconnect = async () => {
+		invalidateConnectionGeneration();
+		selectionRequestRef.current += 1;
+		setSelectionKey(null);
 		await runAction('disconnect', async () => {
 			await serviceBusApi.disconnect();
 			await refreshSessionState();
@@ -379,13 +394,22 @@ export function ViewerPage() {
 			return;
 		}
 
+		const requestId = ++selectionRequestRef.current;
+		const connectionGeneration = getConnectionGeneration();
 		const nextSelectionKey = getEntityKey(entity);
 		setSelectionKey(nextSelectionKey);
 		setErrorMessages([]);
 		setSendErrorMessages([]);
 
 		try {
-			const nextViewer = await syncViewer(await serviceBusApi.selectEntity(entity));
+			const nextViewer = await serviceBusApi.selectEntity(entity);
+			if (
+				requestId !== selectionRequestRef.current ||
+				!syncViewer(nextViewer, connectionGeneration)
+			) {
+				return;
+			}
+
 			setExpandedRows(new Set());
 			setMessageSort(null);
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
@@ -404,15 +428,23 @@ export function ViewerPage() {
 			setBulkSuccessMessage(null);
 			navigate('/viewer', { replace: true });
 		} catch (error: unknown) {
-			setErrorMessages(getErrorMessages(error));
+			if (
+				requestId === selectionRequestRef.current &&
+				connectionGeneration === getConnectionGeneration()
+			) {
+				setErrorMessages(getErrorMessages(error));
+			}
 		} finally {
-			setSelectionKey(null);
+			if (requestId === selectionRequestRef.current) {
+				setSelectionKey(null);
+			}
 		}
 	};
 
 	const handleRefresh = async () => {
 		setBulkSuccessMessage(null);
 		await runAction('refresh', async () => {
+			const connectionGeneration = getConnectionGeneration();
 			if (deadLetterMode) {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
 				setExpandedRows(new Set());
@@ -420,7 +452,11 @@ export function ViewerPage() {
 				return;
 			}
 
-			const nextViewer = await syncViewer(await serviceBusApi.refreshViewer());
+			const nextViewer = await serviceBusApi.refreshViewer();
+			if (!syncViewer(nextViewer, connectionGeneration)) {
+				return;
+			}
+
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setExpandedRows(new Set());
 			setMessageSort(null);
@@ -447,7 +483,12 @@ export function ViewerPage() {
 
 	const handlePeekMessageCountApply = async (count: number) => {
 		await runAction('peek-count', async () => {
+			const connectionGeneration = getConnectionGeneration();
 			const nextViewer = await serviceBusApi.updatePeekMessageCount({ peekMessageCount: count });
+			if (connectionGeneration !== getConnectionGeneration()) {
+				return;
+			}
+
 			setPeekMessageCount(count);
 
 			if (deadLetterMode) {
@@ -456,17 +497,20 @@ export function ViewerPage() {
 				setMessageSort(null);
 			}
 
-			await syncViewer(nextViewer);
+			syncViewer(nextViewer, connectionGeneration);
 		});
 	};
 
 	const handleReceive = async () => {
 		await runAction('receive', async () => {
-			const nextViewer = await syncViewer(
-				await serviceBusApi.receive({
-					receiveSessionId: currentViewer?.requiresSession ? receiveSessionId : null,
-				}),
-			);
+			const connectionGeneration = getConnectionGeneration();
+			const nextViewer = await serviceBusApi.receive({
+				receiveSessionId: currentViewer?.requiresSession ? receiveSessionId : null,
+			});
+			if (!syncViewer(nextViewer, connectionGeneration)) {
+				return;
+			}
+
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setExpandedRows(new Set());
 			setMessageSort(null);
@@ -482,22 +526,36 @@ export function ViewerPage() {
 		}
 
 		const succeeded = await runAction('send', async () => {
+			const connectionGeneration = getConnectionGeneration();
 			await serviceBusApi.send(request);
+			if (connectionGeneration !== getConnectionGeneration()) {
+				return;
+			}
+
 			const sendResultMessage = buildSendResultMessage(request);
 
 			try {
-				const nextViewer = await syncViewer(await serviceBusApi.refreshViewer());
+				const nextViewer = await serviceBusApi.refreshViewer();
+				if (!syncViewer(nextViewer, connectionGeneration)) {
+					return;
+				}
+
 				setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 				setExpandedRows(new Set());
 				setMessageSort(null);
-				setViewerState({
-					...nextViewer,
-					sendResultMessage,
-				});
+				setViewerState(
+					{
+						...nextViewer,
+						sendResultMessage,
+					},
+					connectionGeneration,
+				);
 			} catch {
-				setSendErrorMessages([
-					'The message was sent successfully, but the message list could not be refreshed. Use Refresh to try again.',
-				]);
+				if (connectionGeneration === getConnectionGeneration()) {
+					setSendErrorMessages([
+						'The message was sent successfully, but the message list could not be refreshed. Use Refresh to try again.',
+					]);
+				}
 			}
 		});
 		if (!succeeded) {

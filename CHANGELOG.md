@@ -1,8 +1,9 @@
 # Service Bus Viewer Version History
 
-## 1.0.6 (2026-10-25)
+## 1.0.7 (2026-10-25)
 
 - **Security:** The Vite development server now listens only on `localhost` by default, so other machines cannot reach the development SPA or `/api` proxy and retrieve configured Service Bus credentials through it. Local and Aspire development workflows are preserved.
+- **Fixed:** Delayed viewer responses can no longer overwrite a newer entity selection or restore viewer state after Disconnect. Entity-count refreshes now apply only to the entity and connection that requested them, keeping the displayed entity consistent with subsequent message operations.
 - **Fixed:** Overlapping viewer actions (for example Refresh started while a Bulk Drop All or Republish All is running) no longer clear the in-flight operation's busy state when they finish: destructive drop/republish controls stay disabled until every in-flight operation has truly completed, and the progress, cancellation, and outcome state remain owned by the active operation.
 - **Fixed:** Persistent per-message failures in Bulk Drop All and Republish All now stop the operation immediately and report the exact affected/failed counts, instead of retrying the dead-lettered messages indefinitely and inflating the progress. A republish step that could not complete is no longer retried automatically, so an already-delivered copy cannot be resent; cancellation still stops the operation promptly.
 - **Fixed:** Single-message Drop and Republish now target the exact selected broker message by its Service Bus sequence number, so they work even when message IDs are null or duplicated. Only actually processed rows are removed from the dead-letter list and displayed totals change by the true affected count; unprocessed duplicate rows remain visible, and message IDs stay display metadata.

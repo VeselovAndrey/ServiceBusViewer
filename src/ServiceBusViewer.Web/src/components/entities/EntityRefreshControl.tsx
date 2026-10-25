@@ -7,12 +7,17 @@ import {
   parseEntityCountAutoRefreshInterval,
 } from '../../lib/entityCountAutoRefreshInterval';
 import { useAppState } from '../../state/AppStateContext';
+import type { ViewerState } from '../../types/serviceBus';
+
+const getViewerEntityKey = (viewer: ViewerState) =>
+  `${viewer.topicName ?? ''}:${viewer.entityName ?? ''}`;
 
 export function EntityRefreshControl() {
-  const { sessionState, setViewerState } = useAppState();
+  const { sessionState, getConnectionGeneration, setViewerState } = useAppState();
   const isConnected = sessionState?.isConnected ?? false;
   // The Service Bus emulator reports no runtime counts: hide the count refresh control there entirely.
   const usesDevelopmentEmulator = sessionState?.viewer?.usesDevelopmentEmulator ?? false;
+  const viewerEntityKey = sessionState?.viewer ? getViewerEntityKey(sessionState.viewer) : null;
   // Counts may also be unavailable without the emulator (e.g. direct entity access without management): offer no auto refresh then.
   const countsAvailable = (sessionState?.viewer?.availableEntities ?? []).some(
     (entity) => entity.messageCounts !== null,
@@ -44,14 +49,21 @@ export function EntityRefreshControl() {
 
     refreshInFlightRef.current = true;
     setIsRefreshing(true);
+    const connectionGeneration = getConnectionGeneration();
+    const requestEntityKey = viewerEntityKey;
 
     try {
       const nextViewer = await serviceBusApi.refreshViewer();
-      // Keep the transient send result banner: the refresh response always carries null for it.
-      setViewerState((current) =>
-        current !== null && nextViewer !== null
-          ? { ...nextViewer, sendResultMessage: current.sendResultMessage }
-          : nextViewer,
+      // Keep the transient send result banner, and apply counts only to the entity that requested them.
+      setViewerState(
+        (current) =>
+          current !== null &&
+          requestEntityKey !== null &&
+          getViewerEntityKey(current) === requestEntityKey &&
+          getViewerEntityKey(nextViewer) === requestEntityKey
+            ? { ...nextViewer, sendResultMessage: current.sendResultMessage }
+            : current,
+        connectionGeneration,
       );
     } catch {
       // Best-effort refresh: the existing counts remain displayed.
@@ -59,7 +71,7 @@ export function EntityRefreshControl() {
       refreshInFlightRef.current = false;
       setIsRefreshing(false);
     }
-  }, [setViewerState]);
+  }, [getConnectionGeneration, setViewerState, viewerEntityKey]);
 
   // Stop auto refresh when it is no longer available (e.g. after disconnect).
   useEffect(() => {
