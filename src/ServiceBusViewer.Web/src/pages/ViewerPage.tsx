@@ -90,7 +90,35 @@ export function ViewerPage() {
 	const { sessionState, refreshSessionState, setViewerState } = useAppState();
 	const viewer = sessionState?.viewer;
 	const currentViewer = viewer;
-	const [pendingAction, setPendingAction] = useState<ViewerAction | null>(null);
+	// Pending count per action: every in-flight operation is tracked independently, so a shorter
+	// action finishing (e.g. a Refresh) can never clear the busy state of a longer one that is still
+	// running (e.g. a bulk drop/republish). Counts stay balanced when the same action type overlaps.
+	const [pendingActions, setPendingActions] = useState<Map<ViewerAction, number>>(new Map());
+	const startAction = useCallback((action: ViewerAction) => {
+		setPendingActions((current) => {
+			const next = new Map(current);
+			next.set(action, (next.get(action) ?? 0) + 1);
+			return next;
+		});
+	}, []);
+	const finishAction = useCallback((action: ViewerAction) => {
+		setPendingActions((current) => {
+			const count = current.get(action) ?? 0;
+			if (count <= 1) {
+				if (current.size === 1) {
+					return current;
+				}
+				const next = new Map(current);
+				next.delete(action);
+				return next;
+			}
+			const next = new Map(current);
+			next.set(action, count - 1);
+			return next;
+		});
+	}, []);
+	const isActionPending = (action: ViewerAction) => (pendingActions.get(action) ?? 0) > 0;
+	const anyActionPending = pendingActions.size > 0;
 	const [errorMessages, setErrorMessages] = useState<string[]>([]);
 	const [sendErrorMessages, setSendErrorMessages] = useState<string[]>([]);
 	const [selectionKey, setSelectionKey] = useState<string | null>(null);
@@ -245,7 +273,7 @@ export function ViewerPage() {
 
 	const runAction = useCallback(
 		async (action: ViewerAction, work: () => Promise<void>) => {
-			setPendingAction(action);
+			startAction(action);
 			setErrorMessages([]);
 			setSendErrorMessages([]);
 
@@ -261,10 +289,10 @@ export function ViewerPage() {
 				}
 				return false;
 			} finally {
-				setPendingAction(null);
+				finishAction(action);
 			}
 		},
-		[],
+		[startAction, finishAction],
 	);
 
 	const activeMessagePropertyRows = useMemo(() => {
@@ -316,8 +344,9 @@ export function ViewerPage() {
 	const activeMessageSource = deadLetterMode ? deadLetterViewer : currentViewer;
 	const activeMessages = activeMessageSource?.messages ?? [];
 	// Drop/republish buttons stay disabled while any operation runs, including the row-removal
-	// animation window after a single republish succeeds (pendingAction already cleared by then).
-	const deadLetterOperationInProgress = selectionKey !== null || pendingAction !== null || removingSequenceNumbers.size > 0;
+	// animation window after a single republish succeeds (its pending actions are cleared by then).
+	const deadLetterOperationInProgress =
+		selectionKey !== null || anyActionPending || removingSequenceNumbers.size > 0;
 	// With management access, the total count comes from runtime properties, so no full read is needed; it covers the live list and the dead-letter list alike.
 	const totalMessageCount = activeMessageSource?.totalMessageCount ?? null;
 	const peekedMessageSummary =
@@ -477,7 +506,7 @@ export function ViewerPage() {
 	};
 
 	const runRepublish = async (request: RepublishDeadLetterRequestDto, isBulk: boolean) => {
-		setPendingAction('republish');
+		startAction('republish');
 		setRepublishOutcome(null);
 		setRepublishCancelled(false);
 		setRepublishErrorMessages([]);
@@ -575,7 +604,7 @@ export function ViewerPage() {
 				setBulkOperationLock(false);
 			}
 			setBulkProgress(null);
-			setPendingAction(null);
+			finishAction('republish');
 		}
 	};
 
@@ -661,7 +690,7 @@ export function ViewerPage() {
 		// The exact broker sequence number marks a single-message drop, so a null message id no longer
 		// turns a row action into a bulk drop.
 		const isBulk = sequenceNumber === null;
-		setPendingAction('drop');
+		startAction('drop');
 		setDropOutcome(null);
 		setDropCancelled(false);
 		setDropErrorMessages([]);
@@ -761,7 +790,7 @@ export function ViewerPage() {
 				setBulkOperationLock(false);
 			}
 			setBulkProgress(null);
-			setPendingAction(null);
+			finishAction('drop');
 		}
 	};
 
@@ -939,14 +968,14 @@ export function ViewerPage() {
 		<button
 			type="button"
 			className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-			aria-busy={pendingAction === 'refresh'}
-			disabled={pendingAction === 'refresh'}
+			aria-busy={isActionPending('refresh')}
+			disabled={isActionPending('refresh')}
 			onClick={() => {
 				void handleRefresh();
 			}}
 		>
 			<span
-				className={`material-icons-round text-sm${pendingAction === 'refresh' ? ' animate-spin' : ''}`}
+				className={`material-icons-round text-sm${isActionPending('refresh') ? ' animate-spin' : ''}`}
 			>
 				refresh
 			</span>
@@ -963,8 +992,8 @@ export function ViewerPage() {
 					: 'border-slate-200 bg-white hover:bg-slate-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800'
 			}`}
 			aria-pressed={deadLetterMode}
-			aria-busy={deadLetterMode && pendingAction === 'refresh'}
-			disabled={Boolean(currentViewer) && pendingAction !== null}
+			aria-busy={deadLetterMode && isActionPending('refresh')}
+			disabled={Boolean(currentViewer) && anyActionPending}
 			onClick={() => {
 				void handleToggleDeadLetter();
 			}}
@@ -981,12 +1010,12 @@ export function ViewerPage() {
 		<>
 			<RepublishStrategyMenu
 				align="right"
-				ariaBusy={pendingAction === 'republish'}
+				ariaBusy={isActionPending('republish')}
 				buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
 				buttonContent={
 					<>
 						<span className="material-icons-round text-sm">upload</span>
-						{pendingAction === 'republish' ? 'Republishing...' : 'Republish All'}
+						{isActionPending('republish') ? 'Republishing...' : 'Republish All'}
 						<span className="material-icons-round text-sm">arrow_drop_down</span>
 					</>
 				}
@@ -998,7 +1027,7 @@ export function ViewerPage() {
 			<button
 				type="button"
 				className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
-				aria-busy={pendingAction === 'drop'}
+				aria-busy={isActionPending('drop')}
 				disabled={
 					deadLetterOperationInProgress ||
 					activeMessages.length === 0
@@ -1011,7 +1040,7 @@ export function ViewerPage() {
 				<span className="material-icons-round inline-block rotate-180 text-sm">
 					upload
 				</span>
-				{pendingAction === 'drop' ? 'Dropping...' : 'Drop All'}
+				{isActionPending('drop') ? 'Dropping...' : 'Drop All'}
 			</button>
 		</>
 	);
@@ -1019,7 +1048,7 @@ export function ViewerPage() {
 	const peekCountSelector = (
 		<PeekMessageCountSelector
 			value={peekMessageCount}
-			disabled={pendingAction !== null}
+			disabled={anyActionPending}
 			onApply={(count) => {
 				void handlePeekMessageCountApply(count);
 			}}
@@ -1076,7 +1105,7 @@ export function ViewerPage() {
 					: 'Standard receive mode'
 			}
 			headerAction={{
-				busy: pendingAction === 'disconnect',
+				busy: isActionPending('disconnect'),
 				icon: 'logout',
 				kind: 'button',
 				label: 'Disconnect',
@@ -1125,7 +1154,7 @@ export function ViewerPage() {
 							<SendMessageForm
 								canSend={Boolean(currentViewer?.entityName)}
 								entityName={currentViewer?.entityName ?? null}
-								isSubmitting={pendingAction === 'send'}
+								isSubmitting={isActionPending('send')}
 								requiresSession={Boolean(currentViewer?.requiresSession)}
 								sendResultMessage={currentViewer?.sendResultMessage ?? null}
 								sendErrorMessages={sendErrorMessages}
@@ -1156,13 +1185,13 @@ export function ViewerPage() {
 											<button
 												type="button"
 												className="inline-flex items-center gap-1.5 border-l border-slate-200 px-3 py-1.5 text-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:hover:bg-zinc-800"
-												disabled={pendingAction === 'receive'}
+												disabled={isActionPending('receive')}
 												onClick={() => {
 													void handleReceive();
 												}}
 											>
 												<span className="material-icons-round text-sm">download</span>
-												{pendingAction === 'receive' ? 'Receiving...' : 'Receive'}
+												{isActionPending('receive') ? 'Receiving...' : 'Receive'}
 											</button>
 										</div>
 									</div>
@@ -1448,7 +1477,7 @@ export function ViewerPage() {
 																		{deadLetterMode ? (
 																			<RepublishStrategyMenu
 																				align="right"
-																				ariaBusy={pendingAction === 'republish'}
+																				ariaBusy={isActionPending('republish')}
 																				buttonClassName="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[0.6875rem] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
 																				buttonContent={
 																					<>
