@@ -106,6 +106,10 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
+## 1.0.1 (2026-10-25)
+
+- **Security:** The Vite development server now listens only on `localhost` by default, so other machines cannot reach the development SPA or `/api` proxy and retrieve configured Service Bus credentials through it. Local and Aspire development workflows are preserved.
+
 ## 1.0.0 (2026-10-18)
 
 - **Added:** Message count badges in the entity menu: queues and subscriptions show active, scheduled, and dead-letter counts (e.g. `5 | 0 | 2`); topics show the sums across their subscriptions. Counts load on connect and are omitted when unavailable or unreliable (e.g. the Service Bus emulator).
@@ -125,16 +129,6 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Changed:** Viewer header layout: Refresh, the mode toggle ("To Dead Letter" / "To Active"), search, and the receive controls moved into the message-list and Last Received Message headers; in dead-letter mode Republish All and Drop All sit on a separate line below a divider.
 - **Fixed:** Dark-mode tints (dead-letter toggle, dead-letter header bar, button shadows) that were not rendering because the brand-950 theme color was missing.
 - **Fixed:** Page flicker while resizing the window near layout wrap points.
-
-## 1.0.0-rc1 (2026-10-11)
-
-- **Added:** Dead Letter toggle showing the selected entity's dead-letter queue with the dead-letter reason, source, and error description.
-- **Added:** Republish dead-lettered messages to the original entity or drop them permanently — per message or in bulk (Republish All / Drop All with confirmation), with progress, cancellation, and affected/failed counts.
-- **Added:** Message-id strategy dropdown for republishing: keep original (hidden with duplicate detection), auto-generate, GUID or GUID v7, or a manual id for a single message.
-- **Added:** Total message count in the message list header when reliable counts are available.
-- **Changed:** In dead letter mode, Refresh reloads the dead-letter list and selecting another entity exits the mode; single drop/republish animates the row out; dead-letter buttons stay disabled while an operation runs.
-- **Changed:** Upgraded to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
-- **Fixed:** Dead-letter drop and republish now allow enough time for the initial receive on session-enabled entities.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 

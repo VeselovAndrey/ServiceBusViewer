@@ -44,7 +44,7 @@ $env:VITE_PROXY_TARGET='http://localhost:5221'
 npm run web:dev
 ```
 
-Vite listens on port `5173` by default and proxies `/api` to `VITE_PROXY_TARGET`. The backend's `http` launch profile uses `http://localhost:5221` by default.
+Vite listens only on `localhost` at port `5173` by default and proxies `/api` to `VITE_PROXY_TARGET`. Other machines cannot reach the development server or its API proxy. The backend's `http` launch profile uses `http://localhost:5221` by default.
 
 ## Frontend environment settings
 

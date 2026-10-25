@@ -10,7 +10,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     server: {
-      host: '0.0.0.0',
+      // Keep the development server and its API proxy reachable only from this machine.
+      host: 'localhost',
       port,
       strictPort: true,
       proxy: {
