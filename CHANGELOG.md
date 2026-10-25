@@ -1,8 +1,9 @@
 # Service Bus Viewer Version History
 
-## 1.0.2 (2026-10-25)
+## 1.0.3 (2026-10-25)
 
 - **Security:** The Vite development server now listens only on `localhost` by default, so other machines cannot reach the development SPA or `/api` proxy and retrieve configured Service Bus credentials through it. Local and Aspire development workflows are preserved.
+- **Fixed:** Single-message republish now rejects messages without a message ID before any API request, preventing a row action from becoming an unintended Republish All. Intentional bulk republish still requires confirmation, and message search handles null IDs safely.
 - **Fixed:** Bulk Drop All and Republish All now lock entity selection and property navigation from confirmation through completion or cancellation, preventing later batches from affecting a different entity. Progress and cancellation remain available, and other entities are unchanged.
 
 ## 1.0.0 (2026-10-18)

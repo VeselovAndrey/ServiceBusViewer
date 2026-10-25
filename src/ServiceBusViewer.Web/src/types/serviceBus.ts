@@ -27,7 +27,7 @@ export interface AvailableEntityDto {
 }
 
 export interface ReceivedMessagePropertiesDto {
-	messageId: string;
+	messageId: string | null;
 	partitionKey: string | null;
 	sessionId: string | null;
 	correlationId: string | null;

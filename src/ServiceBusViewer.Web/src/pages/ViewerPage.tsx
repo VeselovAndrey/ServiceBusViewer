@@ -470,8 +470,7 @@ export function ViewerPage() {
 		}
 	};
 
-	const runRepublish = async (request: RepublishDeadLetterRequestDto) => {
-		const isBulk = request.messageId === null;
+	const runRepublish = async (request: RepublishDeadLetterRequestDto, isBulk: boolean) => {
 		setPendingAction('republish');
 		setRepublishOutcome(null);
 		setRepublishCancelled(false);
@@ -564,12 +563,27 @@ export function ViewerPage() {
 		}
 	};
 
+	const canStartSingleRepublish = (messageId: string | null): messageId is string => {
+		if (messageId !== null) {
+			return true;
+		}
+
+		setRepublishOutcome(null);
+		setRepublishCancelled(false);
+		setRepublishErrorMessages(['Single-message republish requires a message ID.']);
+		return false;
+	};
+
 	const startSingleRepublish = (
-		messageId: string,
+		messageId: string | null,
 		strategy: RepublishMessageIdStrategy,
 		manualMessageId: string | null = null,
 	) => {
-		void runRepublish({ messageId, strategy, manualMessageId });
+		if (!canStartSingleRepublish(messageId)) {
+			return;
+		}
+
+		void runRepublish({ messageId, strategy, manualMessageId }, false);
 	};
 
 	const singleRepublishStrategyOptions =
@@ -581,7 +595,11 @@ export function ViewerPage() {
 		(option) => option.value !== 'Manual',
 	);
 
-	const handleSingleStrategyPick = (messageId: string, strategy: RepublishMessageIdStrategy) => {
+	const handleSingleStrategyPick = (messageId: string | null, strategy: RepublishMessageIdStrategy) => {
+		if (!canStartSingleRepublish(messageId)) {
+			return;
+		}
+
 		if (strategy === 'Manual') {
 			setRepublishPrompt({ kind: 'manual', messageId });
 			return;
@@ -600,7 +618,7 @@ export function ViewerPage() {
 		setRepublishAllConfirmStrategy(null);
 
 		if (strategy !== null) {
-			void runRepublish({ messageId: null, strategy, manualMessageId: null });
+			void runRepublish({ messageId: null, strategy, manualMessageId: null }, true);
 		} else {
 			setBulkOperationLock(false);
 		}
@@ -766,8 +784,10 @@ export function ViewerPage() {
 		setDropErrorMessages([]);
 	};
 
-	const handleDropSingle = (messageId: string) => {
-		setDropSingleTarget(messageId);
+	const handleDropSingle = (messageId: string | null) => {
+		if (messageId !== null) {
+			setDropSingleTarget(messageId);
+		}
 	};
 
 	const handleDropSingleConfirm = () => {
@@ -1346,7 +1366,7 @@ export function ViewerPage() {
 
 													return (
 														<Fragment key={rowKey}>
-															<tr className={`${MESSAGE_ROW_BASE_CLASS}${removingMessageIds.get(message.properties.messageId) === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId) ? ' message-row-removing' : ''}`}>
+															<tr className={`${MESSAGE_ROW_BASE_CLASS}${removingMessageIds.get(message.properties.messageId ?? '') === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId ?? '') ? ' message-row-removing' : ''}`}>
 																<td className="px-4 py-3">
 																	<div className="font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{message.properties.messageId}
