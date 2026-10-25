@@ -118,6 +118,13 @@ export function ViewerPage() {
 	const [dropSingleTarget, setDropSingleTarget] = useState<string | null>(null);
 	const [bulkProgress, setBulkProgress] = useState<BulkOperationProgress | null>(null);
 	const bulkCancelRequestedRef = useRef(false);
+	// Lock entity selection and property navigation synchronously from bulk confirmation through the final step.
+	const bulkOperationLockRef = useRef(false);
+	const [isEntitySelectionLocked, setIsEntitySelectionLocked] = useState(false);
+	const setBulkOperationLock = (locked: boolean) => {
+		bulkOperationLockRef.current = locked;
+		setIsEntitySelectionLocked(locked);
+	};
 	const [removingMessageIds, setRemovingMessageIds] = useState<Map<string, 'drop' | 'republish'>>(new Map());
 	const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
 	const [peekMessageCount, setPeekMessageCount] = usePeekMessageCount();
@@ -125,6 +132,13 @@ export function ViewerPage() {
 	// The search text intentionally survives new message-set loads (unlike the active sort) and is
 	// re-applied to each newly loaded set; only the clear control or the user empties it.
 	const [messageSearchText, setMessageSearchText] = useState('');
+
+	useEffect(() => {
+		return () => {
+			// Route changes must not leave bulk steps running against a different selected entity.
+			bulkCancelRequestedRef.current = true;
+		};
+	}, []);
 
 	useEffect(() => {
 		if (!sessionState?.isConnected || viewer) {
@@ -297,7 +311,7 @@ export function ViewerPage() {
 	const activeMessages = activeMessageSource?.messages ?? [];
 	// Drop/republish buttons stay disabled while any operation runs, including the row-removal
 	// animation window after a single republish succeeds (pendingAction already cleared by then).
-	const deadLetterOperationInProgress = pendingAction !== null || removingMessageIds.size > 0;
+	const deadLetterOperationInProgress = selectionKey !== null || pendingAction !== null || removingMessageIds.size > 0;
 	// With management access, the total count comes from runtime properties, so no full read is needed; it covers the live list and the dead-letter list alike.
 	const totalMessageCount = activeMessageSource?.totalMessageCount ?? null;
 	const peekedMessageSummary =
@@ -326,6 +340,10 @@ export function ViewerPage() {
 	};
 
 	const handleSelectEntity = async (entity: EntityIdDto) => {
+		if (bulkOperationLockRef.current) {
+			return;
+		}
+
 		const nextSelectionKey = getEntityKey(entity);
 		setSelectionKey(nextSelectionKey);
 		setErrorMessages([]);
@@ -461,6 +479,7 @@ export function ViewerPage() {
 		bulkCancelRequestedRef.current = false;
 
 		if (isBulk) {
+			setBulkOperationLock(true);
 			setBulkProgress({ operation: 'republish', processed: 0, failed: 0 });
 		}
 
@@ -537,6 +556,9 @@ export function ViewerPage() {
 			}
 			setRepublishErrorMessages(getErrorMessages(error));
 		} finally {
+			if (isBulk) {
+				setBulkOperationLock(false);
+			}
 			setBulkProgress(null);
 			setPendingAction(null);
 		}
@@ -569,6 +591,7 @@ export function ViewerPage() {
 	};
 
 	const handleBulkStrategyPick = (strategy: RepublishMessageIdStrategy) => {
+		setBulkOperationLock(true);
 		setRepublishAllConfirmStrategy(strategy);
 	};
 
@@ -578,10 +601,13 @@ export function ViewerPage() {
 
 		if (strategy !== null) {
 			void runRepublish({ messageId: null, strategy, manualMessageId: null });
+		} else {
+			setBulkOperationLock(false);
 		}
 	};
 
 	const handleRepublishAllCancel = () => {
+		setBulkOperationLock(false);
 		setRepublishAllConfirmStrategy(null);
 	};
 
@@ -608,6 +634,7 @@ export function ViewerPage() {
 		bulkCancelRequestedRef.current = false;
 
 		if (isBulk) {
+			setBulkOperationLock(true);
 			setBulkProgress({ operation: 'drop', processed: 0, failed: 0 });
 		}
 
@@ -684,6 +711,9 @@ export function ViewerPage() {
 			}
 			setDropErrorMessages(getErrorMessages(error));
 		} finally {
+			if (isBulk) {
+				setBulkOperationLock(false);
+			}
 			setBulkProgress(null);
 			setPendingAction(null);
 		}
@@ -759,6 +789,7 @@ export function ViewerPage() {
 	};
 
 	const handleDropAllCancel = () => {
+		setBulkOperationLock(false);
 		setDropConfirmOpen(false);
 	};
 
@@ -917,6 +948,7 @@ export function ViewerPage() {
 					activeMessages.length === 0
 				}
 				onClick={() => {
+					setBulkOperationLock(true);
 					setDropConfirmOpen(true);
 				}}
 			>
@@ -1009,6 +1041,7 @@ export function ViewerPage() {
 						displayPropertyLinks={Boolean(currentViewer?.isManagementApiAvailable)}
 						entityName={currentViewer?.entityName ?? null}
 						onSelectEntity={handleSelectEntity}
+						selectionDisabled={isEntitySelectionLocked}
 						topicName={currentViewer?.topicName ?? null}
 					/>
 
