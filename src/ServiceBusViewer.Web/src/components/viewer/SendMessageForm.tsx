@@ -338,7 +338,9 @@ export function SendMessageForm({
 				sendMessageBody: messageBody,
 				sendMessageProperties: {
 					...messageProperties,
-					scheduledEnqueueTime: messageProperties.scheduledEnqueueTime || null,
+					scheduledEnqueueTime: messageProperties.scheduledEnqueueTime
+						? new Date(messageProperties.scheduledEnqueueTime).toISOString()
+						: null,
 				},
 			});
 		} catch {
