@@ -496,7 +496,9 @@ export function ViewerPage() {
 
 		try {
 			// A bulk republish runs as a sequence of bounded requests; the loop stops when a step processes
-			// zero messages or the user cancels. Single-message republish stays one unbounded request.
+			// zero messages, when a step fails (its messages remain in the dead-letter queue, so further
+			// retries cannot make progress and may resend ambiguous copies), or when the user cancels.
+			// Single-message republish stays one unbounded request.
 			while (true) {
 				const step = await serviceBusApi.republishDeadLetter(
 					isBulk ? { ...request, maxCount: BULK_STEP_SIZE } : request,
@@ -518,6 +520,12 @@ export function ViewerPage() {
 				}
 
 				if (step.affectedCount + step.failedCount === 0) {
+					break;
+				}
+
+				// A failed step cannot make progress: the messages remain dead-lettered and retrying them can
+				// only repeat the failure, so stop and surface the accurate outcome instead.
+				if (!step.succeeded) {
 					break;
 				}
 			}
@@ -672,7 +680,9 @@ export function ViewerPage() {
 
 		try {
 			// A bulk drop runs as a sequence of bounded requests; the loop stops when a step processes
-			// zero messages or the user cancels. Single-message drop stays one unbounded request.
+			// zero messages, when a step fails (its messages remain in the dead-letter queue, so further
+			// retries cannot make progress), or when the user cancels. Single-message drop stays one
+			// unbounded request.
 			while (true) {
 				const step = await serviceBusApi.dropDeadLetters(
 					isBulk
@@ -696,6 +706,12 @@ export function ViewerPage() {
 				}
 
 				if (step.affectedCount + step.failedCount === 0) {
+					break;
+				}
+
+				// A failed step cannot make progress: the messages remain dead-lettered and retrying them can
+				// only repeat the failure, so stop and surface the accurate outcome instead.
+				if (!step.succeeded) {
 					break;
 				}
 			}
