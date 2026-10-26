@@ -96,6 +96,7 @@ export function ViewerPage() {
 	} = useAppState();
 	const viewer = sessionState?.viewer;
 	const selectionRequestRef = useRef(0);
+	const initialRefreshRequestRef = useRef(0);
 	const currentViewer = viewer;
 	// Pending count per action: every in-flight operation is tracked independently, so a shorter
 	// action finishing (e.g. a Refresh) can never clear the busy state of a longer one that is still
@@ -113,7 +114,7 @@ export function ViewerPage() {
 			const count = current.get(action) ?? 0;
 			if (count <= 1) {
 				if (current.size === 1) {
-					return current;
+					return new Map();
 				}
 				const next = new Map(current);
 				next.delete(action);
@@ -125,7 +126,6 @@ export function ViewerPage() {
 		});
 	}, []);
 	const isActionPending = (action: ViewerAction) => (pendingActions.get(action) ?? 0) > 0;
-	const anyActionPending = pendingActions.size > 0;
 	const [errorMessages, setErrorMessages] = useState<string[]>([]);
 	const [sendErrorMessages, setSendErrorMessages] = useState<string[]>([]);
 	const [selectionKey, setSelectionKey] = useState<string | null>(null);
@@ -133,6 +133,11 @@ export function ViewerPage() {
 	const [receiveSessionId, setReceiveSessionId] = useState(viewer?.receiveSessionId ?? '');
 	const [deadLetterMode, setDeadLetterMode] = useState(false);
 	const [deadLetterViewer, setDeadLetterViewer] = useState<ViewerState | null>(null);
+	const [isInitialActiveRefreshPending, setIsInitialActiveRefreshPending] = useState(true);
+	const [isInitialActiveRefreshInFlight, setIsInitialActiveRefreshInFlight] = useState(true);
+	const anyActionPending = pendingActions.size > 0 || isInitialActiveRefreshInFlight;
+	const isMessageListLoading =
+		isInitialActiveRefreshInFlight || isActionPending('refresh') || isActionPending('peek-count');
 	const [republishOutcome, setRepublishOutcome] = useState<RepublishDeadLetterResponseDto | null>(
 		null,
 	);
@@ -182,29 +187,38 @@ export function ViewerPage() {
 	}, []);
 
 	useEffect(() => {
-		if (!sessionState?.isConnected || viewer) {
+		if (!sessionState?.isConnected) {
 			return;
 		}
 
 		let isDisposed = false;
+		const requestId = ++initialRefreshRequestRef.current;
 		const connectionGeneration = getConnectionGeneration();
 		void serviceBusApi
-			.getViewer()
+			.refreshViewer()
 			.then((nextViewer) => {
-				if (!isDisposed) {
-					setViewerState(nextViewer, connectionGeneration);
+				if (isDisposed || connectionGeneration !== getConnectionGeneration()) {
+					return;
 				}
+
+				setViewerState(nextViewer, connectionGeneration);
+				setIsInitialActiveRefreshPending(false);
 			})
 			.catch((error: unknown) => {
 				if (!isDisposed) {
 					setErrorMessages(getErrorMessages(error));
+				}
+			})
+			.finally(() => {
+				if (requestId === initialRefreshRequestRef.current) {
+					setIsInitialActiveRefreshInFlight(false);
 				}
 			});
 
 		return () => {
 			isDisposed = true;
 		};
-	}, [getConnectionGeneration, sessionState?.isConnected, setViewerState, viewer]);
+	}, [getConnectionGeneration, sessionState?.isConnected, setViewerState]);
 
 	useEffect(() => {
 		setReceiveSessionId(viewer?.receiveSessionId ?? '');
@@ -278,6 +292,7 @@ export function ViewerPage() {
 			}
 
 			setViewerState(nextViewer, connectionGeneration);
+			setIsInitialActiveRefreshPending(false);
 			return true;
 		},
 		[getConnectionGeneration, setViewerState],
@@ -328,7 +343,7 @@ export function ViewerPage() {
 	// set and searching narrows it, both display-only and never triggering message retrieval.
 	// Each row keeps its original load-order index so row keys and expansion state stay stable.
 	const displayedMessageRows = useMemo(() => {
-		const source = deadLetterMode ? deadLetterViewer : viewer;
+		const source = deadLetterMode ? deadLetterViewer : isInitialActiveRefreshPending ? null : viewer;
 		let rows = (source?.messages ?? []).map((message, loadIndex) => ({ loadIndex, message }));
 		if (messageSort !== null) {
 			rows.sort((left, right) => comparePeekedMessages(left.message, right.message, messageSort));
@@ -337,7 +352,7 @@ export function ViewerPage() {
 		rows = rows.filter(({ message }) => matchesPeekedMessageSearch(message, messageSearchText));
 
 		return rows;
-	}, [deadLetterMode, deadLetterViewer, viewer, messageSort, messageSearchText]);
+	}, [deadLetterMode, deadLetterViewer, isInitialActiveRefreshPending, viewer, messageSort, messageSearchText]);
 
 	if (!sessionState) {
 		return null;
@@ -353,7 +368,11 @@ export function ViewerPage() {
 			subtitle: 'Loading viewer state...',
 			typeLabel: 'Queue' as const,
 		};
-	const activeMessageSource = deadLetterMode ? deadLetterViewer : currentViewer;
+	const activeMessageSource = deadLetterMode
+		? deadLetterViewer
+		: isInitialActiveRefreshPending
+			? null
+			: currentViewer;
 	const activeMessages = activeMessageSource?.messages ?? [];
 	// Drop/republish buttons stay disabled while any operation runs, including the row-removal
 	// animation window after a single republish succeeds (its pending actions are cleared by then).
@@ -361,8 +380,9 @@ export function ViewerPage() {
 		selectionKey !== null || anyActionPending || removingSequenceNumbers.size > 0;
 	// With management access, the total count comes from runtime properties, so no full read is needed; it covers the live list and the dead-letter list alike.
 	const totalMessageCount = activeMessageSource?.totalMessageCount ?? null;
-	const peekedMessageSummary =
-		totalMessageCount !== null && (activeMessageSource?.hasMoreMessages ?? false)
+	const peekedMessageSummary = isInitialActiveRefreshPending && !deadLetterMode
+		? 'Loading active messages...'
+		: totalMessageCount !== null && (activeMessageSource?.hasMoreMessages ?? false)
 			? `Showing first ${activeMessages.length} of ${totalMessageCount}${deadLetterMode ? ' dead-lettered' : ''}`
 			: buildPeekedMessageSummary(
 				activeMessages,
@@ -1026,14 +1046,14 @@ export function ViewerPage() {
 		<button
 			type="button"
 			className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-			aria-busy={isActionPending('refresh')}
-			disabled={isActionPending('refresh')}
+			aria-busy={isMessageListLoading}
+			disabled={anyActionPending}
 			onClick={() => {
 				void handleRefresh();
 			}}
 		>
 			<span
-				className={`material-icons-round text-sm${isActionPending('refresh') ? ' animate-spin' : ''}`}
+				className={`material-icons-round text-sm${isMessageListLoading ? ' animate-spin' : ''}`}
 			>
 				refresh
 			</span>
@@ -1643,7 +1663,9 @@ export function ViewerPage() {
 								) : (
 									<div className="p-6">
 										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
-											{bulkSuccessMessage ?? (deadLetterMode
+											{bulkSuccessMessage ?? (isInitialActiveRefreshPending && !deadLetterMode
+											? 'Loading active messages...'
+											: deadLetterMode
 												? 'No dead-lettered messages found.'
 												: 'No messages found.')}
 										</div>
