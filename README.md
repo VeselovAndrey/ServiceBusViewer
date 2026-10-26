@@ -106,8 +106,9 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 1.0.8 (2026-10-25)
+## 1.0.9 (2026-10-26)
 
+- **Security:** Non-emulator connection strings are now masked by default on the Connect screen, while emulator values are shown automatically for local development. Independent show/hide controls remain available until a field's value changes, without changing prefill, editing, connection, or Escape-to-clear behavior.
 - **Security:** The Vite development server now listens only on `localhost` by default, so other machines cannot reach the development SPA or `/api` proxy and retrieve configured Service Bus credentials through it. Local and Aspire development workflows are preserved.
 - **Fixed:** Scheduled enqueue times now preserve the instant selected in the browser by converting the local input to UTC before sending it to the API, regardless of the server timezone.
 - **Fixed:** Delayed viewer responses can no longer overwrite a newer entity selection or restore viewer state after Disconnect. Entity-count refreshes now apply only to the entity and connection that requested them, keeping the displayed entity consistent with subsequent message operations.

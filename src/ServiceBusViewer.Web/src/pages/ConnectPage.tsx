@@ -26,6 +26,9 @@ const emptyConnectRequest: ConnectRequestDto = {
 const buildEmulatorDefaultConnectionString = (host: string) =>
 	`Endpoint=sb://${host};SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;`;
 
+const isEmulatorConnectionString = (value: string | null) =>
+	value?.toLowerCase().includes('usedevelopmentemulator=true') ?? false;
+
 const insertButtonClassName =
 	'inline-flex items-center justify-center rounded-lg bg-brand-100 px-3 py-2 text-xs font-semibold text-brand-700 transition hover:bg-brand-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-brand-900/60 dark:text-brand-300 dark:hover:bg-brand-900';
 
@@ -33,6 +36,8 @@ export function ConnectPage() {
 	const navigate = useNavigate();
 	const { sessionState, refreshSessionState } = useAppState();
 	const [formState, setFormState] = useState<ConnectRequestDto>(emptyConnectRequest);
+	const [isConnectionStringVisible, setIsConnectionStringVisible] = useState(false);
+	const [isEmulatorConnectionStringVisible, setIsEmulatorConnectionStringVisible] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [errorMessages, setErrorMessages] = useState<string[]>([]);
 	const isInitializedRef = useRef(false);
@@ -56,6 +61,10 @@ export function ConnectPage() {
 			subscriptionName: connection.subscriptionName,
 			peekMessageCount: readStoredPeekMessageCount(),
 		});
+		setIsConnectionStringVisible(isEmulatorConnectionString(connection.connectionString));
+		setIsEmulatorConnectionStringVisible(
+			isEmulatorConnectionString(connection.emulatorManagementConnectionString),
+		);
 	}, [sessionState]);
 
 	const clearConnectionStrings = useCallback(() => {
@@ -64,6 +73,8 @@ export function ConnectPage() {
 			connectionString: '',
 			emulatorManagementConnectionString: null,
 		}));
+		setIsConnectionStringVisible(false);
+		setIsEmulatorConnectionStringVisible(false);
 	}, []);
 
 	useEffect(() => {
@@ -95,6 +106,8 @@ export function ConnectPage() {
 				`${host}:5300`,
 			),
 		}));
+		setIsConnectionStringVisible(true);
+		setIsEmulatorConnectionStringVisible(true);
 	};
 
 	const handleChange = (key: keyof ConnectRequestDto, event: ChangeEvent<HTMLInputElement>) => {
@@ -103,6 +116,11 @@ export function ConnectPage() {
 			...current,
 			[key]: value.trim().length === 0 && key !== 'connectionString' ? null : value,
 		}));
+		if (key === 'connectionString') {
+			setIsConnectionStringVisible(isEmulatorConnectionString(value));
+		} else if (key === 'emulatorManagementConnectionString') {
+			setIsEmulatorConnectionStringVisible(isEmulatorConnectionString(value));
+		}
 	};
 
 	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -258,29 +276,61 @@ export function ConnectPage() {
 
 							<form className="mt-6 space-y-5" onSubmit={(event) => void handleSubmit(event)}>
 								<div>
-									<label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+									<label htmlFor="connection-string" className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 										Connection String
 									</label>
-									<input
-										className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm shadow-slate-200/50 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
-										placeholder="Endpoint=sb://localhost;SharedAccessKeyName=..."
-										value={formState.connectionString}
-										onChange={(event) => handleChange('connectionString', event)}
-									/>
+									<div className="relative">
+										<input
+											id="connection-string"
+											className="block w-full rounded-2xl border border-slate-200 bg-white py-3 pl-4 pr-12 text-sm text-slate-800 shadow-sm shadow-slate-200/50 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
+											type={isConnectionStringVisible ? 'text' : 'password'}
+											autoComplete="off"
+											placeholder="Endpoint=sb://localhost;SharedAccessKeyName=..."
+											value={formState.connectionString}
+											onChange={(event) => handleChange('connectionString', event)}
+										/>
+										<button
+											type="button"
+											className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-2xl text-slate-500 transition hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-slate-400 dark:hover:text-slate-200"
+											aria-label={isConnectionStringVisible ? 'Hide connection string' : 'Show connection string'}
+											title={isConnectionStringVisible ? 'Hide connection string' : 'Show connection string'}
+											onClick={() => setIsConnectionStringVisible((current) => !current)}
+										>
+											<span className="material-icons-round text-xl" aria-hidden="true">
+												{isConnectionStringVisible ? 'visibility_off' : 'visibility'}
+											</span>
+										</button>
+									</div>
 								</div>
 
 								<div>
-									<label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+									<label htmlFor="emulator-management-connection-string" className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
 										Emulator Management Connection String
 									</label>
-									<input
-										className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm shadow-slate-200/50 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
-										placeholder="Optional, emulator administration endpoint"
-										value={formState.emulatorManagementConnectionString ?? ''}
-										onChange={(event) =>
-											handleChange('emulatorManagementConnectionString', event)
-										}
-									/>
+									<div className="relative">
+										<input
+											id="emulator-management-connection-string"
+											className="block w-full rounded-2xl border border-slate-200 bg-white py-3 pl-4 pr-12 text-sm text-slate-800 shadow-sm shadow-slate-200/50 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
+											type={isEmulatorConnectionStringVisible ? 'text' : 'password'}
+											autoComplete="off"
+											placeholder="Optional, emulator administration endpoint"
+											value={formState.emulatorManagementConnectionString ?? ''}
+											onChange={(event) =>
+												handleChange('emulatorManagementConnectionString', event)
+											}
+										/>
+										<button
+											type="button"
+											className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-2xl text-slate-500 transition hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-slate-400 dark:hover:text-slate-200"
+											aria-label={isEmulatorConnectionStringVisible ? 'Hide emulator management connection string' : 'Show emulator management connection string'}
+											title={isEmulatorConnectionStringVisible ? 'Hide emulator management connection string' : 'Show emulator management connection string'}
+											onClick={() => setIsEmulatorConnectionStringVisible((current) => !current)}
+										>
+											<span className="material-icons-round text-xl" aria-hidden="true">
+												{isEmulatorConnectionStringVisible ? 'visibility_off' : 'visibility'}
+											</span>
+										</button>
+									</div>
 									<p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
 										Optional and emulator-only. Azure uses the primary connection string for both discovery and messages.
 									</p>
