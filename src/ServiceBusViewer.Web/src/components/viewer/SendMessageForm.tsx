@@ -113,6 +113,11 @@ export function SendMessageForm({
 	const [duplicateDetectionArmed, setDuplicateDetectionArmed] = useState(false);
 	const [pasteStatus, setPasteStatus] = useState<'idle' | 'success' | 'invalid'>('idle');
 	const pasteStatusTimerRef = useRef<number | null>(null);
+	const editVersionRef = useRef(0);
+
+	useEffect(() => {
+		editVersionRef.current += 1;
+	}, [messageBody, messageProperties, applicationProperties]);
 
 	const clearPasteStatusTimers = () => {
 		if (pasteStatusTimerRef.current !== null) {
@@ -331,6 +336,7 @@ export function SendMessageForm({
 		}
 
 		clearLoadJsonStatus();
+		const submittedEditVersion = editVersionRef.current;
 
 		try {
 			await onSubmit({
@@ -348,7 +354,9 @@ export function SendMessageForm({
 		}
 
 		setDuplicateDetectionArmed(false);
-		resetForm();
+		if (editVersionRef.current === submittedEditVersion) {
+			resetForm();
+		}
 	};
 
 	const handleLoadJson = async () => {

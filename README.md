@@ -106,10 +106,11 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 1.0.11 (2026-10-26)
+## 1.0.12 (2026-10-26)
 
 - **Security:** Non-emulator connection strings are now masked by default on the Connect screen, while emulator values are shown automatically for local development. Independent show/hide controls remain available until a field's value changes, without changing prefill, editing, connection, or Escape-to-clear behavior.
 - **Security:** The Vite development server now listens only on `localhost` by default, so other machines cannot reach the development SPA or `/api` proxy and retrieve configured Service Bus credentials through it. Local and Aspire development workflows are preserved.
+- **Fixed:** Edits made to the message payload, properties, or custom properties while a send is pending are now preserved when the earlier send succeeds. The sent message still uses the exact content captured when the request started.
 - **Fixed:** Entity count badges now refresh after single and bulk dead-letter drop/republish operations. Manual and automatic count refreshes on Entity Details now update the displayed badges instead of leaving cached values visible.
 - **Fixed:** Hard reloads now explicitly refresh the active message list before displaying normal mode, preventing DLQ-backed session messages from appearing under Peeked Messages. Queue and subscription selections retain their identity, and subsequent active/DLQ toggles use the correct labels, counts, and actions.
 - **Fixed:** Scheduled enqueue times now preserve the instant selected in the browser by converting the local input to UTC before sending it to the API, regardless of the server timezone.
