@@ -99,7 +99,7 @@ export function EntityDetailsPage() {
 
   const currentDetails = details;
   const availableEntities =
-    currentDetails?.availableEntities ?? sessionState.viewer?.availableEntities ?? [];
+    sessionState.viewer?.availableEntities ?? currentDetails?.availableEntities ?? [];
   const managementAvailable =
     currentDetails?.isManagementApiAvailable ?? sessionState.viewer?.isManagementApiAvailable ?? false;
   const headerHostName =

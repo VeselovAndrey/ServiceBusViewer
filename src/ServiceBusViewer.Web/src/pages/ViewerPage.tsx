@@ -584,6 +584,7 @@ export function ViewerPage() {
 	};
 
 	const runRepublish = async (request: RepublishDeadLetterRequestDto, isBulk: boolean) => {
+		const connectionGeneration = getConnectionGeneration();
 		startAction('republish');
 		setRepublishOutcome(null);
 		setRepublishCancelled(false);
@@ -678,6 +679,17 @@ export function ViewerPage() {
 			}
 			setRepublishErrorMessages(getErrorMessages(error));
 		} finally {
+			try {
+				if (connectionGeneration === getConnectionGeneration()) {
+					const nextViewer = await serviceBusApi.refreshViewer();
+					syncViewer(nextViewer, connectionGeneration);
+				}
+			} catch {
+				setRepublishErrorMessages((current) => [
+					...current,
+					'Entity counts could not be refreshed. Use the entity count refresh control to try again.',
+				]);
+			}
 			if (isBulk) {
 				setBulkOperationLock(false);
 			}
@@ -768,6 +780,7 @@ export function ViewerPage() {
 		// The exact broker sequence number marks a single-message drop, so a null message id no longer
 		// turns a row action into a bulk drop.
 		const isBulk = sequenceNumber === null;
+		const connectionGeneration = getConnectionGeneration();
 		startAction('drop');
 		setDropOutcome(null);
 		setDropCancelled(false);
@@ -864,6 +877,17 @@ export function ViewerPage() {
 			}
 			setDropErrorMessages(getErrorMessages(error));
 		} finally {
+			try {
+				if (connectionGeneration === getConnectionGeneration()) {
+					const nextViewer = await serviceBusApi.refreshViewer();
+					syncViewer(nextViewer, connectionGeneration);
+				}
+			} catch {
+				setDropErrorMessages((current) => [
+					...current,
+					'Entity counts could not be refreshed. Use the entity count refresh control to try again.',
+				]);
+			}
 			if (isBulk) {
 				setBulkOperationLock(false);
 			}
