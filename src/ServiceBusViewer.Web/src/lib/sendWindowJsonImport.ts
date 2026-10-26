@@ -8,7 +8,6 @@ const applicationPropertyTypeNames: ReadonlySet<string> = new Set([
 	'String',
 	'Bool',
 	'Byte',
-	'ByteArray',
 	'SByte',
 	'Short',
 	'UShort',
@@ -24,8 +23,6 @@ const applicationPropertyTypeNames: ReadonlySet<string> = new Set([
 	'DateTime',
 	'DateTimeOffset',
 	'TimeSpan',
-	'Null',
-	'Unknown',
 ]);
 
 const supportedPropertyKeys = [
