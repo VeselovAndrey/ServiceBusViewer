@@ -97,7 +97,10 @@ export function EntityDetailsPage() {
     }
   };
 
-  const currentDetails = details;
+  const currentDetails =
+    details?.type === type && details.name === name && details.topicName === topicName
+      ? details
+      : null;
   const availableEntities =
     sessionState.viewer?.availableEntities ?? currentDetails?.availableEntities ?? [];
   const managementAvailable =
