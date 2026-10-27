@@ -368,6 +368,9 @@ export function ViewerPage() {
 			subtitle: 'Loading viewer state...',
 			typeLabel: 'Queue' as const,
 		};
+	// A directly selected topic is a publishing surface only: the backend refuses direct receivers,
+	// so an enabled Receive action would issue a request that is guaranteed to fail (Bug 54).
+	const receiveBlockedOnPublishingTopic = entityMeta.typeLabel === 'Topic';
 	const activeMessageSource = deadLetterMode
 		? deadLetterViewer
 		: isInitialActiveRefreshPending
@@ -1286,8 +1289,13 @@ export function ViewerPage() {
 											/>
 											<button
 												type="button"
-												className="inline-flex items-center gap-1.5 border-l border-slate-200 px-3 py-1.5 text-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:hover:bg-zinc-800"
-												disabled={isActionPending('receive')}
+												className="inline-flex items-center gap-1.5 border-l border-slate-200 px-3 py-1.5 text-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:hover:bg-zinc-800 disabled:cursor-not-allowed"
+												title={
+													receiveBlockedOnPublishingTopic
+														? 'Receive is unavailable on topics: topics are a publishing surface with no directly consumable messages. Select a queue or a subscription to receive messages.'
+														: undefined
+												}
+												disabled={receiveBlockedOnPublishingTopic || isActionPending('receive')}
 												onClick={() => {
 													void handleReceive();
 												}}
@@ -1382,6 +1390,12 @@ export function ViewerPage() {
 												className="mt-6"
 											/>
 										</>
+									) : receiveBlockedOnPublishingTopic ? (
+										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
+											Topics are a publishing surface with no directly consumable
+											messages, so Receive is unavailable here. Select a queue or a
+											subscription to receive its messages.
+										</div>
 									) : (
 										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
 											Use{' '}

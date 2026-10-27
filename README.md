@@ -106,10 +106,11 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 1.0.15 (2026-10-27)
+## 1.0.16 (2026-10-27)
 
 - **Security:** Non-emulator connection strings are now masked by default on the Connect screen, while emulator values are shown automatically for local development. Independent show/hide controls remain available until a field's value changes, without changing prefill, editing, connection, or Escape-to-clear behavior.
 - **Security:** The Vite development server now listens only on `localhost` by default, so other machines cannot reach the development SPA or `/api` proxy and retrieve configured Service Bus credentials through it. Local and Aspire development workflows are preserved.
+- **Fixed:** A directly selected publishing-only topic no longer offers an enabled Receive action that always fails: Receive is now disabled with a clear publishing-only explanation (in the button hint and the empty Last Received Message panel) instead of issuing a known-invalid request, while sending to the topic remains available and queue and subscription receiving, including session-enabled entities, is unchanged.
 - **Fixed:** Clipboard import now rejects invalid scheduled enqueue times without changing the current form, and valid values retain their seconds and millisecond precision through import and sending. Empty optional values and other partial-update behavior remain unchanged.
 - **Fixed:** Entity Details no longer shows the previous entity's properties while another entity is loading or after its details fail to load. Queue, topic, and subscription details now always match the selected entity, and out-of-order responses remain ignored.
 - **Fixed:** Clipboard import now rejects unsupported `ByteArray`, `Null`, and `Unknown` application-property types with a clear error instead of reporting success and failing only at Send. Rejected imports leave the current form unchanged, while supported property types continue to round-trip.
