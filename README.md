@@ -106,10 +106,11 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
-## 1.0.18 (2026-10-27)
+## 1.1.0 (2026-10-27)
 
 - **Security:** Non-emulator connection strings are now masked by default on the Connect screen, while emulator values are shown automatically for local development. Independent show/hide controls remain available until a field's value changes, without changing prefill, editing, connection, or Escape-to-clear behavior.
 - **Security:** The Vite development server now listens only on `localhost` by default, so other machines cannot reach the development SPA or `/api` proxy and retrieve configured Service Bus credentials through it. Local and Aspire development workflows are preserved.
+- **Fixed:** Confirmation dialogs (Drop, Republish, and custom Peek Top prompts) are now fully modal for keyboard and assistive-technology users: opening a dialog moves focus inside it, Tab/Shift+Tab stay contained within the dialog, and the rest of the page is inert while it is open. Escape or backdrop dismissal closes the dialog and restores focus to the control that opened it, so background controls can no longer be reached or activated while a confirmation is on screen.
 - **Fixed:** Changing the Peek Top count in the active message list now clears stale expanded rows and the active column sort, matching the dead-letter mode and the other new message-set loads (entity selection, Refresh, Receive, and Send). The newly loaded list starts unsorted in load order, so no row remains expanded or sorted by the previous load, while any existing search text survives and continues to filter the new set without additional retrieval.
 - **Fixed:** The entity count auto-refresh mode and its selected interval now survive navigation between Viewer and Entity Details, and polling resumes without duplicate timers. Auto mode remains active until you explicitly choose Manual or disconnect; manual mode and the unavailable states (emulator, missing counts, disabled configuration) are unchanged.
 - **Fixed:** A directly selected publishing-only topic no longer offers an enabled Receive action that always fails: Receive is now disabled with a clear publishing-only explanation (in the button hint and the empty Last Received Message panel) instead of issuing a known-invalid request, while sending to the topic remains available and queue and subscription receiving, including session-enabled entities, is unchanged.
