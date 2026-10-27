@@ -608,15 +608,35 @@ export function ViewerPage() {
 		let detail: string | null = null;
 		let allStepsSucceeded = true;
 		let cancelled = false;
+		// The bulk run scope is the dead-letter count known when the run starts: the run republishes at
+		// most that many messages, so copies re-dead-lettered by the run itself (behind a slow
+		// connection) or messages added to the queue afterwards are left in the dead-letter queue
+		// instead of looping the run. An unknown count (null, e.g. the emulator) keeps the former
+		// termination; the drop operation intentionally stays unbounded.
+		const bulkRunScope = isBulk ? (deadLetterViewer?.totalMessageCount ?? null) : null;
 
 		try {
-			// A bulk republish runs as a sequence of bounded requests; the loop stops when a step processes
-			// zero messages, when a step fails (its messages remain in the dead-letter queue, so further
-			// retries cannot make progress and may resend ambiguous copies), or when the user cancels.
-			// Single-message republish stays one unbounded request.
+			// A bulk republish runs as a sequence of bounded requests; the loop stops when the run scope
+			// is exhausted, when a step processes zero messages, when a step fails (its messages remain
+			// in the dead-letter queue, so further retries cannot make progress and may resend ambiguous
+			// copies), or when the user cancels. Single-message republish stays one unbounded request.
 			while (true) {
+				const runScopeRemaining =
+					isBulk && bulkRunScope !== null ? bulkRunScope - totalAffected - totalFailed : null;
+				if (runScopeRemaining !== null && runScopeRemaining <= 0) {
+					break;
+				}
+
 				const step = await serviceBusApi.republishDeadLetter(
-					isBulk ? { ...request, maxCount: BULK_STEP_SIZE } : request,
+					isBulk
+						? {
+								...request,
+								maxCount:
+									runScopeRemaining === null
+										? BULK_STEP_SIZE
+										: Math.min(BULK_STEP_SIZE, runScopeRemaining),
+							}
+						: request,
 				);
 				totalAffected += step.affectedCount;
 				totalFailed += step.failedCount;
