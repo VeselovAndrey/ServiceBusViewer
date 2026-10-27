@@ -162,6 +162,8 @@ export function ViewerPage() {
 	} | null>(null);
 	const [bulkProgress, setBulkProgress] = useState<BulkOperationProgress | null>(null);
 	const bulkCancelRequestedRef = useRef(false);
+	const [bulkCancelling, setBulkCancelling] = useState(false);
+	const bulkAbortControllerRef = useRef<AbortController | null>(null);
 	// Lock entity selection and property navigation synchronously from bulk confirmation through the final step.
 	const bulkOperationLockRef = useRef(false);
 	const [isEntitySelectionLocked, setIsEntitySelectionLocked] = useState(false);
@@ -597,10 +599,15 @@ export function ViewerPage() {
 		setRepublishCancelled(false);
 		setRepublishErrorMessages([]);
 		bulkCancelRequestedRef.current = false;
+		setBulkCancelling(false);
 
+		// Cancellation aborts the in-flight step request; the controller is owned by this run and
+		// cleared in the finally block once the run has finished or failed.
+		const bulkAbortController = isBulk ? new AbortController() : null;
 		if (isBulk) {
 			setBulkOperationLock(true);
 			setBulkProgress({ operation: 'republish', processed: 0, failed: 0 });
+			bulkAbortControllerRef.current = bulkAbortController;
 		}
 
 		let totalAffected = 0;
@@ -627,17 +634,29 @@ export function ViewerPage() {
 					break;
 				}
 
-				const step = await serviceBusApi.republishDeadLetter(
-					isBulk
-						? {
-								...request,
-								maxCount:
-									runScopeRemaining === null
-										? BULK_STEP_SIZE
-										: Math.min(BULK_STEP_SIZE, runScopeRemaining),
-							}
-						: request,
-				);
+				let step: RepublishDeadLetterResponseDto;
+				try {
+					step = await serviceBusApi.republishDeadLetter(
+						isBulk
+							? {
+									...request,
+									maxCount:
+										runScopeRemaining === null
+											? BULK_STEP_SIZE
+											: Math.min(BULK_STEP_SIZE, runScopeRemaining),
+								}
+							: request,
+						bulkAbortController?.signal,
+					);
+				} catch (error) {
+					// A cancelled in-flight step aborts its request instead of running to
+					// completion; the run then ends with the counts gathered so far.
+					if (bulkCancelRequestedRef.current) {
+						cancelled = true;
+						break;
+					}
+					throw error;
+				}
 				totalAffected += step.affectedCount;
 				totalFailed += step.failedCount;
 				allStepsSucceeded = allStepsSucceeded && step.succeeded;
@@ -720,6 +739,8 @@ export function ViewerPage() {
 			if (isBulk) {
 				setBulkOperationLock(false);
 			}
+			setBulkCancelling(false);
+			bulkAbortControllerRef.current = null;
 			setBulkProgress(null);
 			finishAction('republish');
 		}
@@ -813,10 +834,15 @@ export function ViewerPage() {
 		setDropCancelled(false);
 		setDropErrorMessages([]);
 		bulkCancelRequestedRef.current = false;
+		setBulkCancelling(false);
 
+		// Cancellation aborts the in-flight step request; the controller is owned by this run and
+		// cleared in the finally block once the run has finished or failed.
+		const bulkAbortController = isBulk ? new AbortController() : null;
 		if (isBulk) {
 			setBulkOperationLock(true);
 			setBulkProgress({ operation: 'drop', processed: 0, failed: 0 });
+			bulkAbortControllerRef.current = bulkAbortController;
 		}
 
 		let totalAffected = 0;
@@ -831,11 +857,23 @@ export function ViewerPage() {
 			// retries cannot make progress), or when the user cancels. Single-message drop stays one
 			// unbounded request.
 			while (true) {
-				const step = await serviceBusApi.dropDeadLetters(
-					isBulk
-						? { messageId: null, sequenceNumber: null, maxCount: BULK_STEP_SIZE }
-						: { messageId, sequenceNumber },
-				);
+				let step: DropDeadLettersResponseDto;
+				try {
+					step = await serviceBusApi.dropDeadLetters(
+						isBulk
+							? { messageId: null, sequenceNumber: null, maxCount: BULK_STEP_SIZE }
+							: { messageId, sequenceNumber },
+						bulkAbortController?.signal,
+					);
+				} catch (error) {
+					// A cancelled in-flight step aborts its request instead of running to
+					// completion; the run then ends with the counts gathered so far.
+					if (bulkCancelRequestedRef.current) {
+						cancelled = true;
+						break;
+					}
+					throw error;
+				}
 				totalAffected += step.affectedCount;
 				totalFailed += step.failedCount;
 				allStepsSucceeded = allStepsSucceeded && step.succeeded;
@@ -918,13 +956,23 @@ export function ViewerPage() {
 			if (isBulk) {
 				setBulkOperationLock(false);
 			}
+			setBulkCancelling(false);
+			bulkAbortControllerRef.current = null;
 			setBulkProgress(null);
 			finishAction('drop');
 		}
 	};
 
 	const handleBulkCancel = () => {
+		// The first click owns the cancellation: the pending flag plus the disabled button keep
+		// later clicks from re-issuing it, and aborting stops the in-flight step request instead
+		// of waiting for the step to complete.
+		if (bulkCancelRequestedRef.current) {
+			return;
+		}
 		bulkCancelRequestedRef.current = true;
+		setBulkCancelling(true);
+		bulkAbortControllerRef.current?.abort();
 	};
 
 	// Removes exactly the one row carrying the given broker sequence number (never all rows sharing a
@@ -1502,11 +1550,12 @@ export function ViewerPage() {
 									</div>
 									<button
 										type="button"
-										className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+										className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+										disabled={bulkCancelling}
 										onClick={handleBulkCancel}
 									>
 										<span className="material-icons-round text-sm">close</span>
-										Cancel
+										{bulkCancelling ? 'Cancelling…' : 'Cancel'}
 									</button>
 								</div>
 							) : null}
