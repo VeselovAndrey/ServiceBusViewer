@@ -516,9 +516,13 @@ export function ViewerPage() {
 
 			if (deadLetterMode) {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
-				setExpandedRows(new Set());
-				setMessageSort(null);
 			}
+			// A new message-set load (peek-count change) must drop stale expansion and active sort in
+			// both message modes, matching the refresh/receive/entity-selection paths; search text
+			// intentionally survives and filters the new set.
+
+			setExpandedRows(new Set());
+			setMessageSort(null);
 
 			syncViewer(nextViewer, connectionGeneration);
 		});
