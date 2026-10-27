@@ -85,16 +85,18 @@ export const serviceBusApi = {
 			method: 'POST',
 		});
 	},
-	republishDeadLetter(request: RepublishDeadLetterRequestDto) {
+	republishDeadLetter(request: RepublishDeadLetterRequestDto, signal?: AbortSignal) {
 		return requestJson<RepublishDeadLetterResponseDto>('/viewer/republish-dlq', {
 			method: 'POST',
 			body: JSON.stringify(request),
+			signal,
 		});
 	},
-	dropDeadLetters(request: DropDeadLettersRequestDto) {
+	dropDeadLetters(request: DropDeadLettersRequestDto, signal?: AbortSignal) {
 		return requestJson<DropDeadLettersResponseDto>('/viewer/drop-dlq', {
 			method: 'POST',
 			body: JSON.stringify(request),
+			signal,
 		});
 	},
 	selectEntity(entity: EntityIdDto) {
