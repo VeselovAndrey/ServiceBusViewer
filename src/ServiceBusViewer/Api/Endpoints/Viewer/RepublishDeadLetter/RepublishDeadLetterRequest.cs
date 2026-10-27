@@ -7,12 +7,15 @@ using System.Diagnostics.CodeAnalysis;
 /// Request to republish the selected entity's dead-lettered message (or the whole dead-letter queue) to its original entity.
 /// </summary>
 /// <param name="MessageId">Id of the single dead-lettered message to republish, or null to republish every dead-lettered message.</param>
+/// <param name="SequenceNumber">Exact broker sequence number of the single dead-lettered message to republish, serialized as a string to preserve 64-bit
+/// values; when set it selects exactly one message independently of its message id and takes precedence. Null retains the message-id or bulk behavior.</param>
 /// <param name="Strategy">Message id strategy (KeepOriginal, AutoGenerate, Guid, GuidV7, or Manual), bound case-insensitively from its JSON string value.</param>
 /// <param name="ManualMessageId">The manually provided message id when the strategy is Manual.</param>
 /// <param name="MaxCount">Maximum number of messages a bulk republish processes in this request, or null for an unbounded bulk republish; must be a
 /// positive integer when set. Meaningful only for bulk requests (MessageId null).</param>
 public sealed record RepublishDeadLetterRequest(
 	string? MessageId,
+	string? SequenceNumber,
 	RepublishMessageIdStrategy? Strategy,
 	string? ManualMessageId,
 	int? MaxCount);

@@ -14,7 +14,7 @@ export function matchesPeekedMessageSearch(message: ReceivedMessageDto, searchTe
 	}
 
 	const { properties } = message;
-	if (properties.messageId.toLowerCase().includes(needle)) {
+	if ((properties.messageId ?? '').toLowerCase().includes(needle)) {
 		return true;
 	}
 

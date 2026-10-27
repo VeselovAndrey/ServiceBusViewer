@@ -7,9 +7,14 @@ using System.Diagnostics.CodeAnalysis;
 /// Request to permanently delete the selected entity's dead-lettered message (or the whole dead-letter queue) without re-delivering it.
 /// </summary>
 /// <param name="MessageId">Id of the single dead-lettered message to drop, or null to drop every dead-lettered message.</param>
+/// <param name="SequenceNumber">Exact broker sequence number of the single dead-lettered message to drop, serialized as a string to preserve 64-bit
+/// values; when set it selects exactly one message independently of its message id and takes precedence. Null retains the message-id or bulk behavior.</param>
 /// <param name="MaxCount">Maximum number of messages a bulk drop processes in this request, or null for an unbounded bulk drop; must be a positive
 /// integer when set. Meaningful only for bulk requests (MessageId null).</param>
-public sealed record DropDeadLettersRequest(string? MessageId, int? MaxCount);
+public sealed record DropDeadLettersRequest(
+	string? MessageId,
+	string? SequenceNumber,
+	int? MaxCount);
 
 /// <summary>Validates a <see cref="DropDeadLettersRequest"/> instance.</summary>
 internal static class DropDeadLettersRequestValidator

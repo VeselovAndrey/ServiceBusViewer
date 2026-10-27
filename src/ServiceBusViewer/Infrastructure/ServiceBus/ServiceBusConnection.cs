@@ -274,6 +274,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 	public async Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(
 		EntityId entityId,
 		IReadOnlyCollection<string>? messageIds,
+		long? sequenceNumber,
 		RepublishMessageIdStrategy strategy,
 		string? manualMessageId,
 		int? maxMessages,
@@ -285,12 +286,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			throw new ArgumentOutOfRangeException(nameof(maxMessages), maxMessages, "The message bound must be a positive integer when set.");
 
 		EntityProperties entity = GetEntityProperties(entityId);
-		bool isBulk = messageIds is null;
+		bool isBulk = sequenceNumber is null && messageIds is null;
 		HashSet<string> requestedMessageIds = [];
 
 		if (messageIds is not null)
 			requestedMessageIds = [.. messageIds.Distinct(StringComparer.Ordinal)];
 		HashSet<string> seenMessageIds = [];
+		List<ServiceBusReceivedMessage> messagesToAbandon = [];
 		List<string> failureDetails = [];
 		int affectedCount = 0;
 		int failedCount = 0;
@@ -303,8 +305,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			int unseenRequestedCount = 0;
 
 			foreach (ServiceBusReceivedMessage message in batch) {
-				bool isUnseen = seenMessageIds.Add(message.MessageId);
-				bool isRequested = isBulk || requestedMessageIds.Contains(message.MessageId);
+				// Sequence-number selection must not be suppressed by an earlier row with the same (or null) message id.
+				bool isUnseen = sequenceNumber is not null || seenMessageIds.Add(message.MessageId);
+
+				// A supplied sequence number identifies exactly one broker message regardless of its message id; otherwise the message-id selection applies.
+				bool isRequested = sequenceNumber is not null
+					? message.SequenceNumber == sequenceNumber.Value
+					: isBulk || requestedMessageIds.Contains(message.MessageId);
 
 				if (isRequested && isUnseen && !IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount)) {
 					unseenRequestedCount++;
@@ -321,16 +328,25 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 					}
 				}
 				else {
-					// A message this operation does not republish, one already attempted in this operation, or one beyond the bound: return it to visible state in the dead-letter queue.
-					await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
+					// Keep nonmatches locked during a sequence-number search so later receives cannot return them again; release them when the search ends.
+					if (sequenceNumber is not null)
+						messagesToAbandon.Add(message);
+					else
+						await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
 				}
 			}
 
-			if (batch.Count == 0 || unseenRequestedCount == 0 || IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount))
+			bool noLegacyWorkRemaining = sequenceNumber is null && unseenRequestedCount == 0;
+			bool sequenceTargetProcessed = sequenceNumber is not null && unseenRequestedCount > 0;
+
+			if (batch.Count == 0 || noLegacyWorkRemaining || sequenceTargetProcessed || IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount))
 				break;
 		}
 
-		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, "republished", requestedMessageIds, affectedCount, failedCount, failureDetails);
+		foreach (ServiceBusReceivedMessage message in messagesToAbandon)
+			await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
+
+		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, sequenceNumber, "republished", requestedMessageIds, affectedCount, failedCount, failureDetails);
 
 		return result;
 	}
@@ -338,6 +354,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 	public async Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(
 		EntityId entityId,
 		IReadOnlyCollection<string>? messageIds,
+		long? sequenceNumber,
 		int? maxMessages,
 		CancellationToken cancellationToken)
 	{
@@ -347,12 +364,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			throw new ArgumentOutOfRangeException(nameof(maxMessages), maxMessages, "The message bound must be a positive integer when set.");
 
 		EntityProperties entity = GetEntityProperties(entityId);
-		bool isBulk = messageIds is null;
+		bool isBulk = sequenceNumber is null && messageIds is null;
 		HashSet<string> requestedMessageIds = [];
 
 		if (messageIds is not null)
 			requestedMessageIds = [.. messageIds.Distinct(StringComparer.Ordinal)];
 		HashSet<string> seenMessageIds = [];
+		List<ServiceBusReceivedMessage> messagesToAbandon = [];
 		List<string> failureDetails = [];
 		int affectedCount = 0;
 		int failedCount = 0;
@@ -364,8 +382,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			int unseenRequestedCount = 0;
 
 			foreach (ServiceBusReceivedMessage message in batch) {
-				bool isUnseen = seenMessageIds.Add(message.MessageId);
-				bool isRequested = isBulk || requestedMessageIds.Contains(message.MessageId);
+				// Sequence-number selection must not be suppressed by an earlier row with the same (or null) message id.
+				bool isUnseen = sequenceNumber is not null || seenMessageIds.Add(message.MessageId);
+
+				// A supplied sequence number identifies exactly one broker message regardless of its message id; otherwise the message-id selection applies.
+				bool isRequested = sequenceNumber is not null
+					? message.SequenceNumber == sequenceNumber.Value
+					: isBulk || requestedMessageIds.Contains(message.MessageId);
 
 				if (isRequested && isUnseen && !IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount)) {
 					unseenRequestedCount++;
@@ -382,16 +405,25 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 					}
 				}
 				else {
-					// A message this operation does not drop, one already attempted in this operation, or one beyond the bound: return it to visible state in the dead-letter queue.
-					await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
+					// Keep nonmatches locked during a sequence-number search so later receives cannot return them again; release them when the search ends.
+					if (sequenceNumber is not null)
+						messagesToAbandon.Add(message);
+					else
+						await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
 				}
 			}
 
-			if (batch.Count == 0 || unseenRequestedCount == 0 || IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount))
+			bool noLegacyWorkRemaining = sequenceNumber is null && unseenRequestedCount == 0;
+			bool sequenceTargetProcessed = sequenceNumber is not null && unseenRequestedCount > 0;
+
+			if (batch.Count == 0 || noLegacyWorkRemaining || sequenceTargetProcessed || IsBulkBoundReached(isBulk, maxMessages, affectedCount, failedCount))
 				break;
 		}
 
-		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, "dropped", requestedMessageIds, affectedCount, failedCount, failureDetails);
+		foreach (ServiceBusReceivedMessage message in messagesToAbandon)
+			await receiver.AbandonMessageAsync(message, propertiesToModify: null, cancellationToken);
+
+		DeadLetterOperationResult result = BuildDeadLetterOperationResult(isBulk, sequenceNumber, "dropped", requestedMessageIds, affectedCount, failedCount, failureDetails);
 
 		return result;
 	}
@@ -588,13 +620,16 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 
 	private static DeadLetterOperationResult BuildDeadLetterOperationResult(
 		bool isBulk,
+		long? sequenceNumber,
 		string operationVerb,
 		HashSet<string> requestedMessageIds,
 		int affectedCount,
 		int failedCount,
 		List<string> failureDetails)
 	{
-		if (failedCount is 0 && (isBulk || affectedCount == requestedMessageIds.Count))
+		int requiredCount = isBulk ? 0 : sequenceNumber is not null ? 1 : requestedMessageIds.Count;
+
+		if (failedCount is 0 && (isBulk || affectedCount == requiredCount))
 			return new DeadLetterOperationResult(true, affectedCount, failedCount, null);
 
 		StringBuilder detail = new();
@@ -606,11 +641,19 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				detail.Append(CultureInfo.InvariantCulture, $" First failure: {failureDetails[0]}");
 		}
 
-		if (!isBulk && affectedCount < requestedMessageIds.Count) {
-			if (detail.Length > 0)
-				detail.Append(' ');
+		if (!isBulk && affectedCount < requiredCount) {
+			// A sequence-number request that already failed was found and processed unsuccessfully, so only an unprocessed request counts as not found.
+			bool sequenceMissing = sequenceNumber is not null && failedCount is 0;
 
-			detail.Append(CultureInfo.InvariantCulture, $"Message id(s) were not found in the dead-letter queue: {string.Join(", ", requestedMessageIds)}.");
+			if (sequenceMissing || (sequenceNumber is null && affectedCount < requestedMessageIds.Count)) {
+				if (detail.Length > 0)
+					detail.Append(' ');
+
+				if (sequenceNumber is not null)
+					detail.Append(CultureInfo.InvariantCulture, $"The message with sequence number {sequenceNumber.Value} was not found in the dead-letter queue.");
+				else
+					detail.Append(CultureInfo.InvariantCulture, $"Message id(s) were not found in the dead-letter queue: {string.Join(", ", requestedMessageIds)}.");
+			}
 		}
 
 		return new DeadLetterOperationResult(false, affectedCount, failedCount, detail.Length > 0 ? detail.ToString() : null);
@@ -623,15 +666,17 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 	{
 		ServiceBusMessage copy = new(source.Body.ToArray());
 
-		// AutoGenerate leaves the message id unset: the Service Bus client rejects a null or empty id and assigns a fresh one at send time.
-		if (strategy is not RepublishMessageIdStrategy.AutoGenerate) {
-			copy.MessageId = strategy switch {
-				RepublishMessageIdStrategy.KeepOriginal => source.MessageId,
-				RepublishMessageIdStrategy.Guid => Guid.NewGuid().ToString(),
-				RepublishMessageIdStrategy.GuidV7 => Guid.CreateVersion7().ToString(),
-				_ => manualMessageId
-			};
-		}
+		// AutoGenerate and KeepOriginal with a null source id leave the id unset: the client rejects assigning null and auto-generates it at send time.
+		string? republishedMessageId = strategy switch {
+			RepublishMessageIdStrategy.AutoGenerate => null,
+			RepublishMessageIdStrategy.KeepOriginal => source.MessageId,
+			RepublishMessageIdStrategy.Guid => Guid.NewGuid().ToString(),
+			RepublishMessageIdStrategy.GuidV7 => Guid.CreateVersion7().ToString(),
+			_ => manualMessageId
+		};
+
+		if (republishedMessageId is not null)
+			copy.MessageId = republishedMessageId;
 
 		copy.ContentType = source.ContentType;
 		copy.Subject = source.Subject;
@@ -730,6 +775,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 	{
 		ReceivedMessageProperties properties = new(
 			message.MessageId,
+			message.SequenceNumber,
 			message.PartitionKey,
 			message.SessionId,
 			message.CorrelationId,

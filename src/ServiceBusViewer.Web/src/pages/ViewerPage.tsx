@@ -87,10 +87,45 @@ function buildDropOutcomeMessages(outcome: DropDeadLettersResponseDto, cancelled
 
 export function ViewerPage() {
 	const navigate = useNavigate();
-	const { sessionState, refreshSessionState, setViewerState } = useAppState();
+	const {
+		sessionState,
+		getConnectionGeneration,
+		invalidateConnectionGeneration,
+		refreshSessionState,
+		setViewerState,
+	} = useAppState();
 	const viewer = sessionState?.viewer;
+	const selectionRequestRef = useRef(0);
+	const initialRefreshRequestRef = useRef(0);
 	const currentViewer = viewer;
-	const [pendingAction, setPendingAction] = useState<ViewerAction | null>(null);
+	// Pending count per action: every in-flight operation is tracked independently, so a shorter
+	// action finishing (e.g. a Refresh) can never clear the busy state of a longer one that is still
+	// running (e.g. a bulk drop/republish). Counts stay balanced when the same action type overlaps.
+	const [pendingActions, setPendingActions] = useState<Map<ViewerAction, number>>(new Map());
+	const startAction = useCallback((action: ViewerAction) => {
+		setPendingActions((current) => {
+			const next = new Map(current);
+			next.set(action, (next.get(action) ?? 0) + 1);
+			return next;
+		});
+	}, []);
+	const finishAction = useCallback((action: ViewerAction) => {
+		setPendingActions((current) => {
+			const count = current.get(action) ?? 0;
+			if (count <= 1) {
+				if (current.size === 1) {
+					return new Map();
+				}
+				const next = new Map(current);
+				next.delete(action);
+				return next;
+			}
+			const next = new Map(current);
+			next.set(action, count - 1);
+			return next;
+		});
+	}, []);
+	const isActionPending = (action: ViewerAction) => (pendingActions.get(action) ?? 0) > 0;
 	const [errorMessages, setErrorMessages] = useState<string[]>([]);
 	const [sendErrorMessages, setSendErrorMessages] = useState<string[]>([]);
 	const [selectionKey, setSelectionKey] = useState<string | null>(null);
@@ -98,6 +133,11 @@ export function ViewerPage() {
 	const [receiveSessionId, setReceiveSessionId] = useState(viewer?.receiveSessionId ?? '');
 	const [deadLetterMode, setDeadLetterMode] = useState(false);
 	const [deadLetterViewer, setDeadLetterViewer] = useState<ViewerState | null>(null);
+	const [isInitialActiveRefreshPending, setIsInitialActiveRefreshPending] = useState(true);
+	const [isInitialActiveRefreshInFlight, setIsInitialActiveRefreshInFlight] = useState(true);
+	const anyActionPending = pendingActions.size > 0 || isInitialActiveRefreshInFlight;
+	const isMessageListLoading =
+		isInitialActiveRefreshInFlight || isActionPending('refresh') || isActionPending('peek-count');
 	const [republishOutcome, setRepublishOutcome] = useState<RepublishDeadLetterResponseDto | null>(
 		null,
 	);
@@ -105,7 +145,8 @@ export function ViewerPage() {
 	const [republishErrorMessages, setRepublishErrorMessages] = useState<string[]>([]);
 	const [republishPrompt, setRepublishPrompt] = useState<{
 		kind: 'manual';
-		messageId: string;
+		messageId: string | null;
+		sequenceNumber: string;
 	} | null>(null);
 	const [republishTargetRequiresDuplicateDetection, setRepublishTargetRequiresDuplicateDetection] =
 		useState<boolean | null>(null);
@@ -115,10 +156,22 @@ export function ViewerPage() {
 	const [dropConfirmOpen, setDropConfirmOpen] = useState(false);
 	const [republishAllConfirmStrategy, setRepublishAllConfirmStrategy] =
 		useState<RepublishMessageIdStrategy | null>(null);
-	const [dropSingleTarget, setDropSingleTarget] = useState<string | null>(null);
+	const [dropSingleTarget, setDropSingleTarget] = useState<{
+		messageId: string | null;
+		sequenceNumber: string;
+	} | null>(null);
 	const [bulkProgress, setBulkProgress] = useState<BulkOperationProgress | null>(null);
 	const bulkCancelRequestedRef = useRef(false);
-	const [removingMessageIds, setRemovingMessageIds] = useState<Map<string, 'drop' | 'republish'>>(new Map());
+	// Lock entity selection and property navigation synchronously from bulk confirmation through the final step.
+	const bulkOperationLockRef = useRef(false);
+	const [isEntitySelectionLocked, setIsEntitySelectionLocked] = useState(false);
+	const setBulkOperationLock = (locked: boolean) => {
+		bulkOperationLockRef.current = locked;
+		setIsEntitySelectionLocked(locked);
+	};
+	// Rows animating out of the list after a successful single drop/republish, keyed by the exact broker
+	// sequence number so duplicate message ids never remove more than the processed row.
+	const [removingSequenceNumbers, setRemovingSequenceNumbers] = useState<Map<string, 'drop' | 'republish'>>(new Map());
 	const [bulkSuccessMessage, setBulkSuccessMessage] = useState<string | null>(null);
 	const [peekMessageCount, setPeekMessageCount] = usePeekMessageCount();
 	const [messageSort, setMessageSort] = useState<PeekedMessageSort | null>(null);
@@ -127,28 +180,45 @@ export function ViewerPage() {
 	const [messageSearchText, setMessageSearchText] = useState('');
 
 	useEffect(() => {
-		if (!sessionState?.isConnected || viewer) {
+		return () => {
+			// Route changes must not leave bulk steps running against a different selected entity.
+			bulkCancelRequestedRef.current = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!sessionState?.isConnected) {
 			return;
 		}
 
 		let isDisposed = false;
+		const requestId = ++initialRefreshRequestRef.current;
+		const connectionGeneration = getConnectionGeneration();
 		void serviceBusApi
-			.getViewer()
+			.refreshViewer()
 			.then((nextViewer) => {
-				if (!isDisposed) {
-					setViewerState(nextViewer);
+				if (isDisposed || connectionGeneration !== getConnectionGeneration()) {
+					return;
 				}
+
+				setViewerState(nextViewer, connectionGeneration);
+				setIsInitialActiveRefreshPending(false);
 			})
 			.catch((error: unknown) => {
 				if (!isDisposed) {
 					setErrorMessages(getErrorMessages(error));
+				}
+			})
+			.finally(() => {
+				if (requestId === initialRefreshRequestRef.current) {
+					setIsInitialActiveRefreshInFlight(false);
 				}
 			});
 
 		return () => {
 			isDisposed = true;
 		};
-	}, [sessionState?.isConnected, setViewerState, viewer]);
+	}, [getConnectionGeneration, sessionState?.isConnected, setViewerState]);
 
 	useEffect(() => {
 		setReceiveSessionId(viewer?.receiveSessionId ?? '');
@@ -216,16 +286,21 @@ export function ViewerPage() {
 	}, [deadLetterMode, currentViewer?.topicName, currentViewer?.entityName]);
 
 	const syncViewer = useCallback(
-		async (nextViewer: ViewerState) => {
-			setViewerState(nextViewer);
-			return nextViewer;
+		(nextViewer: ViewerState, connectionGeneration: number) => {
+			if (connectionGeneration !== getConnectionGeneration()) {
+				return false;
+			}
+
+			setViewerState(nextViewer, connectionGeneration);
+			setIsInitialActiveRefreshPending(false);
+			return true;
 		},
-		[setViewerState],
+		[getConnectionGeneration, setViewerState],
 	);
 
 	const runAction = useCallback(
 		async (action: ViewerAction, work: () => Promise<void>) => {
-			setPendingAction(action);
+			startAction(action);
 			setErrorMessages([]);
 			setSendErrorMessages([]);
 
@@ -241,10 +316,10 @@ export function ViewerPage() {
 				}
 				return false;
 			} finally {
-				setPendingAction(null);
+				finishAction(action);
 			}
 		},
-		[],
+		[startAction, finishAction],
 	);
 
 	const activeMessagePropertyRows = useMemo(() => {
@@ -268,7 +343,7 @@ export function ViewerPage() {
 	// set and searching narrows it, both display-only and never triggering message retrieval.
 	// Each row keeps its original load-order index so row keys and expansion state stay stable.
 	const displayedMessageRows = useMemo(() => {
-		const source = deadLetterMode ? deadLetterViewer : viewer;
+		const source = deadLetterMode ? deadLetterViewer : isInitialActiveRefreshPending ? null : viewer;
 		let rows = (source?.messages ?? []).map((message, loadIndex) => ({ loadIndex, message }));
 		if (messageSort !== null) {
 			rows.sort((left, right) => comparePeekedMessages(left.message, right.message, messageSort));
@@ -277,7 +352,7 @@ export function ViewerPage() {
 		rows = rows.filter(({ message }) => matchesPeekedMessageSearch(message, messageSearchText));
 
 		return rows;
-	}, [deadLetterMode, deadLetterViewer, viewer, messageSort, messageSearchText]);
+	}, [deadLetterMode, deadLetterViewer, isInitialActiveRefreshPending, viewer, messageSort, messageSearchText]);
 
 	if (!sessionState) {
 		return null;
@@ -293,15 +368,24 @@ export function ViewerPage() {
 			subtitle: 'Loading viewer state...',
 			typeLabel: 'Queue' as const,
 		};
-	const activeMessageSource = deadLetterMode ? deadLetterViewer : currentViewer;
+	// A directly selected topic is a publishing surface only: the backend refuses direct receivers,
+	// so an enabled Receive action would issue a request that is guaranteed to fail (Bug 54).
+	const receiveBlockedOnPublishingTopic = entityMeta.typeLabel === 'Topic';
+	const activeMessageSource = deadLetterMode
+		? deadLetterViewer
+		: isInitialActiveRefreshPending
+			? null
+			: currentViewer;
 	const activeMessages = activeMessageSource?.messages ?? [];
 	// Drop/republish buttons stay disabled while any operation runs, including the row-removal
-	// animation window after a single republish succeeds (pendingAction already cleared by then).
-	const deadLetterOperationInProgress = pendingAction !== null || removingMessageIds.size > 0;
+	// animation window after a single republish succeeds (its pending actions are cleared by then).
+	const deadLetterOperationInProgress =
+		selectionKey !== null || anyActionPending || removingSequenceNumbers.size > 0;
 	// With management access, the total count comes from runtime properties, so no full read is needed; it covers the live list and the dead-letter list alike.
 	const totalMessageCount = activeMessageSource?.totalMessageCount ?? null;
-	const peekedMessageSummary =
-		totalMessageCount !== null && (activeMessageSource?.hasMoreMessages ?? false)
+	const peekedMessageSummary = isInitialActiveRefreshPending && !deadLetterMode
+		? 'Loading active messages...'
+		: totalMessageCount !== null && (activeMessageSource?.hasMoreMessages ?? false)
 			? `Showing first ${activeMessages.length} of ${totalMessageCount}${deadLetterMode ? ' dead-lettered' : ''}`
 			: buildPeekedMessageSummary(
 				activeMessages,
@@ -318,6 +402,9 @@ export function ViewerPage() {
 		6 + (showScheduledEnqueue ? 1 : 0) + (showPartitionKey ? 1 : 0);
 
 	const handleDisconnect = async () => {
+		invalidateConnectionGeneration();
+		selectionRequestRef.current += 1;
+		setSelectionKey(null);
 		await runAction('disconnect', async () => {
 			await serviceBusApi.disconnect();
 			await refreshSessionState();
@@ -326,13 +413,26 @@ export function ViewerPage() {
 	};
 
 	const handleSelectEntity = async (entity: EntityIdDto) => {
+		if (bulkOperationLockRef.current) {
+			return;
+		}
+
+		const requestId = ++selectionRequestRef.current;
+		const connectionGeneration = getConnectionGeneration();
 		const nextSelectionKey = getEntityKey(entity);
 		setSelectionKey(nextSelectionKey);
 		setErrorMessages([]);
 		setSendErrorMessages([]);
 
 		try {
-			const nextViewer = await syncViewer(await serviceBusApi.selectEntity(entity));
+			const nextViewer = await serviceBusApi.selectEntity(entity);
+			if (
+				requestId !== selectionRequestRef.current ||
+				!syncViewer(nextViewer, connectionGeneration)
+			) {
+				return;
+			}
+
 			setExpandedRows(new Set());
 			setMessageSort(null);
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
@@ -351,15 +451,23 @@ export function ViewerPage() {
 			setBulkSuccessMessage(null);
 			navigate('/viewer', { replace: true });
 		} catch (error: unknown) {
-			setErrorMessages(getErrorMessages(error));
+			if (
+				requestId === selectionRequestRef.current &&
+				connectionGeneration === getConnectionGeneration()
+			) {
+				setErrorMessages(getErrorMessages(error));
+			}
 		} finally {
-			setSelectionKey(null);
+			if (requestId === selectionRequestRef.current) {
+				setSelectionKey(null);
+			}
 		}
 	};
 
 	const handleRefresh = async () => {
 		setBulkSuccessMessage(null);
 		await runAction('refresh', async () => {
+			const connectionGeneration = getConnectionGeneration();
 			if (deadLetterMode) {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
 				setExpandedRows(new Set());
@@ -367,7 +475,11 @@ export function ViewerPage() {
 				return;
 			}
 
-			const nextViewer = await syncViewer(await serviceBusApi.refreshViewer());
+			const nextViewer = await serviceBusApi.refreshViewer();
+			if (!syncViewer(nextViewer, connectionGeneration)) {
+				return;
+			}
+
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setExpandedRows(new Set());
 			setMessageSort(null);
@@ -394,26 +506,38 @@ export function ViewerPage() {
 
 	const handlePeekMessageCountApply = async (count: number) => {
 		await runAction('peek-count', async () => {
+			const connectionGeneration = getConnectionGeneration();
 			const nextViewer = await serviceBusApi.updatePeekMessageCount({ peekMessageCount: count });
+			if (connectionGeneration !== getConnectionGeneration()) {
+				return;
+			}
+
 			setPeekMessageCount(count);
 
 			if (deadLetterMode) {
 				setDeadLetterViewer(await serviceBusApi.refreshDeadLetterList());
-				setExpandedRows(new Set());
-				setMessageSort(null);
 			}
+			// A new message-set load (peek-count change) must drop stale expansion and active sort in
+			// both message modes, matching the refresh/receive/entity-selection paths; search text
+			// intentionally survives and filters the new set.
 
-			await syncViewer(nextViewer);
+			setExpandedRows(new Set());
+			setMessageSort(null);
+
+			syncViewer(nextViewer, connectionGeneration);
 		});
 	};
 
 	const handleReceive = async () => {
 		await runAction('receive', async () => {
-			const nextViewer = await syncViewer(
-				await serviceBusApi.receive({
-					receiveSessionId: currentViewer?.requiresSession ? receiveSessionId : null,
-				}),
-			);
+			const connectionGeneration = getConnectionGeneration();
+			const nextViewer = await serviceBusApi.receive({
+				receiveSessionId: currentViewer?.requiresSession ? receiveSessionId : null,
+			});
+			if (!syncViewer(nextViewer, connectionGeneration)) {
+				return;
+			}
+
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setExpandedRows(new Set());
 			setMessageSort(null);
@@ -429,22 +553,36 @@ export function ViewerPage() {
 		}
 
 		const succeeded = await runAction('send', async () => {
+			const connectionGeneration = getConnectionGeneration();
 			await serviceBusApi.send(request);
+			if (connectionGeneration !== getConnectionGeneration()) {
+				return;
+			}
+
 			const sendResultMessage = buildSendResultMessage(request);
 
 			try {
-				const nextViewer = await syncViewer(await serviceBusApi.refreshViewer());
+				const nextViewer = await serviceBusApi.refreshViewer();
+				if (!syncViewer(nextViewer, connectionGeneration)) {
+					return;
+				}
+
 				setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 				setExpandedRows(new Set());
 				setMessageSort(null);
-				setViewerState({
-					...nextViewer,
-					sendResultMessage,
-				});
+				setViewerState(
+					{
+						...nextViewer,
+						sendResultMessage,
+					},
+					connectionGeneration,
+				);
 			} catch {
-				setSendErrorMessages([
-					'The message was sent successfully, but the message list could not be refreshed. Use Refresh to try again.',
-				]);
+				if (connectionGeneration === getConnectionGeneration()) {
+					setSendErrorMessages([
+						'The message was sent successfully, but the message list could not be refreshed. Use Refresh to try again.',
+					]);
+				}
 			}
 		});
 		if (!succeeded) {
@@ -452,15 +590,16 @@ export function ViewerPage() {
 		}
 	};
 
-	const runRepublish = async (request: RepublishDeadLetterRequestDto) => {
-		const isBulk = request.messageId === null;
-		setPendingAction('republish');
+	const runRepublish = async (request: RepublishDeadLetterRequestDto, isBulk: boolean) => {
+		const connectionGeneration = getConnectionGeneration();
+		startAction('republish');
 		setRepublishOutcome(null);
 		setRepublishCancelled(false);
 		setRepublishErrorMessages([]);
 		bulkCancelRequestedRef.current = false;
 
 		if (isBulk) {
+			setBulkOperationLock(true);
 			setBulkProgress({ operation: 'republish', processed: 0, failed: 0 });
 		}
 
@@ -472,7 +611,9 @@ export function ViewerPage() {
 
 		try {
 			// A bulk republish runs as a sequence of bounded requests; the loop stops when a step processes
-			// zero messages or the user cancels. Single-message republish stays one unbounded request.
+			// zero messages, when a step fails (its messages remain in the dead-letter queue, so further
+			// retries cannot make progress and may resend ambiguous copies), or when the user cancels.
+			// Single-message republish stays one unbounded request.
 			while (true) {
 				const step = await serviceBusApi.republishDeadLetter(
 					isBulk ? { ...request, maxCount: BULK_STEP_SIZE } : request,
@@ -496,12 +637,20 @@ export function ViewerPage() {
 				if (step.affectedCount + step.failedCount === 0) {
 					break;
 				}
+
+				// A failed step cannot make progress: the messages remain dead-lettered and retrying them can
+				// only repeat the failure, so stop and surface the accurate outcome instead.
+				if (!step.succeeded) {
+					break;
+				}
 			}
 
 			const republishSucceeded = !cancelled && allStepsSucceeded;
 
-			if (!isBulk && republishSucceeded) {
-				animateAndRemoveMessage(request.messageId!, 'republish');
+			// Only a genuinely processed single message animates out; with nothing affected, fall through
+			// to the list refresh so the displayed rows stay in sync with the dead-letter queue.
+			if (!isBulk && republishSucceeded && totalAffected > 0 && request.sequenceNumber !== null && request.sequenceNumber !== undefined) {
+				animateAndRemoveMessage(request.sequenceNumber, 'republish');
 				return;
 			}
 
@@ -537,17 +686,41 @@ export function ViewerPage() {
 			}
 			setRepublishErrorMessages(getErrorMessages(error));
 		} finally {
+			try {
+				if (connectionGeneration === getConnectionGeneration()) {
+					const nextViewer = await serviceBusApi.refreshViewer();
+					syncViewer(nextViewer, connectionGeneration);
+				}
+			} catch {
+				setRepublishErrorMessages((current) => [
+					...current,
+					'Entity counts could not be refreshed. Use the entity count refresh control to try again.',
+				]);
+			}
+			if (isBulk) {
+				setBulkOperationLock(false);
+			}
 			setBulkProgress(null);
-			setPendingAction(null);
+			finishAction('republish');
 		}
 	};
 
 	const startSingleRepublish = (
-		messageId: string,
+		sequenceNumber: string,
+		messageId: string | null,
 		strategy: RepublishMessageIdStrategy,
 		manualMessageId: string | null = null,
 	) => {
-		void runRepublish({ messageId, strategy, manualMessageId });
+		// The broker sequence number pins the exact message, so a null message id no longer blocks the
+		// single-message operation; only the Manual strategy still requires the current id.
+		if (strategy === 'Manual' && (messageId === null || messageId.trim().length === 0)) {
+			setRepublishOutcome(null);
+			setRepublishCancelled(false);
+			setRepublishErrorMessages(['Single-message republish requires a message ID.']);
+			return;
+		}
+
+		void runRepublish({ messageId, sequenceNumber, strategy, manualMessageId }, false);
 	};
 
 	const singleRepublishStrategyOptions =
@@ -559,16 +732,24 @@ export function ViewerPage() {
 		(option) => option.value !== 'Manual',
 	);
 
-	const handleSingleStrategyPick = (messageId: string, strategy: RepublishMessageIdStrategy) => {
-		if (strategy === 'Manual') {
-			setRepublishPrompt({ kind: 'manual', messageId });
+	const handleSingleStrategyPick = (sequenceNumber: string, messageId: string | null, strategy: RepublishMessageIdStrategy) => {
+		if (strategy === 'Manual' && messageId === null) {
+			setRepublishOutcome(null);
+			setRepublishCancelled(false);
+			setRepublishErrorMessages(['Single-message republish requires a message ID.']);
 			return;
 		}
 
-		startSingleRepublish(messageId, strategy);
+		if (strategy === 'Manual') {
+			setRepublishPrompt({ kind: 'manual', messageId, sequenceNumber });
+			return;
+		}
+
+		startSingleRepublish(sequenceNumber, messageId, strategy);
 	};
 
 	const handleBulkStrategyPick = (strategy: RepublishMessageIdStrategy) => {
+		setBulkOperationLock(true);
 		setRepublishAllConfirmStrategy(strategy);
 	};
 
@@ -577,11 +758,14 @@ export function ViewerPage() {
 		setRepublishAllConfirmStrategy(null);
 
 		if (strategy !== null) {
-			void runRepublish({ messageId: null, strategy, manualMessageId: null });
+			void runRepublish({ messageId: null, strategy, manualMessageId: null }, true);
+		} else {
+			setBulkOperationLock(false);
 		}
 	};
 
 	const handleRepublishAllCancel = () => {
+		setBulkOperationLock(false);
 		setRepublishAllConfirmStrategy(null);
 	};
 
@@ -596,18 +780,22 @@ export function ViewerPage() {
 		}
 
 		setRepublishPrompt(null);
-		startSingleRepublish(prompt.messageId, 'Manual', manualMessageId);
+		startSingleRepublish(prompt.sequenceNumber, prompt.messageId, 'Manual', manualMessageId);
 	};
 
-	const runDrop = async (messageId: string | null) => {
-		const isBulk = messageId === null;
-		setPendingAction('drop');
+	const runDrop = async (messageId: string | null, sequenceNumber: string | null = null) => {
+		// The exact broker sequence number marks a single-message drop, so a null message id no longer
+		// turns a row action into a bulk drop.
+		const isBulk = sequenceNumber === null;
+		const connectionGeneration = getConnectionGeneration();
+		startAction('drop');
 		setDropOutcome(null);
 		setDropCancelled(false);
 		setDropErrorMessages([]);
 		bulkCancelRequestedRef.current = false;
 
 		if (isBulk) {
+			setBulkOperationLock(true);
 			setBulkProgress({ operation: 'drop', processed: 0, failed: 0 });
 		}
 
@@ -619,10 +807,14 @@ export function ViewerPage() {
 
 		try {
 			// A bulk drop runs as a sequence of bounded requests; the loop stops when a step processes
-			// zero messages or the user cancels. Single-message drop stays one unbounded request.
+			// zero messages, when a step fails (its messages remain in the dead-letter queue, so further
+			// retries cannot make progress), or when the user cancels. Single-message drop stays one
+			// unbounded request.
 			while (true) {
 				const step = await serviceBusApi.dropDeadLetters(
-					isBulk ? { messageId, maxCount: BULK_STEP_SIZE } : { messageId },
+					isBulk
+						? { messageId: null, sequenceNumber: null, maxCount: BULK_STEP_SIZE }
+						: { messageId, sequenceNumber },
 				);
 				totalAffected += step.affectedCount;
 				totalFailed += step.failedCount;
@@ -643,12 +835,20 @@ export function ViewerPage() {
 				if (step.affectedCount + step.failedCount === 0) {
 					break;
 				}
+
+				// A failed step cannot make progress: the messages remain dead-lettered and retrying them can
+				// only repeat the failure, so stop and surface the accurate outcome instead.
+				if (!step.succeeded) {
+					break;
+				}
 			}
 
 			const dropSucceeded = !cancelled && allStepsSucceeded;
 
-			if (!isBulk && dropSucceeded) {
-				animateAndRemoveMessage(messageId!, 'drop');
+			// Only a genuinely processed single message animates out; with nothing affected, fall through
+			// to the list refresh so the displayed rows stay in sync with the dead-letter queue.
+			if (!isBulk && dropSucceeded && totalAffected > 0 && sequenceNumber !== null) {
+				animateAndRemoveMessage(sequenceNumber, 'drop');
 				return;
 			}
 
@@ -684,8 +884,22 @@ export function ViewerPage() {
 			}
 			setDropErrorMessages(getErrorMessages(error));
 		} finally {
+			try {
+				if (connectionGeneration === getConnectionGeneration()) {
+					const nextViewer = await serviceBusApi.refreshViewer();
+					syncViewer(nextViewer, connectionGeneration);
+				}
+			} catch {
+				setDropErrorMessages((current) => [
+					...current,
+					'Entity counts could not be refreshed. Use the entity count refresh control to try again.',
+				]);
+			}
+			if (isBulk) {
+				setBulkOperationLock(false);
+			}
 			setBulkProgress(null);
-			setPendingAction(null);
+			finishAction('drop');
 		}
 	};
 
@@ -693,17 +907,27 @@ export function ViewerPage() {
 		bulkCancelRequestedRef.current = true;
 	};
 
-	const removeMessageFromList = (messageId: string) => {
+	// Removes exactly the one row carrying the given broker sequence number (never all rows sharing a
+	// message id) and decrements the displayed total by the single processed message.
+	const removeMessageFromList = (sequenceNumber: string) => {
 		setDeadLetterViewer((current) => {
 			if (!current) {
 				return current;
 			}
 
+			const index = current.messages.findIndex(
+				(message) => message.properties.sequenceNumber === sequenceNumber,
+			);
+			if (index === -1) {
+				return current;
+			}
+
 			return {
 				...current,
-				messages: current.messages.filter(
-					(message) => message.properties.messageId !== messageId,
-				),
+				messages: [
+					...current.messages.slice(0, index),
+					...current.messages.slice(index + 1),
+				],
 				totalMessageCount:
 					current.totalMessageCount !== null ? current.totalMessageCount - 1 : null,
 			};
@@ -712,13 +936,13 @@ export function ViewerPage() {
 
 	// A successfully dropped or republished single message animates out of the list instead of a full
 	// refresh: drop turns the row gray and soft before shrinking it to zero; republish shrinks directly.
-	const animateAndRemoveMessage = (messageId: string, variant: 'drop' | 'republish') => {
-		setRemovingMessageIds((current) => new Map(current).set(messageId, variant));
+	const animateAndRemoveMessage = (sequenceNumber: string, variant: 'drop' | 'republish') => {
+		setRemovingSequenceNumbers((current) => new Map(current).set(sequenceNumber, variant));
 		window.setTimeout(() => {
-			removeMessageFromList(messageId);
-			setRemovingMessageIds((current) => {
+			removeMessageFromList(sequenceNumber);
+			setRemovingSequenceNumbers((current) => {
 				const next = new Map(current);
-				next.delete(messageId);
+				next.delete(sequenceNumber);
 				return next;
 			});
 		}, 300);
@@ -736,16 +960,16 @@ export function ViewerPage() {
 		setDropErrorMessages([]);
 	};
 
-	const handleDropSingle = (messageId: string) => {
-		setDropSingleTarget(messageId);
+	const handleDropSingle = (messageId: string | null, sequenceNumber: string) => {
+		setDropSingleTarget({ messageId, sequenceNumber });
 	};
 
 	const handleDropSingleConfirm = () => {
-		const messageId = dropSingleTarget;
+		const target = dropSingleTarget;
 		setDropSingleTarget(null);
 
-		if (messageId !== null) {
-			void runDrop(messageId);
+		if (target !== null) {
+			void runDrop(target.messageId, target.sequenceNumber);
 		}
 	};
 
@@ -759,6 +983,7 @@ export function ViewerPage() {
 	};
 
 	const handleDropAllCancel = () => {
+		setBulkOperationLock(false);
 		setDropConfirmOpen(false);
 	};
 
@@ -852,14 +1077,14 @@ export function ViewerPage() {
 		<button
 			type="button"
 			className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-			aria-busy={pendingAction === 'refresh'}
-			disabled={pendingAction === 'refresh'}
+			aria-busy={isMessageListLoading}
+			disabled={anyActionPending}
 			onClick={() => {
 				void handleRefresh();
 			}}
 		>
 			<span
-				className={`material-icons-round text-sm${pendingAction === 'refresh' ? ' animate-spin' : ''}`}
+				className={`material-icons-round text-sm${isMessageListLoading ? ' animate-spin' : ''}`}
 			>
 				refresh
 			</span>
@@ -876,8 +1101,8 @@ export function ViewerPage() {
 					: 'border-slate-200 bg-white hover:bg-slate-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800'
 			}`}
 			aria-pressed={deadLetterMode}
-			aria-busy={deadLetterMode && pendingAction === 'refresh'}
-			disabled={Boolean(currentViewer) && pendingAction !== null}
+			aria-busy={deadLetterMode && isActionPending('refresh')}
+			disabled={Boolean(currentViewer) && anyActionPending}
 			onClick={() => {
 				void handleToggleDeadLetter();
 			}}
@@ -894,12 +1119,12 @@ export function ViewerPage() {
 		<>
 			<RepublishStrategyMenu
 				align="right"
-				ariaBusy={pendingAction === 'republish'}
+				ariaBusy={isActionPending('republish')}
 				buttonClassName="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
 				buttonContent={
 					<>
 						<span className="material-icons-round text-sm">upload</span>
-						{pendingAction === 'republish' ? 'Republishing...' : 'Republish All'}
+						{isActionPending('republish') ? 'Republishing...' : 'Republish All'}
 						<span className="material-icons-round text-sm">arrow_drop_down</span>
 					</>
 				}
@@ -911,19 +1136,20 @@ export function ViewerPage() {
 			<button
 				type="button"
 				className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
-				aria-busy={pendingAction === 'drop'}
+				aria-busy={isActionPending('drop')}
 				disabled={
 					deadLetterOperationInProgress ||
 					activeMessages.length === 0
 				}
 				onClick={() => {
+					setBulkOperationLock(true);
 					setDropConfirmOpen(true);
 				}}
 			>
 				<span className="material-icons-round inline-block rotate-180 text-sm">
 					upload
 				</span>
-				{pendingAction === 'drop' ? 'Dropping...' : 'Drop All'}
+				{isActionPending('drop') ? 'Dropping...' : 'Drop All'}
 			</button>
 		</>
 	);
@@ -931,7 +1157,7 @@ export function ViewerPage() {
 	const peekCountSelector = (
 		<PeekMessageCountSelector
 			value={peekMessageCount}
-			disabled={pendingAction !== null}
+			disabled={anyActionPending}
 			onApply={(count) => {
 				void handlePeekMessageCountApply(count);
 			}}
@@ -988,7 +1214,7 @@ export function ViewerPage() {
 					: 'Standard receive mode'
 			}
 			headerAction={{
-				busy: pendingAction === 'disconnect',
+				busy: isActionPending('disconnect'),
 				icon: 'logout',
 				kind: 'button',
 				label: 'Disconnect',
@@ -1009,6 +1235,7 @@ export function ViewerPage() {
 						displayPropertyLinks={Boolean(currentViewer?.isManagementApiAvailable)}
 						entityName={currentViewer?.entityName ?? null}
 						onSelectEntity={handleSelectEntity}
+						selectionDisabled={isEntitySelectionLocked}
 						topicName={currentViewer?.topicName ?? null}
 					/>
 
@@ -1036,7 +1263,7 @@ export function ViewerPage() {
 							<SendMessageForm
 								canSend={Boolean(currentViewer?.entityName)}
 								entityName={currentViewer?.entityName ?? null}
-								isSubmitting={pendingAction === 'send'}
+								isSubmitting={isActionPending('send')}
 								requiresSession={Boolean(currentViewer?.requiresSession)}
 								sendResultMessage={currentViewer?.sendResultMessage ?? null}
 								sendErrorMessages={sendErrorMessages}
@@ -1066,14 +1293,19 @@ export function ViewerPage() {
 											/>
 											<button
 												type="button"
-												className="inline-flex items-center gap-1.5 border-l border-slate-200 px-3 py-1.5 text-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:hover:bg-zinc-800"
-												disabled={pendingAction === 'receive'}
+												className="inline-flex items-center gap-1.5 border-l border-slate-200 px-3 py-1.5 text-xs transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-zinc-800 dark:hover:bg-zinc-800 disabled:cursor-not-allowed"
+												title={
+													receiveBlockedOnPublishingTopic
+														? 'Receive is unavailable on topics: topics are a publishing surface with no directly consumable messages. Select a queue or a subscription to receive messages.'
+														: undefined
+												}
+												disabled={receiveBlockedOnPublishingTopic || isActionPending('receive')}
 												onClick={() => {
 													void handleReceive();
 												}}
 											>
 												<span className="material-icons-round text-sm">download</span>
-												{pendingAction === 'receive' ? 'Receiving...' : 'Receive'}
+												{isActionPending('receive') ? 'Receiving...' : 'Receive'}
 											</button>
 										</div>
 									</div>
@@ -1162,6 +1394,12 @@ export function ViewerPage() {
 												className="mt-6"
 											/>
 										</>
+									) : receiveBlockedOnPublishingTopic ? (
+										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
+											Topics are a publishing surface with no directly consumable
+											messages, so Receive is unavailable here. Select a queue or a
+											subscription to receive its messages.
+										</div>
 									) : (
 										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
 											Use{' '}
@@ -1313,7 +1551,7 @@ export function ViewerPage() {
 
 													return (
 														<Fragment key={rowKey}>
-															<tr className={`${MESSAGE_ROW_BASE_CLASS}${removingMessageIds.get(message.properties.messageId) === 'drop' ? ' message-row-dropping' : removingMessageIds.has(message.properties.messageId) ? ' message-row-removing' : ''}`}>
+															<tr className={`${MESSAGE_ROW_BASE_CLASS}${removingSequenceNumbers.get(message.properties.sequenceNumber) === 'drop' ? ' message-row-dropping' : removingSequenceNumbers.has(message.properties.sequenceNumber) ? ' message-row-removing' : ''}`}>
 																<td className="px-4 py-3">
 																	<div className="font-mono text-xs text-slate-700 dark:text-slate-200">
 																		{message.properties.messageId}
@@ -1359,7 +1597,7 @@ export function ViewerPage() {
 																		{deadLetterMode ? (
 																			<RepublishStrategyMenu
 																				align="right"
-																				ariaBusy={pendingAction === 'republish'}
+																				ariaBusy={isActionPending('republish')}
 																				buttonClassName="inline-flex h-7 items-center gap-1 rounded-lg bg-slate-100 px-2 text-[0.6875rem] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
 																				buttonContent={
 																					<>
@@ -1377,6 +1615,7 @@ export function ViewerPage() {
 																				options={singleRepublishStrategyOptions}
 																				onPick={(strategy) =>
 																					handleSingleStrategyPick(
+																						message.properties.sequenceNumber,
 																						message.properties.messageId,
 																						strategy,
 																					)
@@ -1393,6 +1632,7 @@ export function ViewerPage() {
 																				onClick={() =>
 																					handleDropSingle(
 																						message.properties.messageId,
+																						message.properties.sequenceNumber,
 																						)
 																				}
 																			>
@@ -1465,7 +1705,9 @@ export function ViewerPage() {
 								) : (
 									<div className="p-6">
 										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
-											{bulkSuccessMessage ?? (deadLetterMode
+											{bulkSuccessMessage ?? (isInitialActiveRefreshPending && !deadLetterMode
+											? 'Loading active messages...'
+											: deadLetterMode
 												? 'No dead-lettered messages found.'
 												: 'No messages found.')}
 										</div>
@@ -1502,7 +1744,7 @@ export function ViewerPage() {
 
 				{dropSingleTarget !== null ? (
 					<DropSingleConfirmPrompt
-						messageId={dropSingleTarget}
+						messageId={dropSingleTarget.messageId}
 						onCancel={handleDropSingleCancel}
 						onConfirm={handleDropSingleConfirm}
 					/>

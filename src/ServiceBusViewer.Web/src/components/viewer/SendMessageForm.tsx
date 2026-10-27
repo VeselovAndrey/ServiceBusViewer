@@ -113,6 +113,11 @@ export function SendMessageForm({
 	const [duplicateDetectionArmed, setDuplicateDetectionArmed] = useState(false);
 	const [pasteStatus, setPasteStatus] = useState<'idle' | 'success' | 'invalid'>('idle');
 	const pasteStatusTimerRef = useRef<number | null>(null);
+	const editVersionRef = useRef(0);
+
+	useEffect(() => {
+		editVersionRef.current += 1;
+	}, [messageBody, messageProperties, applicationProperties]);
 
 	const clearPasteStatusTimers = () => {
 		if (pasteStatusTimerRef.current !== null) {
@@ -331,6 +336,7 @@ export function SendMessageForm({
 		}
 
 		clearLoadJsonStatus();
+		const submittedEditVersion = editVersionRef.current;
 
 		try {
 			await onSubmit({
@@ -338,7 +344,9 @@ export function SendMessageForm({
 				sendMessageBody: messageBody,
 				sendMessageProperties: {
 					...messageProperties,
-					scheduledEnqueueTime: messageProperties.scheduledEnqueueTime || null,
+					scheduledEnqueueTime: messageProperties.scheduledEnqueueTime
+						? new Date(messageProperties.scheduledEnqueueTime).toISOString()
+						: null,
 				},
 			});
 		} catch {
@@ -346,7 +354,9 @@ export function SendMessageForm({
 		}
 
 		setDuplicateDetectionArmed(false);
-		resetForm();
+		if (editVersionRef.current === submittedEditVersion) {
+			resetForm();
+		}
 	};
 
 	const handleLoadJson = async () => {
@@ -685,6 +695,7 @@ export function SendMessageForm({
 							</label>
 							<input
 								type="datetime-local"
+								step="0.001"
 								className="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
 								value={messageProperties.scheduledEnqueueTime ?? ''}
 								onChange={(event) => handlePropertiesChange('scheduledEnqueueTime', event)}

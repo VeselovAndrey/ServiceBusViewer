@@ -106,6 +106,28 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
+## 1.1.0 (2026-10-27)
+
+- **Security:** Non-emulator connection strings are now masked by default on the Connect screen, while emulator values are shown automatically for local development. Independent show/hide controls remain available until a field's value changes, without changing prefill, editing, connection, or Escape-to-clear behavior.
+- **Security:** The Vite development server now listens only on `localhost` by default, so other machines cannot reach the development SPA or `/api` proxy and retrieve configured Service Bus credentials through it. Local and Aspire development workflows are preserved.
+- **Fixed:** Confirmation dialogs (Drop, Republish, and custom Peek Top prompts) are now fully modal for keyboard and assistive-technology users: opening a dialog moves focus inside it, Tab/Shift+Tab stay contained within the dialog, and the rest of the page is inert while it is open. Escape or backdrop dismissal closes the dialog and restores focus to the control that opened it, so background controls can no longer be reached or activated while a confirmation is on screen.
+- **Fixed:** Changing the Peek Top count in the active message list now clears stale expanded rows and the active column sort, matching the dead-letter mode and the other new message-set loads (entity selection, Refresh, Receive, and Send). The newly loaded list starts unsorted in load order, so no row remains expanded or sorted by the previous load, while any existing search text survives and continues to filter the new set without additional retrieval.
+- **Fixed:** The entity count auto-refresh mode and its selected interval now survive navigation between Viewer and Entity Details, and polling resumes without duplicate timers. Auto mode remains active until you explicitly choose Manual or disconnect; manual mode and the unavailable states (emulator, missing counts, disabled configuration) are unchanged.
+- **Fixed:** A directly selected publishing-only topic no longer offers an enabled Receive action that always fails: Receive is now disabled with a clear publishing-only explanation (in the button hint and the empty Last Received Message panel) instead of issuing a known-invalid request, while sending to the topic remains available and queue and subscription receiving, including session-enabled entities, is unchanged.
+- **Fixed:** Clipboard import now rejects invalid scheduled enqueue times without changing the current form, and valid values retain their seconds and millisecond precision through import and sending. Empty optional values and other partial-update behavior remain unchanged.
+- **Fixed:** Entity Details no longer shows the previous entity's properties while another entity is loading or after its details fail to load. Queue, topic, and subscription details now always match the selected entity, and out-of-order responses remain ignored.
+- **Fixed:** Clipboard import now rejects unsupported `ByteArray`, `Null`, and `Unknown` application-property types with a clear error instead of reporting success and failing only at Send. Rejected imports leave the current form unchanged, while supported property types continue to round-trip.
+- **Fixed:** Edits made to the message payload, properties, or custom properties while a send is pending are now preserved when the earlier send succeeds. The sent message still uses the exact content captured when the request started.
+- **Fixed:** Entity count badges now refresh after single and bulk dead-letter drop/republish operations. Manual and automatic count refreshes on Entity Details now update the displayed badges instead of leaving cached values visible.
+- **Fixed:** Hard reloads now explicitly refresh the active message list before displaying normal mode, preventing DLQ-backed session messages from appearing under Peeked Messages. Queue and subscription selections retain their identity, and subsequent active/DLQ toggles use the correct labels, counts, and actions.
+- **Fixed:** Scheduled enqueue times now preserve the instant selected in the browser by converting the local input to UTC before sending it to the API, regardless of the server timezone.
+- **Fixed:** Delayed viewer responses can no longer overwrite a newer entity selection or restore viewer state after Disconnect. Entity-count refreshes now apply only to the entity and connection that requested them, keeping the displayed entity consistent with subsequent message operations.
+- **Fixed:** Overlapping viewer actions (for example Refresh started while a Bulk Drop All or Republish All is running) no longer clear the in-flight operation's busy state when they finish: destructive drop/republish controls stay disabled until every in-flight operation has truly completed, and the progress, cancellation, and outcome state remain owned by the active operation.
+- **Fixed:** Persistent per-message failures in Bulk Drop All and Republish All now stop the operation immediately and report the exact affected/failed counts, instead of retrying the dead-lettered messages indefinitely and inflating the progress. A republish step that could not complete is no longer retried automatically, so an already-delivered copy cannot be resent; cancellation still stops the operation promptly.
+- **Fixed:** Single-message Drop and Republish now target the exact selected broker message by its Service Bus sequence number, so they work even when message IDs are null or duplicated. Only actually processed rows are removed from the dead-letter list and displayed totals change by the true affected count; unprocessed duplicate rows remain visible, and message IDs stay display metadata.
+- **Fixed:** Single-message republish now rejects messages without a message ID before any API request, preventing a row action from becoming an unintended Republish All. Intentional bulk republish still requires confirmation, and message search handles null IDs safely.
+- **Fixed:** Bulk Drop All and Republish All now lock entity selection and property navigation from confirmation through completion or cancellation, preventing later batches from affecting a different entity. Progress and cancellation remain available, and other entities are unchanged.
+
 ## 1.0.0 (2026-10-18)
 
 - **Added:** Message count badges in the entity menu: queues and subscriptions show active, scheduled, and dead-letter counts (e.g. `5 | 0 | 2`); topics show the sums across their subscriptions. Counts load on connect and are omitted when unavailable or unreliable (e.g. the Service Bus emulator).
@@ -118,23 +140,13 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Added:** Peek count selection on the Viewer page — presets (1, 5, 10, 30, 50, 100) or a custom value up to 500 — applied without reconnecting; the choice is saved in the browser.
 - **Added:** A theme option that follows the OS light/dark setting live; the choice is saved in the browser.
 - **Added:** Emulator connect hint on the Connect screen, with a button that fills in the emulator connection strings (separate Docker and Podman buttons when the viewer runs in a container).
-- **Added:** Sortable message-list columns with direction indicators, and a search box over the loaded messages — in both peeked and dead-letter modes.
+- **Added:** Sortable message-list columns (Message ID, Session, Delivery Count, Enqueued Time / TTL, Content Type, and Dead Letter Reason in dead-letter mode) with direction indicators, and a search box over the loaded messages — in both peeked and dead-letter modes.
 - **Added:** Confirmation prompt for Republish All, matching the Drop All confirmation.
-- **Changed:** The Dead Letter toggle now shows its target — "To Dead Letter" / "To Active" — with a matching archive/inbox icon and a fixed button width.
-- **Changed:** Republish All uses the same neutral button style as the other buttons on the page.
-- **Changed:** Viewer header layout: Refresh, the mode toggle ("To Dead Letter" / "To Active"), search, and the receive controls moved into the message-list and Last Received Message headers; in dead-letter mode Republish All and Drop All sit on a separate line below a divider.
-- **Fixed:** Dark-mode tints (dead-letter toggle, dead-letter header bar, button shadows) that were not rendering because the brand-950 theme color was missing.
+- **Changed:** The **Dead Letter** toggle now shows its target — **To Dead Letter** / **To Active** — with a matching archive/inbox icon and a fixed button width.
+- **Changed:** **Republish All** uses the same neutral button style as the other buttons on the page.
+- **Changed:** Viewer header layout: Refresh, the mode toggle, search, and the receive controls moved into the message-list and Last Received Message headers; the mode toggle is now "To Dead Letter" / "To Active"; in dead-letter mode Republish All and Drop All sit on a separate line below a divider.
+- **Fixed:** Dark-mode tints (dead-letter toggle, dead-letter header bar, button shadows) that were not rendering because the `brand-950` theme color was missing.
 - **Fixed:** Page flicker while resizing the window near layout wrap points.
-
-## 1.0.0-rc1 (2026-10-11)
-
-- **Added:** Dead Letter toggle showing the selected entity's dead-letter queue with the dead-letter reason, source, and error description.
-- **Added:** Republish dead-lettered messages to the original entity or drop them permanently — per message or in bulk (Republish All / Drop All with confirmation), with progress, cancellation, and affected/failed counts.
-- **Added:** Message-id strategy dropdown for republishing: keep original (hidden with duplicate detection), auto-generate, GUID or GUID v7, or a manual id for a single message.
-- **Added:** Total message count in the message list header when reliable counts are available.
-- **Changed:** In dead letter mode, Refresh reloads the dead-letter list and selecting another entity exits the mode; single drop/republish animates the row out; dead-letter buttons stay disabled while an operation runs.
-- **Changed:** Upgraded to Aspire 13.6.1, `Azure.Messaging.ServiceBus` 7.21.0, React 19.3, TypeScript 7, and Vite 8.3.
-- **Fixed:** Dead-letter drop and republish now allow enough time for the initial receive on session-enabled entities.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 

@@ -62,6 +62,7 @@ internal static class BusinessModelMapping
 			message.Body,
 			new ReceivedMessageProperties(
 				message.Properties.MessageId,
+				message.Properties.SequenceNumber.ToString(CultureInfo.InvariantCulture),
 				message.Properties.PartitionKey,
 				message.Properties.SessionId,
 				message.Properties.CorrelationId,

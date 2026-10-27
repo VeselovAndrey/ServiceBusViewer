@@ -127,6 +127,7 @@ public sealed class ViewerEntityServiceTests
 			Body: "body",
 			Properties: new ReceivedMessageProperties(
 				MessageId: "message-id",
+				SequenceNumber: 1,
 				PartitionKey: null,
 				SessionId: null,
 				CorrelationId: null,
