@@ -15,6 +15,7 @@ import type { SessionStateDto, ViewerState } from '../types/serviceBus';
 interface AppStateContextValue {
   sessionState: SessionStateDto | null;
   appliedEntityFilterText: string;
+  entityCountAutoRefreshMode: number | null;
   entityFilterText: string;
   errorMessages: string[];
   isLoading: boolean;
@@ -22,6 +23,7 @@ interface AppStateContextValue {
   invalidateConnectionGeneration: () => void;
   refreshSessionState: () => Promise<SessionStateDto>;
   setAppliedEntityFilterText: (filterText: string) => void;
+  setEntityCountAutoRefreshMode: (mode: number | null) => void;
   setEntityFilterText: (filterText: string) => void;
   setViewerState: (viewer: SetViewerStateValue, connectionGeneration?: number) => void;
 }
@@ -34,6 +36,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [sessionState, setSessionState] = useState<SessionStateDto | null>(null);
   const [appliedEntityFilterText, setAppliedEntityFilterText] = useState('');
   const [entityFilterText, setEntityFilterText] = useState('');
+  // Entity-count auto-refresh mode (interval seconds, or null for Manual) lives at app level:
+  // Viewer and Entity Details each mount their own refresh control, so component state resets
+  // on navigation (Bug 55).
+  const [entityCountAutoRefreshMode, setEntityCountAutoRefreshMode] = useState<number | null>(null);
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const hasLoadedRef = useRef(false);
@@ -64,6 +70,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (!nextSessionState.isConnected) {
         setAppliedEntityFilterText('');
         setEntityFilterText('');
+        // Leaving the session ends auto refresh; the user re-enables it on the next connection.
+        setEntityCountAutoRefreshMode(null);
       }
       setErrorMessages([]);
       return nextSessionState;
@@ -117,12 +125,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       sessionState,
       appliedEntityFilterText,
       entityFilterText,
+      entityCountAutoRefreshMode,
       errorMessages,
       isLoading,
       getConnectionGeneration,
       invalidateConnectionGeneration,
       refreshSessionState,
       setAppliedEntityFilterText,
+      setEntityCountAutoRefreshMode,
       setEntityFilterText,
       setViewerState,
     }),
@@ -130,11 +140,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       sessionState,
       appliedEntityFilterText,
       entityFilterText,
+      entityCountAutoRefreshMode,
       errorMessages,
       isLoading,
       getConnectionGeneration,
       invalidateConnectionGeneration,
       refreshSessionState,
+      setEntityCountAutoRefreshMode,
       setViewerState,
     ],
   );
