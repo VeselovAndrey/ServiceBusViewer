@@ -80,13 +80,16 @@ function toSendValue(value: unknown): string {
 function toDatetimeLocalValue(iso: string): string {
 	const date = new Date(iso);
 	if (Number.isNaN(date.getTime())) {
-		return '';
+		throw new Error("Property 'scheduledEnqueueTime' must be a valid date/time string.");
 	}
 
 	const pad = (component: number) => String(component).padStart(2, '0');
+	const seconds = pad(date.getSeconds());
+	const milliseconds = date.getMilliseconds();
+	const time = `${pad(date.getHours())}:${pad(date.getMinutes())}:${seconds}`;
 	return [
 		`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
-		`${pad(date.getHours())}:${pad(date.getMinutes())}`,
+		milliseconds > 0 ? `${time}.${pad(milliseconds).padStart(3, '0')}` : time,
 	].join('T');
 }
 
@@ -108,7 +111,7 @@ function parseStringProperty(
 	}
 
 	if (key === 'scheduledEnqueueTime') {
-		return toDatetimeLocalValue(raw);
+		return raw.length === 0 ? '' : toDatetimeLocalValue(raw);
 	}
 
 	return raw;

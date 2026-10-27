@@ -695,6 +695,7 @@ export function SendMessageForm({
 							</label>
 							<input
 								type="datetime-local"
+								step="0.001"
 								className="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm shadow-slate-200/40 transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-black/20 dark:focus:border-brand-400"
 								value={messageProperties.scheduledEnqueueTime ?? ''}
 								onChange={(event) => handlePropertiesChange('scheduledEnqueueTime', event)}
