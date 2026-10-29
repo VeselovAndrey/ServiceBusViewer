@@ -15,6 +15,8 @@ import {
 import { SendMessageForm } from '../components/viewer/SendMessageForm';
 import { PeekMessageCountSelector } from '../components/viewer/PeekMessageCountSelector';
 import { usePeekMessageCount } from '../hooks/usePeekMessageCount';
+import { useStoredBoolean } from '../hooks/useStoredBoolean';
+import { cx } from '../lib/cx';
 import {
 	buildPeekedMessageSummary,
 	createMessageRowKey,
@@ -44,7 +46,7 @@ import type {
 	ViewerState,
 } from '../types/serviceBus';
 
-type ViewerAction = 'disconnect' | 'drop' | 'receive' | 'refresh' | 'republish' | 'send' | 'peek-count';
+type ViewerAction = 'clear-displayed-message' | 'disconnect' | 'drop' | 'receive' | 'refresh' | 'republish' | 'send' | 'peek-count';
 
 // Number of dead-letter messages each bounded bulk step processes per request (decided in Task 25-01).
 const BULK_STEP_SIZE = 100;
@@ -180,6 +182,11 @@ export function ViewerPage() {
 	// The search text intentionally survives new message-set loads (unlike the active sort) and is
 	// re-applied to each newly loaded set; only the clear control or the user empties it.
 	const [messageSearchText, setMessageSearchText] = useState('');
+	// The last-received-message block uses the same persisted collapse-state pattern as the
+	// send-message form; a newly received message always re-expands it (see handleReceive).
+	const [isReceivedMessageOpen, setIsReceivedMessageOpen] = useStoredBoolean('receivedMessageOpen', true);
+	const receivedContentRef = useRef<HTMLDivElement | null>(null);
+	const receivedCollapseToggleRef = useRef<HTMLButtonElement | null>(null);
 
 	useEffect(() => {
 		return () => {
@@ -540,9 +547,24 @@ export function ViewerPage() {
 				return;
 			}
 
+			// A newly received message must be visible even when the block is collapsed. Only an
+			// actually completed receive re-expands; session restores, refetches, and redisplays of
+			// the already displayed message never override a user-initiated collapse.
+			if (nextViewer.displayedMessage !== null) {
+				setIsReceivedMessageOpen(true);
+			}
+
 			setReceiveSessionId(nextViewer.receiveSessionId ?? '');
 			setExpandedRows(new Set());
 			setMessageSort(null);
+		});
+	};
+
+	const handleClearDisplayedMessage = async () => {
+		await runAction('clear-displayed-message', async () => {
+			const connectionGeneration = getConnectionGeneration();
+			const nextViewer = await serviceBusApi.clearDisplayedMessage();
+			syncViewer(nextViewer, connectionGeneration);
 		});
 	};
 
@@ -639,12 +661,12 @@ export function ViewerPage() {
 					step = await serviceBusApi.republishDeadLetter(
 						isBulk
 							? {
-									...request,
-									maxCount:
-										runScopeRemaining === null
-											? BULK_STEP_SIZE
-											: Math.min(BULK_STEP_SIZE, runScopeRemaining),
-								}
+								...request,
+								maxCount:
+									runScopeRemaining === null
+										? BULK_STEP_SIZE
+										: Math.min(BULK_STEP_SIZE, runScopeRemaining),
+							}
 							: request,
 						bulkAbortController?.signal,
 					);
@@ -1074,18 +1096,18 @@ export function ViewerPage() {
 							{Object.entries(applicationProperties)
 								.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
 								.map(([key, property]) => (
-								<tr key={key}>
-									<td className="px-4 py-2 font-mono text-xs text-slate-700 dark:text-slate-200">
-										{key}
-									</td>
-									<td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
-										{formatUnknownValue(property.value)}
-									</td>
-									<td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
-										{property.type}
-									</td>
-								</tr>
-							))}
+									<tr key={key}>
+										<td className="px-4 py-2 font-mono text-xs text-slate-700 dark:text-slate-200">
+											{key}
+										</td>
+										<td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
+											{formatUnknownValue(property.value)}
+										</td>
+										<td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
+											{property.type}
+										</td>
+									</tr>
+								))}
 						</tbody>
 					</table>
 				</div>
@@ -1124,9 +1146,8 @@ export function ViewerPage() {
 		return (
 			<button
 				type="button"
-				className={`inline-flex items-center gap-1 rounded font-medium transition hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:hover:text-slate-200${
-					isActive ? ' text-brand-600 dark:text-brand-400' : ''
-				}`}
+				className={`inline-flex items-center gap-1 rounded font-medium transition hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:hover:text-slate-200${isActive ? ' text-brand-600 dark:text-brand-400' : ''
+					}`}
 				aria-label={`Sort by ${label} (${stateLabel})`}
 				title={`Sort by ${label} (${stateLabel})`}
 				onClick={() => handleSortHeaderClick(column)}
@@ -1163,11 +1184,10 @@ export function ViewerPage() {
 	const switchModeButton = (
 		<button
 			type="button"
-			className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-				deadLetterMode
+			className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${deadLetterMode
 					? 'border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-950/30 dark:text-brand-300'
 					: 'border-slate-200 bg-white hover:bg-slate-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800'
-			}`}
+				}`}
 			aria-pressed={deadLetterMode}
 			aria-busy={deadLetterMode && isActionPending('refresh')}
 			disabled={Boolean(currentViewer) && anyActionPending}
@@ -1350,6 +1370,24 @@ export function ViewerPage() {
 											message={currentViewer?.displayedMessage ?? null}
 											disabled={!currentViewer?.displayedMessage}
 										/>
+										<button
+											type="button"
+											aria-label="Clear last received message"
+											title="Clear the displayed received message"
+											disabled={!currentViewer?.displayedMessage || isActionPending('clear-displayed-message')}
+											className={cx(
+												'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[0.6875rem] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+												!currentViewer?.displayedMessage
+													? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-600'
+													: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800',
+											)}
+											onClick={handleClearDisplayedMessage}
+										>
+											<span className="material-icons-round text-sm" aria-hidden="true">
+												delete_sweep
+											</span>
+											Clear
+										</button>
 										<div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
 											<input
 												type="text"
@@ -1376,10 +1414,42 @@ export function ViewerPage() {
 												{isActionPending('receive') ? 'Receiving...' : 'Receive'}
 											</button>
 										</div>
+										<button
+											type="button"
+											ref={receivedCollapseToggleRef}
+											aria-expanded={isReceivedMessageOpen}
+											aria-controls="lastReceivedMessageContent"
+											aria-label={
+												isReceivedMessageOpen
+													? 'Collapse last received message block'
+													: 'Expand last received message block'
+											}
+											className="inline-flex h-7 w-24 items-center justify-center gap-1 rounded-lg bg-slate-100 px-2 text-[0.6875rem] font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+											onClick={() => {
+												if (isReceivedMessageOpen && receivedContentRef.current?.contains(document.activeElement)) {
+													receivedCollapseToggleRef.current?.focus();
+												}
+												setIsReceivedMessageOpen((current) => !current);
+											}}
+										>
+											<span className="material-icons-round text-sm">
+												{isReceivedMessageOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+											</span>
+											<span className="w-14 text-center">{isReceivedMessageOpen ? 'Collapse' : 'Expand'}</span>
+										</button>
 									</div>
 								</div>
 
-								<div className="p-4 lg:p-6">
+								<div
+									id="lastReceivedMessageContent"
+									ref={receivedContentRef}
+									inert={!isReceivedMessageOpen}
+									className={cx(
+										'send-form-transition',
+										!isReceivedMessageOpen && 'js-send-form-hidden',
+									)}
+								>
+									<div className="p-4 lg:p-6">
 									{currentViewer?.displayedMessage ? (
 										<>
 											<div className="grid gap-4 border-b border-dashed border-slate-200 pb-4 dark:border-slate-800 lg:grid-cols-2 xl:grid-cols-5">
@@ -1477,11 +1547,12 @@ export function ViewerPage() {
 											to lock and inspect the next available message.
 										</div>
 									)}
+									</div>
 								</div>
 							</section>
 
 							<section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
-								<div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+								<div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40">
 									{/* The two blocks share one row while they fit; when space runs out the actions
 									   block wraps to a second line and ml-auto keeps it right-aligned. */}
 									<div className="flex items-center gap-2">
@@ -1508,10 +1579,10 @@ export function ViewerPage() {
 								</div>
 
 								{deadLetterMode &&
-								((republishOutcome !== null && !republishOutcome.succeeded) ||
-									republishErrorMessages.length > 0 ||
-									(dropOutcome !== null && !dropOutcome.succeeded) ||
-									dropErrorMessages.length > 0) ? (
+									((republishOutcome !== null && !republishOutcome.succeeded) ||
+										republishErrorMessages.length > 0 ||
+										(dropOutcome !== null && !dropOutcome.succeeded) ||
+										dropErrorMessages.length > 0) ? (
 									<div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/30">
 										{republishOutcome && !republishOutcome.succeeded ? (
 											<Alert
@@ -1537,30 +1608,30 @@ export function ViewerPage() {
 								) : null}
 
 								{deadLetterMode && bulkProgress ? (
-								<div
-									aria-live="polite"
-									className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-brand-50/60 px-4 py-3 dark:border-slate-800 dark:bg-brand-950/20"
-								>
-									<div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-										<span className="material-icons-round animate-spin text-sm text-brand-500">
-											refresh
-										</span>
-										{bulkProgress.operation === 'republish' ? 'Republishing' : 'Dropping'} dead-lettered
-										messages: {bulkProgress.processed} processed, {bulkProgress.failed} failed
-									</div>
-									<button
-										type="button"
-										className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
-										disabled={bulkCancelling}
-										onClick={handleBulkCancel}
+									<div
+										aria-live="polite"
+										className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-brand-50/60 px-4 py-3 dark:border-slate-800 dark:bg-brand-950/20"
 									>
-										<span className="material-icons-round text-sm">close</span>
-										{bulkCancelling ? 'Cancelling…' : 'Cancel'}
-									</button>
-								</div>
-							) : null}
+										<div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+											<span className="material-icons-round animate-spin text-sm text-brand-500">
+												refresh
+											</span>
+											{bulkProgress.operation === 'republish' ? 'Republishing' : 'Dropping'} dead-lettered
+											messages: {bulkProgress.processed} processed, {bulkProgress.failed} failed
+										</div>
+										<button
+											type="button"
+											className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+											disabled={bulkCancelling}
+											onClick={handleBulkCancel}
+										>
+											<span className="material-icons-round text-sm">close</span>
+											{bulkCancelling ? 'Cancelling…' : 'Cancel'}
+										</button>
+									</div>
+								) : null}
 
-							{activeMessages.length ? (
+								{activeMessages.length ? (
 									<div className={`message-table-container overflow-x-auto${deadLetterMode ? ' dead-letter' : ''}`}>
 										<table className="min-w-full text-left text-sm">
 											<thead className="border-b border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
@@ -1585,9 +1656,9 @@ export function ViewerPage() {
 															['Dead Letter Reason', formatNullable(message.properties.deadLetterReason)],
 															['Dead Letter Source', formatNullable(message.properties.deadLetterSource)],
 															[
-																	'Dead Letter Error Description',
-																	formatNullable(message.properties.deadLetterErrorDescription),
-																],
+																'Dead Letter Error Description',
+																formatNullable(message.properties.deadLetterErrorDescription),
+															],
 														]
 														: [];
 													const propertyRows: Array<[string, string, string?]> = [
@@ -1671,7 +1742,7 @@ export function ViewerPage() {
 																				buttonContent={
 																					<>
 																						<span className="material-icons-round text-sm">
-																									upload
+																							upload
 																						</span>
 																						<span className="material-icons-round text-sm">
 																							arrow_drop_down
@@ -1702,7 +1773,7 @@ export function ViewerPage() {
 																					handleDropSingle(
 																						message.properties.messageId,
 																						message.properties.sequenceNumber,
-																						)
+																					)
 																				}
 																			>
 																				<span className="material-icons-round inline-block rotate-180 text-sm">
@@ -1738,17 +1809,17 @@ export function ViewerPage() {
 																					</thead>
 																					<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
 																						{[...propertyRows]
-																					.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-																					.map(([label, value, rowClassName]) => (
-																							<tr key={`${rowKey}-${label}`} className={rowClassName}>
-																								<th className="w-44 whitespace-nowrap bg-white px-4 py-2 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-																									{label}
-																								</th>
-																								<td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
-																									{value}
-																								</td>
-																							</tr>
-																						))}
+																							.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+																							.map(([label, value, rowClassName]) => (
+																								<tr key={`${rowKey}-${label}`} className={rowClassName}>
+																									<th className="w-44 whitespace-nowrap bg-white px-4 py-2 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+																										{label}
+																									</th>
+																									<td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
+																										{value}
+																									</td>
+																								</tr>
+																							))}
 																					</tbody>
 																				</table>
 																			</div>
@@ -1775,10 +1846,10 @@ export function ViewerPage() {
 									<div className="p-6">
 										<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-400">
 											{bulkSuccessMessage ?? (isInitialActiveRefreshPending && !deadLetterMode
-											? 'Loading active messages...'
-											: deadLetterMode
-												? 'No dead-lettered messages found.'
-												: 'No messages found.')}
+												? 'Loading active messages...'
+												: deadLetterMode
+													? 'No dead-lettered messages found.'
+													: 'No messages found.')}
 										</div>
 									</div>
 								)}
@@ -1796,14 +1867,14 @@ export function ViewerPage() {
 				) : null}
 
 				{republishAllConfirmStrategy !== null ? (
-				<RepublishAllConfirmPrompt
-					onCancel={handleRepublishAllCancel}
-					onConfirm={handleRepublishAllConfirm}
-					visibleCount={deadLetterViewer?.messages.length ?? 0}
-				/>
-			) : null}
+					<RepublishAllConfirmPrompt
+						onCancel={handleRepublishAllCancel}
+						onConfirm={handleRepublishAllConfirm}
+						visibleCount={deadLetterViewer?.messages.length ?? 0}
+					/>
+				) : null}
 
-			{dropConfirmOpen ? (
+				{dropConfirmOpen ? (
 					<DropAllConfirmPrompt
 						onCancel={handleDropAllCancel}
 						onConfirm={handleDropAllConfirm}

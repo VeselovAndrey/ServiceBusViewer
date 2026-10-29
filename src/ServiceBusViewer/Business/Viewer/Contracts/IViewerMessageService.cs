@@ -57,6 +57,12 @@ public interface IViewerMessageService
 	/// <returns>TThe viewer state after attempting to receive a message.</returns>
 	Task<ViewerState> ReceiveAsync(IViewerSessionState session, string? sessionId, CancellationToken cancellationToken);
 
+	/// <summary>Removes the last received message from the session so a restored client session does not redisplay it.</summary>
+	/// <param name="session">The viewer session state to update.</param>
+	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
+	/// <returns>The viewer state after clearing the displayed message.</returns>
+	Task<ViewerState> ClearDisplayedMessageAsync(IViewerSessionState session, CancellationToken cancellationToken);
+
 	/// <summary>Updates the number of messages peeked for the viewer message list and re-peeks the currently selected entity.</summary>
 	/// <param name="session">The viewer session state to update.</param>
 	/// <param name="peekMessageCount">Number of messages to peek for the viewer message list; must be a whole number from 1 through 500.</param>

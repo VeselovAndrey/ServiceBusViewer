@@ -115,6 +115,11 @@ export const serviceBusApi = {
 			method: 'POST',
 		});
 	},
+	clearDisplayedMessage() {
+		return requestJson<ViewerState>('/viewer/clear-displayed-message', {
+			method: 'POST',
+		});
+	},
 	updatePeekMessageCount(request: UpdatePeekMessageCountRequestDto) {
 		return requestJson<ViewerState>('/viewer/peek-message-count', {
 			body: JSON.stringify(request),

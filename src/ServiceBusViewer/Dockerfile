@@ -7,12 +7,13 @@ RUN npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
+ARG VERSION_SUFFIX=
 WORKDIR /workspace
 COPY ["src/ServiceBusViewer/ServiceBusViewer.csproj", "src/ServiceBusViewer/"]
 RUN dotnet restore "./src/ServiceBusViewer/ServiceBusViewer.csproj"
 COPY ["src/ServiceBusViewer/", "src/ServiceBusViewer/"]
 WORKDIR "/workspace/src/ServiceBusViewer"
-RUN dotnet publish "./ServiceBusViewer.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./ServiceBusViewer.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false /p:VersionSuffix="${VERSION_SUFFIX}"
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-composite-extra AS final
 USER $APP_UID

@@ -281,17 +281,22 @@
     transition:
       height 0.3s ease,
       opacity 0.3s ease,
+      padding-block 0.3s ease,
       visibility 0s linear 0s;
   }
 
   .send-form-transition.js-send-form-hidden {
     height: 0;
+    /* Also collapse any vertical padding owned by the transitioning element (e.g. the
+       last-received-message block), so the fully collapsed height is truly zero. */
+    padding-block: 0;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transition:
       height 0.3s ease,
       opacity 0.3s ease,
+      padding-block 0.3s ease,
       visibility 0s linear 0.3s;
   }
 }
