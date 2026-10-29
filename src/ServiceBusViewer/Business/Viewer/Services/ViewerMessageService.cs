@@ -205,6 +205,23 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 	}
 
 	/// <inheritdoc/>
+	public async Task<ViewerState> ClearDisplayedMessageAsync(IViewerSessionState session, CancellationToken cancellationToken)
+	{
+		await session.Gate.WaitAsync(cancellationToken);
+
+		try {
+			IServiceBusConnection connection = session.Connection ?? throw new ViewerNotConnectedException();
+
+			session.DisplayedMessage = null;
+
+			return session.ToViewerState(connection);
+		}
+		finally {
+			session.Gate.Release();
+		}
+	}
+
+	/// <inheritdoc/>
 	public async Task<ViewerState> UpdatePeekMessageCountAsync(IViewerSessionState session, int peekMessageCount, CancellationToken cancellationToken)
 	{
 		if (peekMessageCount is < PeekMessageCountBounds.Min or > PeekMessageCountBounds.Max)

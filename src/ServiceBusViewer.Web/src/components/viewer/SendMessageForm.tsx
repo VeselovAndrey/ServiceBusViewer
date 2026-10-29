@@ -309,6 +309,21 @@ export function SendMessageForm({
 		// A successful send is the warning reset: do not re-arm here.
 	};
 
+	// Drives the Clear button's disabled state: true while any payload, property, or
+	// custom property still holds a value.
+	const hasFormData =
+		messageBody.length > 0 ||
+		applicationProperties.length > 0 ||
+		Object.values(messageProperties).some(
+			(value) => (typeof value === 'string' ? value.length > 0 : value !== null),
+		);
+
+	const handleClearForm = () => {
+		resetForm();
+		// An explicit clear also discards the duplicate-detection concern raised by the cleared data.
+		setDuplicateDetectionArmed(false);
+	};
+
 	const handlePropertiesChange = (
 		key: keyof SendMessagePropertiesDto,
 		event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -410,7 +425,7 @@ export function SendMessageForm({
 
 	return (
 		<section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
-			<div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+			<div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40">
 				<h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
 					Send Message
 				</h2>
@@ -448,6 +463,23 @@ export function SendMessageForm({
 							: pasteStatus === 'invalid'
 								? 'Not valid JSON'
 								: 'Paste From Clipboard'}
+					</button>
+					<button
+						type="button"
+						disabled={!isOpen || !hasFormData}
+						className={cx(
+							'inline-flex h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[0.6875rem] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:border-slate-800 dark:bg-slate-900',
+							!isOpen || !hasFormData
+								? 'cursor-not-allowed text-slate-500 opacity-40 dark:text-slate-300'
+								: 'text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-white',
+						)}
+						title="Clear the payload, properties, and custom properties"
+						onClick={handleClearForm}
+					>
+						<span className="material-icons-round text-sm" aria-hidden="true">
+							delete_sweep
+						</span>
+						Clear
 					</button>
 					<button
 						type="button"
