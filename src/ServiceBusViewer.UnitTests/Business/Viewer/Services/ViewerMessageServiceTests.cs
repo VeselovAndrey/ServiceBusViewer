@@ -161,6 +161,74 @@ public sealed class ViewerMessageServiceTests
 	}
 
 	[Fact]
+	public async Task ViewerMessageService_ClearDisplayedMessageAsync_ConnectedSession_ClearsDisplayedMessageWithoutMessageRetrieval()
+	{
+		// Arrange
+		const string queueName = "default-queue";
+		QueueEntityProperties queue = EntitiesData.CreateQueueProperties(queueName);
+
+		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
+		connection.AvailableEntities.Returns((IReadOnlyList<EntityProperties>)[queue]);
+		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
+
+		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
+		using var sessionScope = new ViewerSessionScope();
+		IViewerSessionState session = sessionScope.State;
+		session.Connection = connection;
+		session.SelectedEntityId = new QueueEntityId(queueName);
+		session.CurrentMessages = ReceivedMessageList.Empty;
+		session.DisplayedMessage = CreateDisplayedMessage();
+
+		// Act
+		ViewerState state = await service.ClearDisplayedMessageAsync(session, CancellationToken.None);
+
+		// Assert
+		Assert.Null(session.DisplayedMessage);
+		Assert.Null(state.DisplayedMessage);
+		await connection.DidNotReceive().ReceiveMessageAsync(Arg.Any<EntityId>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+		await connection.DidNotReceive().PeekMessagesAsync(Arg.Any<EntityId>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ViewerMessageService_ClearDisplayedMessageAsync_DisconnectedSession_ThrowsViewerNotConnectedException()
+	{
+		// Arrange
+		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
+		using var sessionScope = ViewerSessionScope.CreateDisconnected();
+		IViewerSessionState session = sessionScope.State;
+		session.DisplayedMessage = CreateDisplayedMessage();
+
+		// Act
+		Task action() => service.ClearDisplayedMessageAsync(session, CancellationToken.None);
+
+		// Assert
+		await Assert.ThrowsAsync<ViewerNotConnectedException>(action);
+		Assert.NotNull(session.DisplayedMessage);
+	}
+
+	private static ReceivedMessage CreateDisplayedMessage()
+		=> new ReceivedMessage(
+			Body: "body",
+			Properties: new ReceivedMessageProperties(
+				MessageId: "message-id",
+				SequenceNumber: 1,
+				PartitionKey: null,
+				SessionId: null,
+				CorrelationId: null,
+				ContentType: null,
+				DeliveryCount: 1,
+				EnqueuedTimeUtc: DateTimeOffset.UtcNow,
+				ScheduledEnqueueTime: null,
+				TimeToLive: null,
+				To: null,
+				ReplyTo: null,
+				Subject: null,
+				DeadLetterReason: null,
+				DeadLetterSource: null,
+				DeadLetterErrorDescription: null),
+			ApplicationProperties: new Dictionary<string, object>());
+
+	[Fact]
 	public async Task ViewerMessageService_SendAsync_NonSessionEntity_SendsCommandAndClearsReceiveSession()
 	{
 		// Arrange
@@ -270,7 +338,7 @@ public sealed class ViewerMessageServiceTests
 		const string queueName = "default-queue";
 
 		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
-		connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+		connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<long?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
 			.Returns(new DeadLetterOperationResult(true, 1, 0, null));
 
 		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
@@ -280,7 +348,7 @@ public sealed class ViewerMessageServiceTests
 		session.SelectedEntityId = new QueueEntityId(queueName);
 
 		// Act
-		await service.DropDeadLetterMessagesAsync(session, null, null, CancellationToken.None);
+		await service.DropDeadLetterMessagesAsync(session, null, null, null, CancellationToken.None);
 
 		// Assert
 		await connection.Received(1).RefreshEntityMessageCountsAsync(new QueueEntityId(queueName), Arg.Any<CancellationToken>());
@@ -295,7 +363,7 @@ public sealed class ViewerMessageServiceTests
 
 		IServiceBusConnection connection = Substitute.For<IServiceBusConnection>();
 		connection.GetEntityProperties(new QueueEntityId(queueName)).Returns(queue);
-		connection.RepublishDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<RepublishMessageIdStrategy>(), Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
+		connection.RepublishDeadLetterMessagesAsync(new QueueEntityId(queueName), Arg.Any<IReadOnlyCollection<string>?>(), Arg.Any<long?>(), Arg.Any<RepublishMessageIdStrategy>(), Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<CancellationToken>())
 			.Returns(new DeadLetterOperationResult(true, 1, 0, null));
 
 		var service = new ViewerMessageService(NullLogger<ViewerMessageService>.Instance);
@@ -305,7 +373,7 @@ public sealed class ViewerMessageServiceTests
 		session.SelectedEntityId = new QueueEntityId(queueName);
 
 		// Act
-		await service.RepublishDeadLetterMessagesAsync(session, null, RepublishMessageIdStrategy.Guid, null, null, CancellationToken.None);
+		await service.RepublishDeadLetterMessagesAsync(session, null, null, RepublishMessageIdStrategy.Guid, null, null, CancellationToken.None);
 
 		// Assert
 		await connection.Received(1).RefreshEntityMessageCountsAsync(new QueueEntityId(queueName), Arg.Any<CancellationToken>());

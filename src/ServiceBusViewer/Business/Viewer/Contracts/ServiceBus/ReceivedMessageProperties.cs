@@ -1,7 +1,8 @@
 namespace ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 
 /// <summary>Represents the system properties of a received message.</summary>
-/// <param name="MessageId">The message id.</param>
+/// <param name="MessageId">The message id, if any.</param>
+/// <param name="SequenceNumber">The exact broker sequence number assigned by Service Bus, unique within the entity's dead-letter queue.</param>
 /// <param name="PartitionKey">The partition key, if any.</param>
 /// <param name="SessionId">The session id, if any.</param>
 /// <param name="CorrelationId">The correlation id, if any.</param>
@@ -17,7 +18,8 @@ namespace ServiceBusViewer.Business.Viewer.Contracts.ServiceBus;
 /// <param name="DeadLetterSource">The dead-letter source reported by Service Bus, if any.</param>
 /// <param name="DeadLetterErrorDescription">The dead-letter error description reported by Service Bus, if any.</param>
 public sealed record ReceivedMessageProperties(
-	string MessageId,
+	string? MessageId,
+	long SequenceNumber,
 	string? PartitionKey,
 	string? SessionId,
 	string? CorrelationId,

@@ -65,6 +65,10 @@ public interface IServiceBusConnection : IAsyncDisposable
 	/// </summary>
 	/// <param name="entityId">Identifier of the entity whose dead-letter queue is republished from.</param>
 	/// <param name="messageIds">Message ids of the dead-lettered messages to republish, or <c>null</c> to republish every message currently in the dead-letter queue.</param>
+	/// <param name="sequenceNumber">
+	/// The exact broker sequence number of the single dead-lettered message to republish, or <c>null</c> to keep the message-id-based or bulk behavior.
+	/// When set, it selects exactly one message independently of its message id and takes precedence over <paramref name="messageIds"/>.
+	/// </param>
 	/// <param name="strategy">Message id strategy applied to each republished copy.</param>
 	/// <param name="manualMessageId">The message id assigned to the republished copy when the strategy is Manual; required for a single-message manual republish and not
 	/// supported for bulk republish.</param>
@@ -74,20 +78,24 @@ public interface IServiceBusConnection : IAsyncDisposable
 	/// </param>
 	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>A task that completes with the outcome summary reporting how many messages were moved and how many failed and remain in the dead-letter queue.</returns>
-	Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(EntityId entityId, IReadOnlyCollection<string>? messageIds, RepublishMessageIdStrategy strategy, string? manualMessageId, int? maxMessages, CancellationToken cancellationToken);
+	Task<DeadLetterOperationResult> RepublishDeadLetterMessagesAsync(EntityId entityId, IReadOnlyCollection<string>? messageIds, long? sequenceNumber, RepublishMessageIdStrategy strategy, string? manualMessageId, int? maxMessages, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Permanently deletes dead-lettered messages from the requested entity's $DeadLetterQueue without re-delivering them.
 	/// </summary>
 	/// <param name="entityId">Identifier of the entity whose dead-letter queue is dropped from.</param>
 	/// <param name="messageIds">Message ids of the dead-lettered messages to drop, or <c>null</c> to drop every message currently in the dead-letter queue.</param>
+	/// <param name="sequenceNumber">
+	/// The exact broker sequence number of the single dead-lettered message to drop, or <c>null</c> to keep the message-id-based or bulk behavior.
+	/// When set, it selects exactly one message independently of its message id and takes precedence over <paramref name="messageIds"/>.
+	/// </param>
 	/// <param name="maxMessages">
 	/// Maximum number of messages a bulk drop processes in this call, returning the partial outcome; <c>null</c> keeps the unbounded behavior.
 	/// Applies only to bulk drops (<paramref name="messageIds"/> is <c>null</c>); explicit message-id lists already bound the work.
 	/// </param>
 	/// <param name="cancellationToken">Optional <seealso cref="CancellationToken"/> to propagate notifications that the operation should be cancelled.</param>
 	/// <returns>A task that completes with the outcome summary reporting how many messages were dropped and how many failed and remain in the dead-letter queue.</returns>
-	Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(EntityId entityId, IReadOnlyCollection<string>? messageIds, int? maxMessages, CancellationToken cancellationToken);
+	Task<DeadLetterOperationResult> DropDeadLetterMessagesAsync(EntityId entityId, IReadOnlyCollection<string>? messageIds, long? sequenceNumber, int? maxMessages, CancellationToken cancellationToken);
 
 	/// <summary>Receives the next available message from the requested entity.</summary>
 	/// <param name="entityId">Identifier of the entity to receive from.</param>

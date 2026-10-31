@@ -15,6 +15,7 @@ interface EntitySidebarProps {
   displayPropertyLinks: boolean;
   entityName: string | null;
   onSelectEntity?: (entity: EntityIdDto) => Promise<void> | void;
+  selectionDisabled?: boolean;
   topicName: string | null;
 }
 
@@ -34,6 +35,7 @@ export function EntitySidebar({
   displayPropertyLinks,
   entityName,
   onSelectEntity,
+  selectionDisabled = false,
   topicName,
 }: EntitySidebarProps) {
   const { bindTooltip } = useEntityTooltip();
@@ -153,7 +155,7 @@ export function EntitySidebar({
                           ? 'font-medium text-brand-600 dark:text-brand-100'
                           : 'text-slate-600 dark:text-slate-300',
                       )}
-                      disabled={!onSelectEntity || activeSelectionKey === entityKey}
+                      disabled={!onSelectEntity || selectionDisabled || activeSelectionKey === entityKey}
                       onClick={() => {
                         if (onSelectEntity) {
                           void onSelectEntity(queue);
@@ -168,7 +170,7 @@ export function EntitySidebar({
                     <EntityMessageCountsBadge
                       counts={usesDevelopmentEmulator ? null : queue.messageCounts}
                       onClick={
-                        onSelectEntity
+                        onSelectEntity && !selectionDisabled
                           ? () => {
                               void onSelectEntity(queue);
                             }
@@ -176,7 +178,7 @@ export function EntitySidebar({
                       }
                     />
 
-                    {displayPropertyLinks ? (
+                    {displayPropertyLinks && !selectionDisabled ? (
                       <Link
                         className="inline-flex h-6 w-6 shrink-0 items-center justify-center self-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-zinc-700 dark:hover:text-slate-100"
                         title="View queue properties"
@@ -235,7 +237,7 @@ export function EntitySidebar({
 
                       <EntityMessageCountsBadge counts={usesDevelopmentEmulator ? null : topicCounts} />
 
-                      {displayPropertyLinks ? (
+                      {displayPropertyLinks && !selectionDisabled ? (
                         <Link
                           className="inline-flex h-6 w-6 shrink-0 items-center justify-center self-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-zinc-700 dark:hover:text-slate-100"
                           title="View topic properties"
@@ -273,7 +275,7 @@ export function EntitySidebar({
                                     ? 'font-medium text-brand-600 dark:text-brand-100'
                                     : 'text-slate-600 dark:text-slate-300',
                                 )}
-                                disabled={!onSelectEntity || activeSelectionKey === entityKey}
+                                disabled={!onSelectEntity || selectionDisabled || activeSelectionKey === entityKey}
                                 onClick={() => {
                                   if (onSelectEntity) {
                                     void onSelectEntity(subscription);
@@ -288,7 +290,7 @@ export function EntitySidebar({
                               <EntityMessageCountsBadge
                                 counts={usesDevelopmentEmulator ? null : subscription.messageCounts}
                                 onClick={
-                                  onSelectEntity
+                                  onSelectEntity && !selectionDisabled
                                     ? () => {
                                         void onSelectEntity(subscription);
                                       }
@@ -296,7 +298,7 @@ export function EntitySidebar({
                                 }
                               />
 
-                              {displayPropertyLinks ? (
+                              {displayPropertyLinks && !selectionDisabled ? (
                                 <Link
                                   className="inline-flex h-6 w-6 shrink-0 items-center justify-center self-center rounded text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-zinc-700 dark:hover:text-slate-100"
                                   title="View subscription properties"

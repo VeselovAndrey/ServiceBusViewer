@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { serviceBusApi } from '../api/serviceBusApi';
 import { EntityDetailsContent } from '../components/details/EntityDetailsContent';
@@ -11,7 +11,8 @@ import type { EntityDetailsDto, EntityIdDto } from '../types/serviceBus';
 
 export function EntityDetailsPage() {
   const navigate = useNavigate();
-  const { sessionState, setViewerState } = useAppState();
+  const { sessionState, getConnectionGeneration, setViewerState } = useAppState();
+  const selectionRequestRef = useRef(0);
   const [searchParams] = useSearchParams();
   const [details, setDetails] = useState<EntityDetailsDto | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -65,24 +66,43 @@ export function EntityDetailsPage() {
   }
 
   const handleSelectEntity = async (entity: EntityIdDto) => {
+    const requestId = ++selectionRequestRef.current;
+    const connectionGeneration = getConnectionGeneration();
     const nextSelectionKey = getEntityKey(entity);
     setSelectionKey(nextSelectionKey);
 
     try {
       const nextViewer =
         (await serviceBusApi.selectEntity(entity)) ?? (await serviceBusApi.getViewer());
-      setViewerState(nextViewer);
+      if (
+        requestId !== selectionRequestRef.current ||
+        connectionGeneration !== getConnectionGeneration()
+      ) {
+        return;
+      }
+
+      setViewerState(nextViewer, connectionGeneration);
       navigate('/viewer', { replace: true });
     } catch (error: unknown) {
-      setErrorMessage(getErrorMessages(error)[0] ?? 'Unable to switch entity.');
+      if (
+        requestId === selectionRequestRef.current &&
+        connectionGeneration === getConnectionGeneration()
+      ) {
+        setErrorMessage(getErrorMessages(error)[0] ?? 'Unable to switch entity.');
+      }
     } finally {
-      setSelectionKey(null);
+      if (requestId === selectionRequestRef.current) {
+        setSelectionKey(null);
+      }
     }
   };
 
-  const currentDetails = details;
+  const currentDetails =
+    details?.type === type && details.name === name && details.topicName === topicName
+      ? details
+      : null;
   const availableEntities =
-    currentDetails?.availableEntities ?? sessionState.viewer?.availableEntities ?? [];
+    sessionState.viewer?.availableEntities ?? currentDetails?.availableEntities ?? [];
   const managementAvailable =
     currentDetails?.isManagementApiAvailable ?? sessionState.viewer?.isManagementApiAvailable ?? false;
   const headerHostName =

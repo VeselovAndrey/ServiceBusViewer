@@ -85,16 +85,18 @@ export const serviceBusApi = {
 			method: 'POST',
 		});
 	},
-	republishDeadLetter(request: RepublishDeadLetterRequestDto) {
+	republishDeadLetter(request: RepublishDeadLetterRequestDto, signal?: AbortSignal) {
 		return requestJson<RepublishDeadLetterResponseDto>('/viewer/republish-dlq', {
 			method: 'POST',
 			body: JSON.stringify(request),
+			signal,
 		});
 	},
-	dropDeadLetters(request: DropDeadLettersRequestDto) {
+	dropDeadLetters(request: DropDeadLettersRequestDto, signal?: AbortSignal) {
 		return requestJson<DropDeadLettersResponseDto>('/viewer/drop-dlq', {
 			method: 'POST',
 			body: JSON.stringify(request),
+			signal,
 		});
 	},
 	selectEntity(entity: EntityIdDto) {
@@ -110,6 +112,11 @@ export const serviceBusApi = {
 	receive(request: ReceiveRequestDto) {
 		return requestJson<ViewerState>('/viewer/receive', {
 			body: JSON.stringify(request),
+			method: 'POST',
+		});
+	},
+	clearDisplayedMessage() {
+		return requestJson<ViewerState>('/viewer/clear-displayed-message', {
 			method: 'POST',
 		});
 	},

@@ -1,5 +1,6 @@
 namespace ServiceBusViewer.Api.Endpoints.Viewer;
 
+using ServiceBusViewer.Api.Endpoints.Viewer.ClearDisplayedMessage;
 using ServiceBusViewer.Api.Endpoints.Viewer.DropDeadLetters;
 using ServiceBusViewer.Api.Endpoints.Viewer.GetViewer;
 using ServiceBusViewer.Api.Endpoints.Viewer.Receive;
@@ -23,6 +24,7 @@ internal static class ViewerGroupBuilder
 		viewerGroup.MapPost("/drop-dlq", DropDeadLettersRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/select-entity", SelectEntityRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/receive", ReceiveRequestHandler.HandleAsync);
+		viewerGroup.MapPost("/clear-displayed-message", ClearDisplayedMessageRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/peek-message-count", UpdatePeekMessageCountRequestHandler.HandleAsync);
 		viewerGroup.MapPost("/send", SendRequestHandler.HandleAsync);
 

@@ -168,11 +168,188 @@ public sealed class ServiceBusConnectionTests
 		Assert.Null(connection.GetEntityProperties(new QueueEntityId(queueName)).MessageCounts);
 	}
 
+	[Theory]
+	[InlineData("duplicate")]
+	[InlineData(null)]
+	public async Task ServiceBusConnection_DropDeadLetterMessagesAsync_SequenceNumberMatchesDuplicateOrNullIds_CompletesOnlySelectedMessage(string? messageId)
+	{
+		// Arrange
+		const string queueName = "queue-a";
+		ServiceBusClient client = Substitute.For<ServiceBusClient>();
+		ServiceBusReceiver receiver = Substitute.For<ServiceBusReceiver>();
+		ServiceBusReceivedMessage first = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: messageId, sequenceNumber: 1, body: BinaryData.FromString("first"));
+		ServiceBusReceivedMessage second = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: messageId, sequenceNumber: 2, body: BinaryData.FromString("second"));
+		IReadOnlyList<ServiceBusReceivedMessage> batch = [first, second];
+		IReadOnlyCollection<string>? messageIds = messageId is null ? null : [messageId];
+		client.CreateReceiver(queueName, Arg.Any<ServiceBusReceiverOptions>()).Returns(receiver);
+		receiver.ReceiveMessagesAsync(10, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>()).Returns(batch);
+		await using var connection = CreateConnection(client, EntitiesData.CreateQueueProperties(queueName));
+
+		// Act
+		DeadLetterOperationResult result = await connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), messageIds, 2, null, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(new DeadLetterOperationResult(true, 1, 0, null), result);
+		await receiver.Received(1).CompleteMessageAsync(second, Arg.Any<CancellationToken>());
+		await receiver.DidNotReceive().CompleteMessageAsync(first, Arg.Any<CancellationToken>());
+	}
+
+	[Theory]
+	[InlineData("duplicate")]
+	[InlineData(null)]
+	public async Task ServiceBusConnection_RepublishDeadLetterMessagesAsync_SequenceNumberMatchesDuplicateOrNullIds_RepublishesOnlySelectedMessage(string? messageId)
+	{
+		// Arrange
+		const string queueName = "queue-a";
+		ServiceBusClient client = Substitute.For<ServiceBusClient>();
+		ServiceBusReceiver receiver = Substitute.For<ServiceBusReceiver>();
+		ServiceBusSender sender = Substitute.For<ServiceBusSender>();
+		ServiceBusReceivedMessage first = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: messageId, sequenceNumber: 1, body: BinaryData.FromString("first"));
+		ServiceBusReceivedMessage second = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: messageId, sequenceNumber: 2, body: BinaryData.FromString("second"));
+		IReadOnlyList<ServiceBusReceivedMessage> batch = [first, second];
+		IReadOnlyCollection<string>? messageIds = messageId is null ? null : [messageId];
+		client.CreateReceiver(queueName, Arg.Any<ServiceBusReceiverOptions>()).Returns(receiver);
+		client.CreateSender(queueName).Returns(sender);
+		receiver.ReceiveMessagesAsync(10, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>()).Returns(batch);
+		await using var connection = CreateConnection(client, EntitiesData.CreateQueueProperties(queueName));
+
+		// Act
+		DeadLetterOperationResult result = await connection.RepublishDeadLetterMessagesAsync(new QueueEntityId(queueName), messageIds, 2, RepublishMessageIdStrategy.KeepOriginal, null, null, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(new DeadLetterOperationResult(true, 1, 0, null), result);
+		await sender.Received(1).SendMessageAsync(Arg.Is<ServiceBusMessage>(message => message.Body.ToString() == "second"), Arg.Any<CancellationToken>());
+		await receiver.Received(1).CompleteMessageAsync(second, Arg.Any<CancellationToken>());
+		await receiver.DidNotReceive().CompleteMessageAsync(first, Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ServiceBusConnection_DropDeadLetterMessagesAsync_SequenceTargetInLaterBatch_ScansUntilSelectedMessage()
+	{
+		// Arrange
+		const string queueName = "queue-a";
+		ServiceBusClient client = Substitute.For<ServiceBusClient>();
+		ServiceBusReceiver receiver = Substitute.For<ServiceBusReceiver>();
+		ServiceBusReceivedMessage first = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: "duplicate", sequenceNumber: 1);
+		ServiceBusReceivedMessage second = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: "duplicate", sequenceNumber: 2);
+		IReadOnlyList<ServiceBusReceivedMessage> firstBatch = [first];
+		IReadOnlyList<ServiceBusReceivedMessage> secondBatch = [second];
+		client.CreateReceiver(queueName, Arg.Any<ServiceBusReceiverOptions>()).Returns(receiver);
+		receiver.ReceiveMessagesAsync(10, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>()).Returns(firstBatch, secondBatch);
+		await using var connection = CreateConnection(client, EntitiesData.CreateQueueProperties(queueName));
+
+		// Act
+		DeadLetterOperationResult result = await connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), ["duplicate"], 2, null, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(new DeadLetterOperationResult(true, 1, 0, null), result);
+		await receiver.Received(1).CompleteMessageAsync(second, Arg.Any<CancellationToken>());
+		await receiver.DidNotReceive().CompleteMessageAsync(first, Arg.Any<CancellationToken>());
+		await receiver.Received(1).AbandonMessageAsync(first, propertiesToModify: null, Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ServiceBusConnection_DropDeadLetterMessagesAsync_SequenceTargetNotFound_ReleasesNonmatchesAndReportsNotFound()
+	{
+		// Arrange
+		const string queueName = "queue-a";
+		ServiceBusClient client = Substitute.For<ServiceBusClient>();
+		ServiceBusReceiver receiver = Substitute.For<ServiceBusReceiver>();
+		ServiceBusReceivedMessage message = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: "duplicate", sequenceNumber: 1);
+		IReadOnlyList<ServiceBusReceivedMessage> nonmatchingBatch = [message];
+		IReadOnlyList<ServiceBusReceivedMessage> emptyBatch = [];
+		client.CreateReceiver(queueName, Arg.Any<ServiceBusReceiverOptions>()).Returns(receiver);
+		receiver.ReceiveMessagesAsync(10, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>()).Returns(nonmatchingBatch, emptyBatch);
+		await using var connection = CreateConnection(client, EntitiesData.CreateQueueProperties(queueName));
+
+		// Act
+		DeadLetterOperationResult result = await connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), ["duplicate"], 2, null, CancellationToken.None);
+
+		// Assert
+		Assert.False(result.Succeeded);
+		Assert.Equal(0, result.AffectedCount);
+		Assert.Contains("sequence number 2 was not found", result.Detail);
+		await receiver.Received(1).AbandonMessageAsync(message, propertiesToModify: null, Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ServiceBusConnection_DropDeadLetterMessagesAsync_LegacyMessageIdRequest_CompletesOnlyFirstMatch()
+	{
+		// Arrange
+		const string queueName = "queue-a";
+		ServiceBusClient client = Substitute.For<ServiceBusClient>();
+		ServiceBusReceiver receiver = Substitute.For<ServiceBusReceiver>();
+		ServiceBusReceivedMessage first = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: "duplicate", sequenceNumber: 1);
+		ServiceBusReceivedMessage second = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: "duplicate", sequenceNumber: 2);
+		IReadOnlyList<ServiceBusReceivedMessage> batch = [first, second];
+		client.CreateReceiver(queueName, Arg.Any<ServiceBusReceiverOptions>()).Returns(receiver);
+		receiver.ReceiveMessagesAsync(10, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>()).Returns(batch);
+		await using var connection = CreateConnection(client, EntitiesData.CreateQueueProperties(queueName));
+
+		// Act
+		DeadLetterOperationResult result = await connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), ["duplicate"], null, null, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(new DeadLetterOperationResult(true, 1, 0, null), result);
+		await receiver.Received(1).CompleteMessageAsync(first, Arg.Any<CancellationToken>());
+		await receiver.DidNotReceive().CompleteMessageAsync(second, Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ServiceBusConnection_DropDeadLetterMessagesAsync_BulkRequestWithoutSequenceNumber_HonorsMessageBound()
+	{
+		// Arrange
+		const string queueName = "queue-a";
+		ServiceBusClient client = Substitute.For<ServiceBusClient>();
+		ServiceBusReceiver receiver = Substitute.For<ServiceBusReceiver>();
+		ServiceBusReceivedMessage first = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: "first", sequenceNumber: 1);
+		ServiceBusReceivedMessage second = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: "second", sequenceNumber: 2);
+		IReadOnlyList<ServiceBusReceivedMessage> batch = [first, second];
+		client.CreateReceiver(queueName, Arg.Any<ServiceBusReceiverOptions>()).Returns(receiver);
+		receiver.ReceiveMessagesAsync(10, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>()).Returns(batch);
+		await using var connection = CreateConnection(client, EntitiesData.CreateQueueProperties(queueName));
+
+		// Act
+		DeadLetterOperationResult result = await connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), null, null, 1, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(new DeadLetterOperationResult(true, 1, 0, null), result);
+		await receiver.Received(1).CompleteMessageAsync(first, Arg.Any<CancellationToken>());
+		await receiver.DidNotReceive().CompleteMessageAsync(second, Arg.Any<CancellationToken>());
+	}
+
+	[Fact]
+	public async Task ServiceBusConnection_DropDeadLetterMessagesAsync_SequenceTargetFails_DoesNotAlsoReportNotFound()
+	{
+		// Arrange
+		const string queueName = "queue-a";
+		ServiceBusClient client = Substitute.For<ServiceBusClient>();
+		ServiceBusReceiver receiver = Substitute.For<ServiceBusReceiver>();
+		ServiceBusReceivedMessage message = ServiceBusModelFactory.ServiceBusReceivedMessage(messageId: "duplicate", sequenceNumber: 2, body: BinaryData.FromString("second"));
+		IReadOnlyList<ServiceBusReceivedMessage> batch = [message];
+		client.CreateReceiver(queueName, Arg.Any<ServiceBusReceiverOptions>()).Returns(receiver);
+		receiver.ReceiveMessagesAsync(10, Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>()).Returns(batch);
+		receiver.CompleteMessageAsync(message, Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("Lock lost."));
+		await using var connection = CreateConnection(client, EntitiesData.CreateQueueProperties(queueName));
+
+		// Act
+		DeadLetterOperationResult result = await connection.DropDeadLetterMessagesAsync(new QueueEntityId(queueName), ["duplicate"], 2, null, CancellationToken.None);
+
+		// Assert
+		Assert.False(result.Succeeded);
+		Assert.Equal(1, result.FailedCount);
+		Assert.Contains("could not be dropped", result.Detail);
+		Assert.DoesNotContain("not found", result.Detail);
+	}
+
 	private static TopicEntityProperties CreateTopicProperties(string name)
 		=> new(name, TimeSpan.FromDays(1), false, TimeSpan.FromMinutes(10), true, false, TimeSpan.FromDays(30));
 
 	private static SubscriptionEntityProperties CreateSubscriptionProperties(string name, string topicName)
 		=> new(name, topicName, false, TimeSpan.FromMinutes(1), 10, TimeSpan.FromDays(1), false, true, TimeSpan.FromDays(30), []);
+
+	private static ServiceBusConnection CreateConnection(ServiceBusClient client, params EntityProperties[] entities)
+		=> new(client, null, "localhost", availableEntities: entities);
 
 	private static ServiceBusConnection CreateConnection(EntityProperties[] entities, ServiceBusAdministrationClient adminClient)
 		=> new(

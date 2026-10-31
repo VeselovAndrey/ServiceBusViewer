@@ -7,12 +7,23 @@ import {
   parseEntityCountAutoRefreshInterval,
 } from '../../lib/entityCountAutoRefreshInterval';
 import { useAppState } from '../../state/AppStateContext';
+import type { ViewerState } from '../../types/serviceBus';
+
+const getViewerEntityKey = (viewer: ViewerState) =>
+  `${viewer.topicName ?? ''}:${viewer.entityName ?? ''}`;
 
 export function EntityRefreshControl() {
-  const { sessionState, setViewerState } = useAppState();
+  const {
+    sessionState,
+    getConnectionGeneration,
+    setViewerState,
+    entityCountAutoRefreshMode,
+    setEntityCountAutoRefreshMode,
+  } = useAppState();
   const isConnected = sessionState?.isConnected ?? false;
   // The Service Bus emulator reports no runtime counts: hide the count refresh control there entirely.
   const usesDevelopmentEmulator = sessionState?.viewer?.usesDevelopmentEmulator ?? false;
+  const viewerEntityKey = sessionState?.viewer ? getViewerEntityKey(sessionState.viewer) : null;
   // Counts may also be unavailable without the emulator (e.g. direct entity access without management): offer no auto refresh then.
   const countsAvailable = (sessionState?.viewer?.availableEntities ?? []).some(
     (entity) => entity.messageCounts !== null,
@@ -25,7 +36,9 @@ export function EntityRefreshControl() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const refreshInFlightRef = useRef(false);
-  const [autoActive, setAutoActive] = useState(false);
+  // Auto mode is app-level state (Bug 55): Viewer and Entity Details each remount this control,
+  // so a component-local flag would silently fall back to Manual on navigation.
+  const autoActive = entityCountAutoRefreshMode !== null;
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [customEditorOpen, setCustomEditorOpen] = useState(false);
@@ -44,14 +57,21 @@ export function EntityRefreshControl() {
 
     refreshInFlightRef.current = true;
     setIsRefreshing(true);
+    const connectionGeneration = getConnectionGeneration();
+    const requestEntityKey = viewerEntityKey;
 
     try {
       const nextViewer = await serviceBusApi.refreshViewer();
-      // Keep the transient send result banner: the refresh response always carries null for it.
-      setViewerState((current) =>
-        current !== null && nextViewer !== null
-          ? { ...nextViewer, sendResultMessage: current.sendResultMessage }
-          : nextViewer,
+      // Keep the transient send result banner, and apply counts only to the entity that requested them.
+      setViewerState(
+        (current) =>
+          current !== null &&
+          requestEntityKey !== null &&
+          getViewerEntityKey(current) === requestEntityKey &&
+          getViewerEntityKey(nextViewer) === requestEntityKey
+            ? { ...nextViewer, sendResultMessage: current.sendResultMessage }
+            : current,
+        connectionGeneration,
       );
     } catch {
       // Best-effort refresh: the existing counts remain displayed.
@@ -59,14 +79,15 @@ export function EntityRefreshControl() {
       refreshInFlightRef.current = false;
       setIsRefreshing(false);
     }
-  }, [setViewerState]);
+  }, [getConnectionGeneration, setViewerState, viewerEntityKey]);
 
-  // Stop auto refresh when it is no longer available (e.g. after disconnect).
+  // Stop auto refresh when it is no longer available (e.g. counts are no longer reported).
+  // A disconnect is handled by the app state, which resets the mode while the session ends.
   useEffect(() => {
     if (autoActive && !autoAvailable) {
-      setAutoActive(false);
+      setEntityCountAutoRefreshMode(null);
     }
-  }, [autoActive, autoAvailable]);
+  }, [autoActive, autoAvailable, setEntityCountAutoRefreshMode]);
 
   // Poll at the selected interval while auto refresh is active.
   useEffect(() => {
@@ -114,14 +135,14 @@ export function EntityRefreshControl() {
   }
 
   const pickManual = () => {
-    setAutoActive(false);
+    setEntityCountAutoRefreshMode(null);
     setMenuOpen(false);
     setCustomEditorOpen(false);
   };
 
   const pickInterval = (seconds: number) => {
     setIntervalSeconds(seconds);
-    setAutoActive(true);
+    setEntityCountAutoRefreshMode(seconds);
     setMenuOpen(false);
     setCustomEditorOpen(false);
   };

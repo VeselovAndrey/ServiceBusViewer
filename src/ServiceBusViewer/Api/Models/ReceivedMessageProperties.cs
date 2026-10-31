@@ -1,7 +1,8 @@
 namespace ServiceBusViewer.Api.Models;
 
 /// <summary>System properties for a received message.</summary>
-/// <param name="MessageId">Message id.</param>
+/// <param name="MessageId">Message id or null.</param>
+/// <param name="SequenceNumber">Exact broker sequence number assigned by Service Bus, serialized as a string to preserve 64-bit values.</param>
 /// <param name="PartitionKey">Partition key if present.</param>
 /// <param name="SessionId">Session id if present.</param>
 /// <param name="CorrelationId">Correlation id if present.</param>
@@ -17,7 +18,8 @@ namespace ServiceBusViewer.Api.Models;
 /// <param name="DeadLetterSource">Dead-letter source as reported by Service Bus or null.</param>
 /// <param name="DeadLetterErrorDescription">Dead-letter error description reported by Service Bus or null.</param>
 public sealed record ReceivedMessageProperties(
-	string MessageId,
+	string? MessageId,
+	string SequenceNumber,
 	string? PartitionKey,
 	string? SessionId,
 	string? CorrelationId,
