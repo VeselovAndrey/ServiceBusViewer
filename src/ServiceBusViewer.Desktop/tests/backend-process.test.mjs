@@ -58,6 +58,35 @@ test('launches native executable directly and stops only its child once', async 
   assert.deepEqual(f.child.kills, ['SIGTERM']);
 });
 
+test('inherited hosting log filters cannot suppress the owned bind announcement', async (t) => {
+  const f = await fixture(t);
+  const inherited = {
+    'logging__loglevel__microsoft.hosting.lifetime': 'Warning',
+    'Logging__Console__LogLevel__Microsoft.Hosting.Lifetime': 'None',
+    'Logging__LogLevel__Default': 'Error',
+  };
+  for (const [key, value] of Object.entries(inherited)) {
+    const previous = process.env[key];
+    process.env[key] = value;
+    t.after(() => {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    });
+  }
+  f.dependencies.spawn = (executable, args, options) => {
+    const levels = Object.fromEntries(Object.entries(options.env).map(([key, value]) => [key.toUpperCase(), value]));
+    assert.equal(levels['LOGGING__LOGLEVEL__MICROSOFT.HOSTING.LIFETIME'], 'Information');
+    assert.equal(levels['LOGGING__CONSOLE__LOGLEVEL__MICROSOFT.HOSTING.LIFETIME'], 'Information');
+    assert.equal(levels.LOGGING__LOGLEVEL__DEFAULT, 'Error');
+    queueMicrotask(() => f.child.stdout.emit('data', `Now listening on: ${backendOrigin}\n`));
+    return f.child;
+  };
+  const owner = createBackendProcess(f.options, f.dependencies);
+  t.after(() => owner.stop());
+  assert.equal(await owner.start(), backendOrigin);
+  assert.equal(process.env['logging__loglevel__microsoft.hosting.lifetime'], 'Warning');
+});
+
 test('missing executable gives actionable safe failure without spawning', async (t) => {
   const f = await fixture(t);
   await rm(path.join(f.directory, resolveRuntimeTarget().executable));

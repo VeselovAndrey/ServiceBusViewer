@@ -120,7 +120,9 @@ jobs:
       - name: Upload verified platform asset
         uses: actions/upload-artifact@v7
         with:
-          name: desktop-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-${{ matrix.platform }}-${{ matrix.arch }}
+          # Keep successful matrix artifacts discoverable across failed-job reruns.
+          name: desktop-${{ github.run_id }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-${{ matrix.platform }}-${{ matrix.arch }}
+          overwrite: true
           path: src/ServiceBusViewer.Desktop/artifacts/*
           if-no-files-found: error
           retention-days: 14
@@ -148,13 +150,13 @@ jobs:
       - name: Download verified Windows asset
         uses: actions/download-artifact@v7
         with:
-          name: desktop-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-win32-x64
+          name: desktop-${{ github.run_id }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-win32-x64
           path: release-artifacts/win32-x64
 
       - name: Download verified Linux asset
         uses: actions/download-artifact@v7
         with:
-          name: desktop-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-linux-x64
+          name: desktop-${{ github.run_id }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-linux-x64
           path: release-artifacts/linux-x64
 
       - name: Recheck tag still points to validated commit

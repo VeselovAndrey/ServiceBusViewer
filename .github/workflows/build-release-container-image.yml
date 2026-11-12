@@ -174,6 +174,7 @@ jobs:
         RELEASE_VERSION: ${{ steps.identity.outputs.version }}
         SOURCE_SHA: ${{ steps.identity.outputs.commit }}
         RELEASE_DIGEST: ${{ steps.release-output.outputs.image_digest }}
+        LEGACY_LATEST_IMAGE_DIGEST: ${{ vars.LEGACY_LATEST_IMAGE_DIGEST }}
       shell: bash
       run: |
         VERSION_WITHOUT_BUILD="${RELEASE_VERSION%%+*}"
@@ -190,29 +191,39 @@ jobs:
           CURRENT_REVISION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$LATEST_IMAGE")"
           CURRENT_SOURCE="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.source" }}' "$LATEST_IMAGE")"
           EXPECTED_SOURCE="https://github.com/$GITHUB_REPOSITORY"
-          if [[ "$CURRENT_SOURCE" != "$EXPECTED_SOURCE" || ! "$CURRENT_REVISION" =~ ^[0-9a-f]{40}$ || ! "$CURRENT_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-            echo "Current latest image has no valid stable release identity; refusing to move it." >&2
-            exit 1
-          fi
-          CURRENT_STABLE_VERSION="${CURRENT_VERSION%%+*}"
-          RELEASE_STABLE_VERSION="${RELEASE_VERSION%%+*}"
-          if [[ "$CURRENT_STABLE_VERSION" == "$RELEASE_STABLE_VERSION" ]]; then
+          if [[ -z "$CURRENT_SOURCE" && -z "$CURRENT_REVISION" && -z "$CURRENT_VERSION" ]]; then
+            # Only an explicitly approved legacy digest can bypass identity checks.
             CURRENT_DIGEST="$(docker buildx imagetools inspect "$LATEST_IMAGE" | awk '/^Digest:/ { print $2; exit }')"
-            if [[ "$CURRENT_REVISION" != "$SOURCE_SHA" || "$CURRENT_DIGEST" != "$RELEASE_DIGEST" ]]; then
-              echo "latest already has version $CURRENT_VERSION but does not match its accepted source/digest identity." >&2
+            if ! [[ "$LEGACY_LATEST_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || [[ "$CURRENT_DIGEST" != "$LEGACY_LATEST_IMAGE_DIGEST" ]]; then
+              echo "Legacy latest requires repository variable LEGACY_LATEST_IMAGE_DIGEST to match its approved digest ($CURRENT_DIGEST)." >&2
               exit 1
             fi
-          fi
-          CURRENT_IS_NEWER="$(python3 - "$CURRENT_VERSION" "$RELEASE_VERSION" <<'PY'
+            echo "Migrating explicitly approved legacy latest image $CURRENT_DIGEST to $RELEASE_VERSION."
+          else
+            if [[ "$CURRENT_SOURCE" != "$EXPECTED_SOURCE" || ! "$CURRENT_REVISION" =~ ^[0-9a-f]{40}$ || ! "$CURRENT_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+              echo "Current latest image has no valid stable release identity; refusing to move it." >&2
+              exit 1
+            fi
+            CURRENT_STABLE_VERSION="${CURRENT_VERSION%%+*}"
+            RELEASE_STABLE_VERSION="${RELEASE_VERSION%%+*}"
+            if [[ "$CURRENT_STABLE_VERSION" == "$RELEASE_STABLE_VERSION" ]]; then
+              CURRENT_DIGEST="$(docker buildx imagetools inspect "$LATEST_IMAGE" | awk '/^Digest:/ { print $2; exit }')"
+              if [[ "$CURRENT_REVISION" != "$SOURCE_SHA" || "$CURRENT_DIGEST" != "$RELEASE_DIGEST" ]]; then
+                echo "latest already has version $CURRENT_VERSION but does not match its accepted source/digest identity." >&2
+                exit 1
+              fi
+            fi
+            CURRENT_IS_NEWER="$(python3 - "$CURRENT_VERSION" "$RELEASE_VERSION" <<'PY'
         import sys
         current = tuple(map(int, sys.argv[1].split('+', 1)[0].split('.')))
         requested = tuple(map(int, sys.argv[2].split('+', 1)[0].split('.')))
         print('true' if current >= requested else 'false')
         PY
-        )"
-          if [[ "$CURRENT_IS_NEWER" == "true" ]]; then
-            echo "latest already identifies $CURRENT_VERSION; it will not move to $RELEASE_VERSION."
-            exit 0
+          )"
+            if [[ "$CURRENT_IS_NEWER" == "true" ]]; then
+              echo "latest already identifies $CURRENT_VERSION; it will not move to $RELEASE_VERSION."
+              exit 0
+            fi
           fi
         elif grep -Eqi 'manifest unknown|no such manifest|not found' <<< "$LATEST_INSPECT"; then
           echo "No stable latest alias exists yet."

@@ -120,10 +120,20 @@ export function createBackendProcess(options = {}, dependencies = {}) {
         if (failure) throw failure;
         await available();
         if (failure) throw failure;
-        // Desktop startup must not inherit the container-only hosting mode.
+        // Desktop startup must not inherit the container-only hosting mode or
+        // filters that suppress the owned child's required bind announcement.
+        const hostingLogLevel = 'Logging__LogLevel__Microsoft.Hosting.Lifetime';
+        const consoleHostingLogLevel = 'Logging__Console__LogLevel__Microsoft.Hosting.Lifetime';
+        const overriddenKeys = new Set([
+          'SERVICEBUSVIEWER_RUNNING_IN_CONTAINER',
+          hostingLogLevel.toUpperCase(),
+          consoleHostingLogLevel.toUpperCase(),
+        ]);
         const environment = Object.fromEntries(
-          Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'SERVICEBUSVIEWER_RUNNING_IN_CONTAINER'),
+          Object.entries(process.env).filter(([key]) => !overriddenKeys.has(key.toUpperCase())),
         );
+        environment[hostingLogLevel] = 'Information';
+        environment[consoleHostingLogLevel] = 'Information';
         try {
           child = launch(executable, ['--urls', backendOrigin], {
             cwd: directory,
