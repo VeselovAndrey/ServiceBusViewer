@@ -55,9 +55,9 @@ Settings entered on the connection page apply to the current browser session. Th
 
 Automatic entity message-count refresh in the entity menu is configured through the `ServiceBusViewer:EntityCountAutoRefresh` configuration section instead, available from `appsettings.json` or environment variables:
 
-| Configuration key | Environment variable | Purpose | Default |
-| --- | --- | --- | --- |
-| `ServiceBusViewer:EntityCountAutoRefresh:Enabled` | `ServiceBusViewer__EntityCountAutoRefresh__Enabled` | Offers an auto mode on the entity-menu refresh control. The refresh interval is chosen per browser (presets or custom). | `false` |
+| Configuration key / Environment variable | Purpose | Default |
+| --- | --- | --- |
+| `ServiceBusViewer:EntityCountAutoRefresh:Enabled` / `ServiceBusViewer__EntityCountAutoRefresh__Enabled` | Offers an auto mode on the entity-menu refresh control. The refresh interval is chosen per browser (presets or custom). | `false` |
 
 For example, the following command preconfigures namespace browsing for an emulator running on the Docker host:
 
@@ -108,7 +108,7 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## 1.2.0 (2026-11-11)
 
-- **Added:** Desktop application support using Electron.
+- **Added:** Electron desktop application (Windows and Linux).
 
 ## 1.1.0 (2026-10-29)
 

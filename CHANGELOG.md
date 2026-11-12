@@ -2,7 +2,7 @@
 
 ## 1.2.0 (2026-11-11)
 
-- **Added:** Desktop application support using Electron.
+- **Added:** Electron desktop application (Windows and Linux).
 
 ## 1.1.0 (2026-10-29)
 

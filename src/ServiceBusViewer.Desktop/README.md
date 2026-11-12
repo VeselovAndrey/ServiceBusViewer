@@ -1,10 +1,94 @@
-# Service Bus Viewer desktop development
+# Service Bus Viewer Desktop
 
-The desktop project stages the existing API and React application, starts an owned backend, and opens it in Electron. Installers and distributable package generation are handled separately.
+Electron packages the existing React app with a self-contained .NET backend. Bundles need a graphical desktop and native OS libraries, but no checkout, Node.js or installed .NET runtime.
 
-Use Node.js 22.12.0 or newer compatible with the repository frontend, npm, and a .NET SDK supporting the backend target framework. Staging requires network access for any uncached .NET runtime packs. Install the existing frontend dependencies with `npm run web:install` from the repository root. In this directory, run:
+## Build a bundle
+
+Current supported targets are Windows and Linux. Build natively with matching x64 or arm64 Node.js. Windows can also cross-build Linux.
+
+**Requirements:** Node.js/npm compatible with the locked dependencies, the .NET SDK targeted by the backend, and network access for uncached dependencies or runtime downloads. From the repository root:
+
+```sh
+npm run web:install
+cd src/ServiceBusViewer.Desktop
+npm ci
+npm exec -- install-electron
+npm run bundle
+```
+
+Dependency versions are managed in `package.json` and `package-lock.json`. Versioned bundles go to `out/`:
+
+| Target | Bundle directory | Launch file |
+| --- | --- | --- |
+| Windows | `ServiceBusViewer-<version>-win32-<arch>` | `ServiceBusViewer.exe` |
+| Linux | `ServiceBusViewer-<version>-linux-<arch>` | `ServiceBusViewer` |
+
+The Windows backend is one self-contained `ServiceBusViewer.exe`. .NET extracts native runtime libraries under `%TEMP%\.net` at launch; the compiled UI remains in `resources/backend/wwwroot`.
+
+Copy the whole bundle to a matching machine, preserving Linux executable modes and symlinks. Unsupported targets or versions fail. A build replaces only its target directory and removes it on failure; verify success before distribution.
+
+### Create a Windows ZIP
+
+From `src/ServiceBusViewer.Desktop`, build and archive the Windows bundle:
 
 ```powershell
+npm run bundle
+$version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+$arch = "x64" # Set to "arm64" for an arm64 build.
+$bundle = "out/ServiceBusViewer-$version-win32-$arch"
+Compress-Archive -LiteralPath $bundle -DestinationPath "$bundle.zip" -Force
+```
+
+The archive is written to `out/ServiceBusViewer-<version>-win32-<arch>.zip`.
+
+### Build Linux on Windows
+
+From `src/ServiceBusViewer.Desktop`, build and archive Linux x64:
+
+```powershell
+npm run bundle -- --platform=linux --arch=x64
+$version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+$bundle = "out/ServiceBusViewer-$version-linux-x64"
+Compress-Archive -LiteralPath $bundle -DestinationPath "$bundle.zip" -Force
+```
+
+Use `--arch=arm64` for arm64. Windows-to-Linux is the only supported cross-build; it needs no WSL or extra tools. Validate the bundle on Linux before distribution.
+
+After extracting a Windows-created ZIP on Linux, restore permissions and launch as a regular user:
+
+```sh
+chmod u+x ./ServiceBusViewer ./resources/backend/ServiceBusViewer ./chrome-sandbox ./chrome_crashpad_handler
+./ServiceBusViewer
+```
+
+Keep Electron's sandbox enabled; do not run the app as root.
+
+## Ubuntu DEB installer
+
+The only installer target is Ubuntu 24.04 amd64 (x64). Run `npm run package:deb` on Ubuntu with `dpkg-deb` and Bash, or on Windows with the existing `Ubuntu-24.04` WSL distribution. It writes `out/ServiceBusViewer-<version>-linux-x64.deb` and checks package metadata and permissions; it installs no tools and changes no system configuration.
+
+Open the DEB in Ubuntu's installer or install it from a terminal (replace `VERSION` with the filename's version):
+
+```sh
+sudo apt install ./ServiceBusViewer-VERSION-linux-x64.deb
+```
+
+Launch **Service Bus Viewer** from the application menu or run `servicebusviewer`. It installs under `/opt/servicebusviewer`; preferences stay in the user profile. The installer applies Electron's required sandbox permission without changing global settings. The app needs port 5277, broker access and Ubuntu's Electron/.NET libraries. Other Ubuntu releases, Debian derivatives and arm64 are unvalidated installer targets.
+
+## Update the app
+
+There is no in-app updater; update manually:
+
+- **Windows/Linux bundles:** download the matching OS/architecture bundle, close the app, extract and launch the complete new bundle. Remove the old folder after confirming the new one works. Preferences remain in the user profile.
+- **Ubuntu DEB:** close the app and install the newer DEB with the command above; apt upgrades the app and retains preferences. Remove it with `sudo apt remove servicebusviewer`.
+
+For a source release, update the desktop version in `package.json` and its lockfile, then rerun the matching build command. Output names derive from package metadata.
+
+## Development
+
+From `src/ServiceBusViewer.Desktop`:
+
+```sh
 npm ci
 npm exec -- install-electron
 npm run stage
@@ -12,18 +96,12 @@ npm start
 npm test
 ```
 
-`npm ci` installs the pinned project-local Electron npm package. Electron 45.3.0 requires the separate `npm exec -- install-electron` step to download and extract its native runtime; this needs network access unless the download is cached. The equivalent explicit command is `node node_modules/electron/install.js`. `npm start` always stages before launching, so a failed build cannot open stale output. To launch already staged output for diagnostics, use `npm exec -- electron .` from this directory. No global Electron installation is required. Native Windows, Linux and macOS x64/arm64 staging selects the host runtime; cross-platform bundle verification belongs to the packaging work.
+`npm start` stages the app before launch. For diagnostics with staged output, run `npm exec -- electron .`.
 
-Development resolves `.runtime/backend` relative to the Electron source, independently of the working directory. Packaged execution resolves `backend` under Electron's `process.resourcesPath`; a future bundle must place the same staged native output there.
+The app waits for its backend before showing the UI. API requests stay same-origin, renderer isolation and sandboxing remain enabled, and preferences/window size persist. A second launch focuses the existing window; quitting stops the owned backend.
 
-The shell waits for both `/` and `/api/session-state` before opening `http://127.0.0.1:5277`. The existing `/api` requests and session cookie remain on that origin. Port 5277 must be free; the shell never selects another port or attaches to an unrelated process. Existing backend environment settings still apply.
+## Native requirements and troubleshooting
 
-Readiness also requires the owned backend's standard `Microsoft.Hosting.Lifetime` information-level listening message. Inherited logging overrides that suppress this message cause a readiness timeout; remove those overrides before launch. Backend logs are never displayed by the shell.
+Use an OS supported by both Electron and .NET. See [Electron support](https://github.com/electron/electron#platform-support) and [.NET Linux support](https://learn.microsoft.com/en-us/dotnet/core/install/linux). Linux needs a graphical session plus GTK, NSS, X11/GBM, audio, .NET, timezone, certificate and crypto libraries; see the [.NET Ubuntu dependencies](https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu-install#dependencies). `ldd` can help locate missing libraries but cannot verify GUI startup.
 
-Frontend preferences use the unchanged browser storage formats in the persistent `persist:servicebusviewer` Electron session under the application's user-data directory. Normal relaunch retains them. A second desktop invocation focuses the existing window. Closing the final window quits on Windows/Linux; on macOS the backend remains running and activation opens a new window. Explicit Quit cancels startup and waits for owned-backend cleanup.
-
-The desktop also remembers normal window width and height in `window-size.json` under Electron's user-data directory. Resizing saves after a short pause and closing flushes pending changes. Relaunch centers the saved size on the current display, clamped to its available work area; a temporarily smaller display does not itself replace the saved preference. Position, minimized/maximized/fullscreen state and credentials are not stored there. Missing or invalid settings use the 1280×1600 default, subject to the same display limits. Settings write failures do not prevent shutdown.
-
-The renderer has no Node integration or preload bridge and runs with isolation and sandboxing. Navigation and redirects remain within the exact trusted origin, new windows and webviews are denied, and clipboard read/write permissions are granted only to the owned trusted main frame. Other permission requests are denied. Missing runtime assets, occupied ports, startup timeouts, backend exits and renderer/load failures show fixed actionable messages without backend output or credentials, then clean up and exit.
-
-For targeted policy validation, run `node --test tests/shell-policy.test.mjs`. Manual acceptance also requires a configured test broker: exercise the existing Connect/Viewer, browsing, peek/receive, send, sessions, dead-letter and clipboard flows; change a preference and relaunch; verify a second invocation focuses one instance; test occupied-port, missing-runtime, timeout and backend-exit failures. Verify macOS activation on macOS and native lifecycle on each target platform.
+Bundles are unsigned; OS security policy or missing libraries may block launch. Keep system protections enabled. For startup problems, check port 5277 and permissions, then restore the whole bundle or rebuild on a supported host.

@@ -18,7 +18,9 @@ export function resolveBackendDirectory({ isPackaged = false, resourcesPath = pr
 function checkPort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
-    server.once('error', () => reject(new Error('Desktop backend port 5277 is unavailable. Close the application using it and retry.')));
+    server.once('error', () => reject(new Error(
+      'Desktop backend port 5277 is unavailable. Close the application using it and retry.',
+    )));
     server.listen({ host: '127.0.0.1', port: 5277, exclusive: true }, () => server.close(resolve));
   });
 }
@@ -54,6 +56,7 @@ export function createBackendProcess(options = {}, dependencies = {}) {
 
   function fail(error) {
     failure ??= error;
+    // Abort pending health checks so cancellation and child failures unblock startup.
     controller.abort();
     if (ready) {
       ready = false;
@@ -64,7 +67,12 @@ export function createBackendProcess(options = {}, dependencies = {}) {
   async function waitForClose(milliseconds) {
     let timer;
     try {
-      return await Promise.race([closed.then(() => true), new Promise((resolve) => { timer = setTimeout(() => resolve(false), milliseconds); })]);
+      return await Promise.race([
+        closed.then(() => true),
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve(false), milliseconds);
+        }),
+      ]);
     } finally {
       clearTimeout(timer);
     }
@@ -77,9 +85,12 @@ export function createBackendProcess(options = {}, dependencies = {}) {
     stopping = (async () => {
       if (!child) return;
       if (child.exitCode !== null || child.signalCode !== null) {
-        if (!await waitForClose(stopTimeoutMs)) throw new Error('Desktop backend exited but did not finish closing. Close this desktop instance and retry.');
+        if (!await waitForClose(stopTimeoutMs)) {
+          throw new Error('Desktop backend exited but did not finish closing. Close this desktop instance and retry.');
+        }
         return;
       }
+      // Escalate only for this child, after allowing a graceful shutdown first.
       child.kill('SIGTERM');
       if (await waitForClose(stopTimeoutMs)) return;
       child.kill('SIGKILL');
@@ -93,29 +104,45 @@ export function createBackendProcess(options = {}, dependencies = {}) {
   function start() {
     if (startup) return startup;
     startup = (async () => {
-      const timer = setTimeout(() => fail(new Error('Desktop backend did not become ready within 30 seconds. Retry or restage the desktop runtime.')), timeoutMs);
+      const timer = setTimeout(
+        () => fail(new Error('Desktop backend did not become ready within 30 seconds. Retry or restage the desktop runtime.')),
+        timeoutMs,
+      );
       try {
+        // Resolve the packaged or development path before validating and launching it.
         const directory = resolveBackendDirectory(options);
         const executable = path.join(directory, resolveRuntimeTarget().executable);
-        try { await access(executable, constants.X_OK); } catch {
+        try {
+          await access(executable, constants.X_OK);
+        } catch {
           throw new Error('Desktop backend executable is missing or inaccessible. Run npm run stage in the desktop project and retry.');
         }
         if (failure) throw failure;
         await available();
         if (failure) throw failure;
-        const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'SERVICEBUSVIEWER_RUNNING_IN_CONTAINER'));
+        // Desktop startup must not inherit the container-only hosting mode.
+        const environment = Object.fromEntries(
+          Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'SERVICEBUSVIEWER_RUNNING_IN_CONTAINER'),
+        );
         try {
-          child = launch(executable, ['--urls', backendOrigin], { cwd: directory, env: environment, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+          child = launch(executable, ['--urls', backendOrigin], {
+            cwd: directory,
+            env: environment,
+            shell: false,
+            windowsHide: true,
+            stdio: ['ignore', 'pipe', 'ignore'],
+          });
         } catch {
           throw new Error('Desktop backend could not be started. Restage the native runtime and check executable permissions.');
         }
         closed = new Promise((resolve) => { closeChild = resolve; });
-        // Only accept HTTP after this child reports its successful bind. A competing
-        // listener cannot supply this signal. Never retain or display backend logs.
+        // Require this child to announce a successful bind before probing HTTP.
+        // That prevents an unrelated listener on port 5277 from looking ready.
         const bindMessage = `Now listening on: ${backendOrigin}`;
         let matchedCharacters = 0;
         child.stdout.setEncoding('utf8');
         child.stdout.on('data', (chunk) => {
+          // Match across output chunks without retaining or exposing backend logs.
           for (const character of chunk) {
             matchedCharacters = character === bindMessage[matchedCharacters]
               ? matchedCharacters + 1 : character === bindMessage[0] ? 1 : 0;
@@ -132,6 +159,7 @@ export function createBackendProcess(options = {}, dependencies = {}) {
         child.once('exit', () => fail(new Error('Desktop backend exited unexpectedly. Check port 5277 availability and restage the native runtime.')));
         child.once('close', closeChild);
         while (!failure) {
+          // A listening log alone is insufficient; both application routes must answer.
           if (listening && await request('/', controller.signal) && await request('/api/session-state', controller.signal)) {
             if (!failure && child.exitCode === null && child.signalCode === null) {
               ready = true;
@@ -152,5 +180,13 @@ export function createBackendProcess(options = {}, dependencies = {}) {
     return startup;
   }
 
-  return { start, stop, cancel: stop, onFailure(listener) { listeners.add(listener); return () => listeners.delete(listener); } };
+  return {
+    start,
+    stop,
+    cancel: stop,
+    onFailure(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
 }

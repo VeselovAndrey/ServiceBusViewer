@@ -24,7 +24,19 @@ async function requireFile(file) {
   }
 }
 
-export async function stageRuntime({ desktop = desktopDirectory, platform = process.platform, arch = process.arch, run = runCommand } = {}) {
+async function fileExists(file) {
+  return stat(file).then(() => true).catch(error => {
+    if (error.code === 'ENOENT') return false;
+    throw error;
+  });
+}
+
+export async function stageRuntime({
+  desktop = desktopDirectory,
+  platform = process.platform,
+  arch = process.arch,
+  run = runCommand,
+} = {}) {
   const runtime = path.join(desktop, '.runtime');
   // Never follow a substituted generated-output directory into source or user data.
   const existingRuntime = await lstat(runtime).catch(error => {
@@ -37,12 +49,15 @@ export async function stageRuntime({ desktop = desktopDirectory, platform = proc
   await mkdir(runtime, { recursive: true });
   const lock = path.join(runtime, '.stage-lock');
   await mkdir(lock).catch(error => {
-    if (error.code === 'EEXIST') throw new Error('Desktop staging is already running, or .runtime/.stage-lock remains from an interrupted build.');
+    if (error.code === 'EEXIST') {
+      throw new Error('Desktop staging is already running, or .runtime/.stage-lock remains from an interrupted build.');
+    }
     throw error;
   });
   const backend = path.join(runtime, 'backend');
   const work = path.join(runtime, 'stage');
   try {
+    // Remove stale generated output before building; failed runs must not leave a launchable old copy.
     await rm(backend, { recursive: true, force: true });
     await rm(work, { recursive: true, force: true });
     const target = resolveRuntimeTarget(platform, arch);
@@ -51,19 +66,50 @@ export async function stageRuntime({ desktop = desktopDirectory, platform = proc
     const spa = path.join(work, 'spa');
     const publish = path.join(work, 'backend');
     await mkdir(work, { recursive: true });
+    // Build the SPA against the desktop app's same-origin API route.
     const env = { ...process.env, VITE_API_BASE_PATH: '/api' };
     // Run the existing build's type checks separately so their incremental files stay desktop-owned.
     for (const config of ['app', 'node']) {
-      await run(process.execPath, [path.join(web, 'node_modules/typescript/bin/tsc'), '-p', `tsconfig.${config}.json`, '--incremental', '--tsBuildInfoFile', path.join(work, `${config}.tsbuildinfo`)], { cwd: web, env });
+      await run(process.execPath, [
+        path.join(web, 'node_modules/typescript/bin/tsc'),
+        '-p', `tsconfig.${config}.json`,
+        '--incremental',
+        '--tsBuildInfoFile', path.join(work, `${config}.tsbuildinfo`),
+      ], { cwd: web, env });
     }
-    await run(process.execPath, [path.join(web, 'node_modules/vite/bin/vite.js'), 'build', '--configLoader', 'runner', '--outDir', spa], { cwd: web, env });
+    await run(process.execPath, [
+      path.join(web, 'node_modules/vite/bin/vite.js'),
+      'build', '--configLoader', 'runner', '--outDir', spa,
+    ], { cwd: web, env });
     await requireFile(path.join(spa, 'index.html'));
-    await run('dotnet', ['publish', project, '-c', 'Release', '-r', target.rid, '--self-contained', 'true', '-p:UseAppHost=true', '--artifacts-path', path.join(work, 'artifacts'), '-o', publish], { cwd: desktop, env });
-    for (const file of [target.executable, target.coreRuntime, 'ServiceBusViewer.dll', 'ServiceBusViewer.deps.json', 'ServiceBusViewer.runtimeconfig.json']) {
-      await requireFile(path.join(publish, file));
+
+    const singleFileWindows = platform === 'win32';
+    await run('dotnet', [
+      'publish', project, '-c', 'Release', '-r', target.rid,
+      '--self-contained', 'true', '-p:UseAppHost=true',
+      ...(singleFileWindows ? [
+        '-p:PublishSingleFile=true',
+        '-p:IncludeNativeLibrariesForSelfExtract=true',
+      ] : []),
+      '--artifacts-path', path.join(work, 'artifacts'), '-o', publish,
+    ], { cwd: desktop, env });
+    await requireFile(path.join(publish, target.executable));
+    const runtimeSidecars = [
+      target.coreRuntime,
+      'ServiceBusViewer.dll',
+      'ServiceBusViewer.deps.json',
+      'ServiceBusViewer.runtimeconfig.json',
+    ];
+    const sidecarsExist = await Promise.all(runtimeSidecars.map(file => fileExists(path.join(publish, file))));
+    // Single-file Windows publishes embed these runtime files; partial sidecar sets still indicate bad output.
+    if (!singleFileWindows || sidecarsExist.some(Boolean)) {
+      for (const file of runtimeSidecars) {
+        await requireFile(path.join(publish, file));
+      }
     }
     await cp(spa, path.join(publish, 'wwwroot'), { recursive: true });
     await requireFile(path.join(publish, 'wwwroot/index.html'));
+    // Publish the staged runtime only after both backend and SPA outputs are complete.
     await rename(publish, backend);
     return { backend, ...target };
   } catch (error) {

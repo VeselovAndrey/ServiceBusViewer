@@ -6,10 +6,13 @@
   "main": "electron/main.mjs",
   "scripts": {
     "stage": "node scripts/stage-runtime.mjs",
+    "bundle": "node scripts/package.mjs",
+    "package:deb": "node scripts/package-deb.mjs",
     "start": "npm run stage && electron .",
     "test": "node --test"
   },
   "devDependencies": {
+    "@electron/packager": "20.3.0",
     "electron": "45.3.0"
   }
 }
