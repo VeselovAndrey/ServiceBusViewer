@@ -4,7 +4,7 @@ Electron packages the existing React app with a self-contained .NET backend. Bun
 
 ## Build a bundle
 
-Current supported targets are Windows and Linux. Build natively with matching x64 or arm64 Node.js. Windows can also cross-build Linux.
+Current supported bundle targets are Windows, Linux and macOS. Build natively with matching x64 or arm64 Node.js. Windows can also cross-build Linux.
 
 **Requirements:** Node.js/npm compatible with the locked dependencies, the .NET SDK targeted by the backend, and network access for uncached dependencies or runtime downloads. From the repository root:
 
@@ -22,6 +22,7 @@ Dependency versions are managed in `package.json` and `package-lock.json`. Versi
 | --- | --- | --- |
 | Windows | `ServiceBusViewer-<version>-win32-<arch>` | `ServiceBusViewer.exe` |
 | Linux | `ServiceBusViewer-<version>-linux-<arch>` | `ServiceBusViewer` |
+| macOS | `ServiceBusViewer-<version>-darwin-arm64` | `ServiceBusViewer.app` |
 
 The Windows backend is one self-contained `ServiceBusViewer.exe`. .NET extracts native runtime libraries under `%TEMP%\.net` at launch; the compiled UI remains in `resources/backend/wwwroot`.
 
@@ -105,3 +106,16 @@ The app waits for its backend before showing the UI. API requests stay same-orig
 Use an OS supported by both Electron and .NET. See [Electron support](https://github.com/electron/electron#platform-support) and [.NET Linux support](https://learn.microsoft.com/en-us/dotnet/core/install/linux). Linux needs a graphical session plus GTK, NSS, X11/GBM, audio, .NET, timezone, certificate and crypto libraries; see the [.NET Ubuntu dependencies](https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu-install#dependencies). `ldd` can help locate missing libraries but cannot verify GUI startup.
 
 Bundles are unsigned; OS security policy or missing libraries may block launch. Keep system protections enabled. For startup problems, check port 5277 and permissions, then restore the whole bundle or rebuild on a supported host.
+
+## Versioned GitHub Releases
+
+Pushing a tag such as `v1.2.0` starts the coordinated release workflow. The tag version must match the existing Service Bus Viewer project version. The workflow builds from the commit named by the tag and publishes these downloads after both native builds and the matching container image succeed:
+
+| Platform | Download |
+| --- | --- |
+| Windows x64 | `ServiceBusViewer-<version>-win32-x64.zip` |
+| Linux x64 | `ServiceBusViewer-<version>-linux-x64.tar.gz` |
+
+Each release identifies the exact source commit and the versioned GHCR image digest. Pull the image using the immutable command shown in the release notes, for example `docker pull ghcr.io/veselovandrey/servicebusviewer@sha256:<digest>`; `latest` is not the release identity.
+
+Release publication uses a draft until both verified archives and their source/image identity checks succeed. A rerun may complete a partial draft only when its tag, commit, image identity and existing asset bytes match. Published releases and tags are immutable; mismatched or unverifiable existing assets stop recovery and require maintainer investigation rather than replacement. Native launch validation still requires matching operating systems and their documented libraries.

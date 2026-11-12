@@ -1,18 +1,25 @@
 name: Build and publish the release container image
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [ "release" ]
-    paths:
-    - '.dockerignore'
-    - 'src/ServiceBusViewer/**'
-    - '!src/ServiceBusViewer/**/*.md'
-    - 'src/ServiceBusViewer.Web/**'
-    - '!src/ServiceBusViewer.Web/**/*.md'
-    - 'src/ServiceBusViewer.UnitTests/**'
-    - '!src/ServiceBusViewer.UnitTests/**/*.md'
-    - 'src/ServiceBusViewer.ArchitecturalTests/**'
+  workflow_call:
+    inputs:
+      release_version:
+        required: true
+        type: string
+      source_sha:
+        required: true
+        type: string
+    outputs:
+      image_reference:
+        description: Versioned container image reference
+        value: ${{ jobs.build-and-push.outputs.image_reference }}
+      image_digest:
+        description: Published container digest
+        value: ${{ jobs.build-and-push.outputs.image_digest }}
+
+concurrency:
+  group: servicebusviewer-container-release
+  cancel-in-progress: false
 
 jobs:
   build-and-push:
@@ -20,14 +27,73 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_reference: ${{ steps.release-output.outputs.image_reference }}
+      image_digest: ${{ steps.release-output.outputs.image_digest }}
+    env:
+      IMAGE: ghcr.io/veselovandrey/servicebusviewer
     steps:
-    - name: Checkout repository
+    - name: Check out validated source commit
       uses: actions/checkout@v7
+      with:
+        ref: ${{ inputs.source_sha }}
+        fetch-depth: 0
 
-    - name: Setup .NET
+    - name: Set up .NET
       uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '10.0.x'
+
+    - name: Verify release identity and app version
+      id: identity
+      env:
+        RELEASE_TAG: ${{ github.ref_name }}
+        RELEASE_VERSION: ${{ inputs.release_version }}
+        SOURCE_SHA: ${{ inputs.source_sha }}
+      shell: bash
+      run: |
+        if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+          echo "Container release must be called from a version tag." >&2
+          exit 1
+        fi
+
+        if [[ "$RELEASE_TAG" != "v$RELEASE_VERSION" ]]; then
+          echo "Tag $RELEASE_TAG does not match requested release version $RELEASE_VERSION." >&2
+          exit 1
+        fi
+
+        if ! [[ "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+          echo "Invalid semantic release version: $RELEASE_VERSION" >&2
+          exit 1
+        fi
+
+        VERSION_WITHOUT_BUILD="${RELEASE_VERSION%%+*}"
+        if [[ "$VERSION_WITHOUT_BUILD" == *-* ]]; then
+          PRERELEASE="${VERSION_WITHOUT_BUILD#*-}"
+          IFS='.' read -r -a PRERELEASE_IDENTIFIERS <<< "$PRERELEASE"
+          for IDENTIFIER in "${PRERELEASE_IDENTIFIERS[@]}"; do
+            if [[ "$IDENTIFIER" =~ ^[0-9]+$ && "$IDENTIFIER" =~ ^0[0-9]+$ ]]; then
+              echo "Numeric prerelease identifiers cannot contain leading zeros: $IDENTIFIER" >&2
+              exit 1
+            fi
+          done
+        fi
+
+        CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+        if [[ "$GITHUB_SHA" != "$SOURCE_SHA" || "$CHECKED_OUT_SHA" != "$SOURCE_SHA" ]]; then
+          echo "Caller, requested, and checked-out source commits must match." >&2
+          echo "github.sha=$GITHUB_SHA source_sha=$SOURCE_SHA checked_out=$CHECKED_OUT_SHA" >&2
+          exit 1
+        fi
+
+        APP_VERSION="$(dotnet msbuild src/ServiceBusViewer/ServiceBusViewer.csproj -getProperty:Version -nologo 2>/dev/null | tail -n 1 | xargs)"
+        if [[ "$APP_VERSION" != "$RELEASE_VERSION" ]]; then
+          echo "App project version $APP_VERSION does not match release version $RELEASE_VERSION." >&2
+          exit 1
+        fi
+
+        echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+        echo "commit=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
 
     - name: Run unit tests
       run: dotnet test --project ./src/ServiceBusViewer.UnitTests --configuration Debug
@@ -35,23 +101,8 @@ jobs:
     - name: Run architecture tests
       run: dotnet test --project ./src/ServiceBusViewer.ArchitecturalTests --configuration Debug
 
-    - name: Extract version
-      id: version
-      run: |
-        VERSION=$(dotnet msbuild src/ServiceBusViewer/ServiceBusViewer.csproj -getProperty:Version -nologo 2>/dev/null | tail -n 1 | xargs)
-
-        if [ -z "$VERSION" ]; then
-          echo "Failed to extract version from csproj" >&2
-          exit 1
-        fi
-
-        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-          echo "Invalid version format: $VERSION" >&2
-          exit 1
-        fi
-
-        echo "Extracted version: $VERSION"
-        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
 
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v4
@@ -60,12 +111,117 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push Docker image
+    - name: Check versioned image identity
+      id: existing-version
+      env:
+        RELEASE_VERSION: ${{ steps.identity.outputs.version }}
+        SOURCE_SHA: ${{ steps.identity.outputs.commit }}
+      shell: bash
+      run: |
+        VERSIONED_IMAGE="$IMAGE:$RELEASE_VERSION"
+        if INSPECT_OUTPUT="$(docker buildx imagetools inspect "$VERSIONED_IMAGE" 2>&1)"; then
+          docker pull "$VERSIONED_IMAGE"
+          EXISTING_VERSION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$VERSIONED_IMAGE")"
+          EXISTING_REVISION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$VERSIONED_IMAGE")"
+          EXISTING_SOURCE="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.source" }}' "$VERSIONED_IMAGE")"
+          EXPECTED_SOURCE="https://github.com/$GITHUB_REPOSITORY"
+          if [[ "$EXISTING_VERSION" != "$RELEASE_VERSION" || "$EXISTING_REVISION" != "$SOURCE_SHA" || "$EXISTING_SOURCE" != "$EXPECTED_SOURCE" ]]; then
+            echo "Existing versioned image has a different source/version identity; refusing to replace it." >&2
+            echo "version=$EXISTING_VERSION revision=$EXISTING_REVISION source=$EXISTING_SOURCE" >&2
+            exit 1
+          fi
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+        elif grep -Eqi 'manifest unknown|no such manifest|not found' <<< "$INSPECT_OUTPUT"; then
+          echo "No versioned image exists yet; it will be built and pushed."
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "$INSPECT_OUTPUT" >&2
+          echo "Could not safely determine whether the versioned image already exists." >&2
+          exit 1
+        fi
+
+    - name: Build and push versioned Docker image
+      id: build
+      if: steps.existing-version.outputs.exists == 'false'
       uses: docker/build-push-action@v7
       with:
         context: .
         file: ./src/ServiceBusViewer/Dockerfile
         push: true
-        tags: |
-          ghcr.io/veselovandrey/servicebusviewer:latest
-          ghcr.io/veselovandrey/servicebusviewer:${{ steps.version.outputs.version }}
+        tags: ${{ env.IMAGE }}:${{ steps.identity.outputs.version }}
+        labels: |
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          org.opencontainers.image.version=${{ steps.identity.outputs.version }}
+          org.opencontainers.image.revision=${{ steps.identity.outputs.commit }}
+
+    - name: Capture immutable image digest
+      id: release-output
+      env:
+        RELEASE_VERSION: ${{ steps.identity.outputs.version }}
+      shell: bash
+      run: |
+        VERSIONED_IMAGE="$IMAGE:$RELEASE_VERSION"
+        DIGEST="$(docker buildx imagetools inspect "$VERSIONED_IMAGE" | awk '/^Digest:/ { print $2; exit }')"
+        if ! [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+          echo "Registry did not return a valid immutable image digest for $VERSIONED_IMAGE." >&2
+          exit 1
+        fi
+        echo "image_reference=$VERSIONED_IMAGE" >> "$GITHUB_OUTPUT"
+        echo "image_digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+    - name: Update stable latest alias monotonically
+      env:
+        RELEASE_VERSION: ${{ steps.identity.outputs.version }}
+        SOURCE_SHA: ${{ steps.identity.outputs.commit }}
+        RELEASE_DIGEST: ${{ steps.release-output.outputs.image_digest }}
+      shell: bash
+      run: |
+        VERSION_WITHOUT_BUILD="${RELEASE_VERSION%%+*}"
+        if [[ "$VERSION_WITHOUT_BUILD" == *-* ]]; then
+          echo "Prerelease $RELEASE_VERSION does not update latest."
+          exit 0
+        fi
+
+        VERSIONED_IMAGE="$IMAGE:$RELEASE_VERSION"
+        LATEST_IMAGE="$IMAGE:latest"
+        if LATEST_INSPECT="$(docker buildx imagetools inspect "$LATEST_IMAGE" 2>&1)"; then
+          docker pull "$LATEST_IMAGE"
+          CURRENT_VERSION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$LATEST_IMAGE")"
+          CURRENT_REVISION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$LATEST_IMAGE")"
+          CURRENT_SOURCE="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.source" }}' "$LATEST_IMAGE")"
+          EXPECTED_SOURCE="https://github.com/$GITHUB_REPOSITORY"
+          if [[ "$CURRENT_SOURCE" != "$EXPECTED_SOURCE" || ! "$CURRENT_REVISION" =~ ^[0-9a-f]{40}$ || ! "$CURRENT_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Current latest image has no valid stable release identity; refusing to move it." >&2
+            exit 1
+          fi
+          CURRENT_STABLE_VERSION="${CURRENT_VERSION%%+*}"
+          RELEASE_STABLE_VERSION="${RELEASE_VERSION%%+*}"
+          if [[ "$CURRENT_STABLE_VERSION" == "$RELEASE_STABLE_VERSION" ]]; then
+            CURRENT_DIGEST="$(docker buildx imagetools inspect "$LATEST_IMAGE" | awk '/^Digest:/ { print $2; exit }')"
+            if [[ "$CURRENT_REVISION" != "$SOURCE_SHA" || "$CURRENT_DIGEST" != "$RELEASE_DIGEST" ]]; then
+              echo "latest already has version $CURRENT_VERSION but does not match its accepted source/digest identity." >&2
+              exit 1
+            fi
+          fi
+          CURRENT_IS_NEWER="$(python3 - "$CURRENT_VERSION" "$RELEASE_VERSION" <<'PY'
+        import sys
+        current = tuple(map(int, sys.argv[1].split('+', 1)[0].split('.')))
+        requested = tuple(map(int, sys.argv[2].split('+', 1)[0].split('.')))
+        print('true' if current >= requested else 'false')
+        PY
+        )"
+          if [[ "$CURRENT_IS_NEWER" == "true" ]]; then
+            echo "latest already identifies $CURRENT_VERSION; it will not move to $RELEASE_VERSION."
+            exit 0
+          fi
+        elif grep -Eqi 'manifest unknown|no such manifest|not found' <<< "$LATEST_INSPECT"; then
+          echo "No stable latest alias exists yet."
+        else
+          echo "$LATEST_INSPECT" >&2
+          echo "Could not safely determine the current latest image identity." >&2
+          exit 1
+        fi
+
+        docker pull "$VERSIONED_IMAGE"
+        docker tag "$VERSIONED_IMAGE" "$LATEST_IMAGE"
+        docker push "$LATEST_IMAGE"

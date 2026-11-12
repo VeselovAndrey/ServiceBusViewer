@@ -1,0 +1,179 @@
+name: Build desktop bundles and publish linked release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      commit: ${{ steps.identity.outputs.commit }}
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Validate tag, app version, and tag commit
+        id: identity
+        working-directory: src/ServiceBusViewer.Desktop
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node scripts/release-info.mjs "$RELEASE_TAG" release-info.json
+          echo "version=$(node -p "require('./release-info.json').version")" >> "$GITHUB_OUTPUT"
+          echo "commit=$(node -p "require('./release-info.json').commit")" >> "$GITHUB_OUTPUT"
+
+  build-container:
+    needs: validate-release
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-release-container-image.yml
+    with:
+      release_version: ${{ needs.validate-release.outputs.version }}
+      source_sha: ${{ needs.validate-release.outputs.commit }}
+
+  build-bundles:
+    needs: validate-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            platform: win32
+            arch: x64
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out validated tag commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate-release.outputs.commit }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Verify native runner identity
+        shell: bash
+        run: |
+          test "$(node -p 'process.platform')" = "${{ matrix.platform }}"
+          test "$(node -p 'process.arch')" = "${{ matrix.arch }}"
+          test "$(git rev-parse HEAD)" = "${{ needs.validate-release.outputs.commit }}"
+
+      - name: Install locked frontend dependencies
+        working-directory: src/ServiceBusViewer.Web
+        run: npm ci
+
+      - name: Install locked desktop dependencies
+        working-directory: src/ServiceBusViewer.Desktop
+        run: npm ci
+
+      - name: Build native desktop bundle
+        working-directory: src/ServiceBusViewer.Desktop
+        shell: bash
+        run: npm run bundle -- --platform=${{ matrix.platform }} --arch=${{ matrix.arch }}
+
+      - name: Create archive and verification metadata
+        working-directory: src/ServiceBusViewer.Desktop
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.validate-release.outputs.commit }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p artifacts
+          node scripts/archive-release-bundle.mjs "out/ServiceBusViewer-${RELEASE_VERSION}-${TARGET_PLATFORM}-${TARGET_ARCH}" artifacts "$RELEASE_VERSION" "$TARGET_PLATFORM" "$TARGET_ARCH"
+          node -e 'require("node:fs").writeFileSync("artifacts/verification.json", JSON.stringify({tag: process.env.RELEASE_TAG, version: process.env.RELEASE_VERSION, commit: process.env.RELEASE_COMMIT, platform: process.env.TARGET_PLATFORM, arch: process.env.TARGET_ARCH}, null, 2) + "\n")'
+
+      - name: Upload verified platform asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-${{ matrix.platform }}-${{ matrix.arch }}
+          path: src/ServiceBusViewer.Desktop/artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-release:
+    needs:
+      - validate-release
+      - build-bundles
+      - build-container
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Check out validated tag commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate-release.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Download verified Windows asset
+        uses: actions/download-artifact@v7
+        with:
+          name: desktop-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-win32-x64
+          path: release-artifacts/win32-x64
+
+      - name: Download verified Linux asset
+        uses: actions/download-artifact@v7
+        with:
+          name: desktop-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-linux-x64
+          path: release-artifacts/linux-x64
+
+      - name: Recheck tag still points to validated commit
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ needs.validate-release.outputs.commit }}
+        run: |
+          git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          test "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" = "$SOURCE_SHA"
+
+      - name: Publish verified release
+        working-directory: src/ServiceBusViewer.Desktop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
+          SOURCE_SHA: ${{ needs.validate-release.outputs.commit }}
+          IMAGE_REFERENCE: ${{ needs.build-container.outputs.image_reference }}
+          IMAGE_DIGEST: ${{ needs.build-container.outputs.image_digest }}
+          RELEASE_ARTIFACTS: ${{ github.workspace }}/release-artifacts
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/publish-release.mjs
