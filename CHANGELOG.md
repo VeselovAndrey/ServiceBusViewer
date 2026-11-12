@@ -1,5 +1,9 @@
 # Service Bus Viewer Version History
 
+## 1.2.0 (2026-11-11)
+
+- **Added:** Electron desktop application (Windows and Linux).
+
 ## 1.1.0 (2026-10-29)
 
 - **Security:** Non-emulator connection strings are now masked by default on the Connect screen, while emulator values are shown automatically for local development. Independent show/hide controls remain available until a field's value changes, without changing prefill, editing, connection, or Escape-to-clear behavior.
