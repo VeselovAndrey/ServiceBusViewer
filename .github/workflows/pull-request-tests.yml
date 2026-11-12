@@ -19,6 +19,23 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Set up Node.js for release version parity
+        if: github.event.pull_request.base.ref == 'release'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Verify app and desktop release versions match
+        if: github.event.pull_request.base.ref == 'release'
+        shell: bash
+        run: |
+          APP_VERSION="$(dotnet msbuild src/ServiceBusViewer/ServiceBusViewer.csproj -getProperty:Version -nologo | tail -n 1 | xargs)"
+          DESKTOP_VERSION="$(node -e "process.stdout.write(JSON.parse(require('node:fs').readFileSync('src/ServiceBusViewer.Desktop/package.json', 'utf8')).version)")"
+          if [[ "$APP_VERSION" != "$DESKTOP_VERSION" ]]; then
+            echo "App version '$APP_VERSION' does not match desktop version '$DESKTOP_VERSION'." >&2
+            exit 1
+          fi
+
       - name: Run unit tests
         run: dotnet test --project ./src/ServiceBusViewer.UnitTests --configuration Debug
 

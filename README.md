@@ -1,6 +1,6 @@
 # Service Bus Viewer
 
-Service Bus Viewer is a browser-based tool for inspecting and working with Azure Service Bus queues, topics, and subscriptions. It is primarily intended for local development and testing with the [Azure Service Bus Emulator](https://github.com/Azure/azure-service-bus-emulator-installer), but it can also connect to Azure Service Bus namespaces.
+Service Bus Viewer is a tool for inspecting and working with Azure Service Bus queues, topics, and subscriptions, available in the browser and as an Electron desktop application. It is primarily intended for local development and testing with the [Azure Service Bus Emulator](https://github.com/Azure/azure-service-bus-emulator-installer), but it can also connect to Azure Service Bus namespaces.
 
 The repository also includes the `SolidCode.Aspire.Hosting.ServiceBusViewer` Aspire support package for registering the published Service Bus Viewer container from .NET Aspire AppHosts. See [`src\SolidCode.Aspire.Hosting.ServiceBusViewer\README.md`](src/SolidCode.Aspire.Hosting.ServiceBusViewer/README.md) for package installation and usage details.
 
@@ -55,9 +55,9 @@ Settings entered on the connection page apply to the current browser session. Th
 
 Automatic entity message-count refresh in the entity menu is configured through the `ServiceBusViewer:EntityCountAutoRefresh` configuration section instead, available from `appsettings.json` or environment variables:
 
-| Configuration key | Environment variable | Purpose | Default |
-| --- | --- | --- | --- |
-| `ServiceBusViewer:EntityCountAutoRefresh:Enabled` | `ServiceBusViewer__EntityCountAutoRefresh__Enabled` | Offers an auto mode on the entity-menu refresh control. The refresh interval is chosen per browser (presets or custom). | `false` |
+| Configuration key / Environment variable | Purpose | Default |
+| --- | --- | --- |
+| `ServiceBusViewer:EntityCountAutoRefresh:Enabled` / `ServiceBusViewer__EntityCountAutoRefresh__Enabled` | Offers an auto mode on the entity-menu refresh control. The refresh interval is chosen per browser (presets or custom). | `false` |
 
 For example, the following command preconfigures namespace browsing for an emulator running on the Docker host:
 
@@ -106,6 +106,10 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
+## 1.2.0 (2026-11-11)
+
+- **Added:** Electron desktop application (Windows and Linux).
+
 ## 1.1.0 (2026-10-29)
 
 - **Security:** Non-emulator connection strings are now masked by default on the Connect screen, while emulator values are shown automatically for local development. Independent show/hide controls remain available until a field's value changes, without changing prefill, editing, connection, or Escape-to-clear behavior.
@@ -138,19 +142,6 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Added:** Hover/focus hint on each counter naming its category (e.g. "DLQ: 2"); clicking a counter selects the entity.
 - **Added:** Entity counts refresh automatically after viewer message operations (send, receive, dead-letter drop/republish) and on demand via the refresh control in the entity menu.
 - **Added:** Optional auto-refresh mode on the entity-menu refresh control with presets (1, 3, 5, 10, 15, 30, 60 seconds) or a custom interval saved in the browser. Auto mode is offered only when enabled in application configuration (`ServiceBusViewer:EntityCountAutoRefresh:Enabled`, disabled by default; enabled in the Docker image and the Aspire AppHost).
-
-## 1.0.0-rc2 (2026-10-14)
-
-- **Added:** Peek count selection on the Viewer page — presets (1, 5, 10, 30, 50, 100) or a custom value up to 500 — applied without reconnecting; the choice is saved in the browser.
-- **Added:** A theme option that follows the OS light/dark setting live; the choice is saved in the browser.
-- **Added:** Emulator connect hint on the Connect screen, with a button that fills in the emulator connection strings (separate Docker and Podman buttons when the viewer runs in a container).
-- **Added:** Sortable message-list columns (Message ID, Session, Delivery Count, Enqueued Time / TTL, Content Type, and Dead Letter Reason in dead-letter mode) with direction indicators, and a search box over the loaded messages — in both peeked and dead-letter modes.
-- **Added:** Confirmation prompt for Republish All, matching the Drop All confirmation.
-- **Changed:** The **Dead Letter** toggle now shows its target — **To Dead Letter** / **To Active** — with a matching archive/inbox icon and a fixed button width.
-- **Changed:** **Republish All** uses the same neutral button style as the other buttons on the page.
-- **Changed:** Viewer header layout: Refresh, the mode toggle, search, and the receive controls moved into the message-list and Last Received Message headers; the mode toggle is now "To Dead Letter" / "To Active"; in dead-letter mode Republish All and Drop All sit on a separate line below a divider.
-- **Fixed:** Dark-mode tints (dead-letter toggle, dead-letter header bar, button shadows) that were not rendering because the `brand-950` theme color was missing.
-- **Fixed:** Page flicker while resizing the window near layout wrap points.
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 
