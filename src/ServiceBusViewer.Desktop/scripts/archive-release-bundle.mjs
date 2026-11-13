@@ -46,13 +46,17 @@ export async function archiveBundle({ bundle, output, version, platform, arch, c
   const destination = path.resolve(output, archiveName);
   const archiveDirectory = path.dirname(destination);
   let bundleParent = path.relative(archiveDirectory, path.dirname(path.resolve(bundle)));
-  if (platform === 'win32' && path.isAbsolute(bundleParent)) {
-    bundleParent = path.dirname(path.resolve(bundle));
+  if (platform === 'win32') {
+    const archiveScript = path.join(path.dirname(fileURLToPath(import.meta.url)), 'archive-windows-bundle.ps1');
+    await runCommand('powershell.exe', [
+      '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-File', archiveScript,
+      '-Bundle', path.resolve(bundle),
+      '-Destination', destination,
+    ], { cwd: archiveDirectory });
+  } else {
+    await runCommand(command, ['-czf', archiveName, '-C', bundleParent, expected], { cwd: archiveDirectory });
   }
-  await runCommand(command, platform === 'win32'
-    ? ['-a', '-c', '-f', archiveName, '-C', bundleParent, expected]
-    : ['-czf', archiveName, '-C', bundleParent, expected],
-    { cwd: archiveDirectory });
   const archive = await stat(destination).catch(() => null);
   if (!archive?.isFile() || !archive.size) throw new Error(`Archive was not created: ${destination}`);
   return destination;

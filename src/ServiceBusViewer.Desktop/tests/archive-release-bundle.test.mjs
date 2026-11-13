@@ -25,6 +25,16 @@ async function fixture(platform = 'linux', arch = 'x64') {
   return { directory, bundle, root, resources, appExecutable, backendExecutable };
 }
 
+function listWindowsArchive(archive) {
+  const literalPath = path.resolve(archive).replaceAll("'", "''");
+  const command = [
+    'Add-Type -AssemblyName System.IO.Compression.FileSystem;',
+    `$zip = [System.IO.Compression.ZipFile]::OpenRead('${literalPath}');`,
+    'try { $zip.Entries | ForEach-Object { $_.FullName } } finally { $zip.Dispose() }',
+  ].join(' ');
+  return execFileSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command], { encoding: 'utf8' });
+}
+
 test('validateBundle rejects unsupported architecture', async () => {
   await assert.rejects(validateBundle('not-a-bundle', { version: '1.2.0', platform: 'darwin', arch: 'x64' }), /Unsupported release target/);
 });
@@ -66,11 +76,12 @@ test('archiveBundle emits the platform archive with the runnable bundle as its r
   try {
     const archive = await archiveBundle({ bundle, output, version: '1.2.0', platform, arch });
     assert.equal(path.basename(archive), `ServiceBusViewer-1.2.0-${platform}-${arch}.${platform === 'win32' ? 'zip' : 'tar.gz'}`);
-    assert.ok((await readFile(archive)).length > 0);
-    const listing = execFileSync('tar', platform === 'win32' ? ['-tf', path.basename(archive)] : ['-tvzf', path.basename(archive)], {
-      cwd: path.dirname(archive),
-      encoding: 'utf8',
-    });
+    const archiveBytes = await readFile(archive);
+    assert.ok(archiveBytes.length > 0);
+    if (platform === 'win32') assert.deepEqual([...archiveBytes.subarray(0, 4)], [0x50, 0x4b, 0x03, 0x04]);
+    const listing = platform === 'win32'
+      ? listWindowsArchive(archive)
+      : execFileSync('tar', ['-tvzf', path.basename(archive)], { cwd: path.dirname(archive), encoding: 'utf8' });
     assert.match(listing, new RegExp(`ServiceBusViewer-1\\.2\\.0-${platform}-${arch}\\/ServiceBusViewer${platform === 'win32' ? '\\.exe' : ''}$`, 'm'));
     if (platform !== 'win32') {
       assert.match(listing, /-rwxr-xr-x .*ServiceBusViewer-1\.2\.0-linux-x64\/ServiceBusViewer$/m);
@@ -79,10 +90,11 @@ test('archiveBundle emits the platform archive with the runnable bundle as its r
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
-test('archiveBundle uses working-directory-relative paths for Windows tar', async () => {
+test('archiveBundle uses the Windows ZIP helper with separate path arguments', async () => {
   const { directory, bundle } = await fixture('win32', 'x64');
   const output = path.join(directory, 'artifacts');
   await mkdir(output);
+  let commandName;
   let commandArgs;
   try {
     const archive = await archiveBundle({
@@ -91,16 +103,19 @@ test('archiveBundle uses working-directory-relative paths for Windows tar', asyn
       version: '1.2.0',
       platform: 'win32',
       arch: 'x64',
-      runCommand: async (_command, args, options) => {
+      runCommand: async (command, args) => {
+        commandName = command;
         commandArgs = args;
-        await writeFile(path.resolve(options.cwd, args[args.indexOf('-f') + 1]), 'zip fixture');
+        await writeFile(args[args.indexOf('-Destination') + 1], 'zip fixture');
       },
     });
-    const archivePath = commandArgs[commandArgs.indexOf('-f') + 1];
-    const bundleParent = commandArgs[commandArgs.indexOf('-C') + 1];
+    const bundlePath = commandArgs[commandArgs.indexOf('-Bundle') + 1];
+    const archivePath = commandArgs[commandArgs.indexOf('-Destination') + 1];
     assert.equal(path.basename(archive), 'ServiceBusViewer-1.2.0-win32-x64.zip');
-    assert.equal(archivePath, path.basename(archive));
-    assert.ok(!/^[A-Za-z]:[\\/]/.test(bundleParent));
+    assert.equal(commandName, 'powershell.exe');
+    assert.ok(commandArgs.includes('archive-windows-bundle.ps1'));
+    assert.equal(path.resolve(bundlePath), path.resolve(bundle));
+    assert.equal(path.resolve(archivePath), path.resolve(archive));
     assert.ok((await readFile(archive)).length > 0);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
