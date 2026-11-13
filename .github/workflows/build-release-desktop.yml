@@ -124,7 +124,12 @@ jobs:
       - name: Build native desktop bundle
         working-directory: src/ServiceBusViewer.Desktop
         shell: bash
-        run: npm run bundle -- --platform=${{ matrix.platform }} --arch=${{ matrix.arch }}
+        run: |
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            npm run package:deb
+          else
+            npm run bundle -- --platform=${{ matrix.platform }} --arch=${{ matrix.arch }}
+          fi
 
       - name: Create archive and verification metadata
         working-directory: src/ServiceBusViewer.Desktop
@@ -144,6 +149,9 @@ jobs:
             ARCHIVER="$RECOVERY_ARCHIVER"
           fi
           node "$ARCHIVER" "out/ServiceBusViewer-${RELEASE_VERSION}-${TARGET_PLATFORM}-${TARGET_ARCH}" artifacts "$RELEASE_VERSION" "$TARGET_PLATFORM" "$TARGET_ARCH"
+          if [[ "$TARGET_PLATFORM" == "linux" ]]; then
+            cp "out/ServiceBusViewer-${RELEASE_VERSION}-linux-x64.deb" artifacts/
+          fi
           node -e 'require("node:fs").writeFileSync("artifacts/verification.json", JSON.stringify({tag: process.env.RELEASE_TAG, version: process.env.RELEASE_VERSION, commit: process.env.RELEASE_COMMIT, platform: process.env.TARGET_PLATFORM, arch: process.env.TARGET_ARCH}, null, 2) + "\n")'
 
       - name: Upload verified platform asset
@@ -197,9 +205,12 @@ jobs:
           test "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" = "$SOURCE_SHA"
 
       - name: Publish verified release
+        timeout-minutes: 90
         working-directory: src/ServiceBusViewer.Desktop
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          VIRUSTOTAL_REQUEST_INTERVAL_MS: ${{ vars.VIRUSTOTAL_REQUEST_INTERVAL_MS || '61000' }}
           RELEASE_TAG: ${{ needs.validate-release.outputs.tag }}
           RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
           SOURCE_SHA: ${{ needs.validate-release.outputs.commit }}

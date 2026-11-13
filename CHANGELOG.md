@@ -1,5 +1,10 @@
 # Service Bus Viewer Version History
 
+## 1.2.1 (2026-11-13)
+
+- **Added:** Release notes begin with GitHub-generated changes and include VirusTotal report links and scan status for each download. Scans run sequentially and do not block publication.
+- **Fixed:** GitHub releases now include the Ubuntu 24.04 amd64 `.deb` installer alongside the Windows ZIP and Linux tar.gz bundles.
+
 ## 1.2.0 (2026-11-11)
 
 - **Added:** Electron desktop application (Windows and Linux).
