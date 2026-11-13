@@ -67,12 +67,41 @@ test('archiveBundle emits the platform archive with the runnable bundle as its r
     const archive = await archiveBundle({ bundle, output, version: '1.2.0', platform, arch });
     assert.equal(path.basename(archive), `ServiceBusViewer-1.2.0-${platform}-${arch}.${platform === 'win32' ? 'zip' : 'tar.gz'}`);
     assert.ok((await readFile(archive)).length > 0);
-    const listing = execFileSync('tar', platform === 'win32' ? ['-tf', archive] : ['-tvzf', archive], { encoding: 'utf8' });
+    const listing = execFileSync('tar', platform === 'win32' ? ['-tf', path.basename(archive)] : ['-tvzf', path.basename(archive)], {
+      cwd: path.dirname(archive),
+      encoding: 'utf8',
+    });
     assert.match(listing, new RegExp(`ServiceBusViewer-1\\.2\\.0-${platform}-${arch}\\/ServiceBusViewer${platform === 'win32' ? '\\.exe' : ''}$`, 'm'));
     if (platform !== 'win32') {
       assert.match(listing, /-rwxr-xr-x .*ServiceBusViewer-1\.2\.0-linux-x64\/ServiceBusViewer$/m);
       assert.match(listing, /-rwxr-xr-x .*ServiceBusViewer-1\.2\.0-linux-x64\/resources\/backend\/ServiceBusViewer$/m);
     }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('archiveBundle uses working-directory-relative paths for Windows tar', async () => {
+  const { directory, bundle } = await fixture('win32', 'x64');
+  const output = path.join(directory, 'artifacts');
+  await mkdir(output);
+  let commandArgs;
+  try {
+    const archive = await archiveBundle({
+      bundle,
+      output,
+      version: '1.2.0',
+      platform: 'win32',
+      arch: 'x64',
+      runCommand: async (_command, args, options) => {
+        commandArgs = args;
+        await writeFile(path.resolve(options.cwd, args[args.indexOf('-f') + 1]), 'zip fixture');
+      },
+    });
+    const archivePath = commandArgs[commandArgs.indexOf('-f') + 1];
+    const bundleParent = commandArgs[commandArgs.indexOf('-C') + 1];
+    assert.equal(path.basename(archive), 'ServiceBusViewer-1.2.0-win32-x64.zip');
+    assert.equal(archivePath, path.basename(archive));
+    assert.ok(!/^[A-Za-z]:[\\/]/.test(bundleParent));
+    assert.ok((await readFile(archive)).length > 0);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
