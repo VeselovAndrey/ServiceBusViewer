@@ -106,6 +106,11 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 
 ## Version history
 
+## 1.2.1 (2026-11-13)
+
+- **Added:** GitHub-generated release notes and VirusTotal report links with scan status for each download.
+- **Fixed:** Releases include the Ubuntu 24.04 amd64 `.deb` installer alongside the desktop archives.
+
 ## 1.2.0 (2026-11-11)
 
 - **Added:** Electron desktop application (Windows and Linux).
@@ -135,13 +140,6 @@ Tabs that share the same browser cookie jar also share the same Service Bus View
 - **Fixed:** Single-message republish now rejects messages without a message ID before any API request, preventing a row action from becoming an unintended Republish All. Intentional bulk republish still requires confirmation, and message search handles null IDs safely.
 - **Fixed:** Bulk Drop All and Republish All now lock entity selection and property navigation from confirmation through completion or cancellation, preventing later batches from affecting a different entity. Progress and cancellation remain available, and other entities are unchanged.
 - **Fixed:** Bulk Drop All and Republish All cancellation now takes effect immediately: the first Cancel click disables the button (showing a Cancelling… label) so later clicks cannot re-issue it.
-
-## 1.0.0 (2026-10-18)
-
-- **Added:** Message count badges in the entity menu: queues and subscriptions show active, scheduled, and dead-letter counts (e.g. `5 | 0 | 2`); topics show the sums across their subscriptions. Counts load on connect and are omitted when unavailable or unreliable (e.g. the Service Bus emulator).
-- **Added:** Hover/focus hint on each counter naming its category (e.g. "DLQ: 2"); clicking a counter selects the entity.
-- **Added:** Entity counts refresh automatically after viewer message operations (send, receive, dead-letter drop/republish) and on demand via the refresh control in the entity menu.
-- **Added:** Optional auto-refresh mode on the entity-menu refresh control with presets (1, 3, 5, 10, 15, 30, 60 seconds) or a custom interval saved in the browser. Auto mode is offered only when enabled in application configuration (`ServiceBusViewer:EntityCountAutoRefresh:Enabled`, disabled by default; enabled in the Docker image and the Aspire AppHost).
 
 See the [full changelog](CHANGELOG.md) for the complete version history.
 
