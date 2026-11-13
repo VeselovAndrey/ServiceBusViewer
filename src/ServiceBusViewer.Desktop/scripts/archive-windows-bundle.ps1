@@ -24,6 +24,8 @@ $failure = $null
 
 try {
     Add-Type -AssemblyName System.IO.Compression
+    # Build entry names ourselves: Windows PowerShell's framework compatibility
+    # settings can make CreateFromDirectory store backslashes in ZIP paths.
     $bundleRoot = [System.IO.Path]::GetFileName($bundlePath.TrimEnd([char[]]@('\', '/')))
     $archiveStream = [System.IO.File]::Open(
         $destinationPath,
@@ -47,6 +49,8 @@ try {
         }
 
         $zipEntry = $archive.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
+        # Copy one file at a time so large Electron bundles are never buffered
+        # entirely in memory. Dispose both streams before opening the next file.
         $inputStream = [System.IO.File]::OpenRead($item.FullName)
         $entryStream = $null
         try {
@@ -65,6 +69,7 @@ catch {
     $failure = $_.Exception.Message
 }
 finally {
+    # Disposing the archive writes its central directory and closes its stream.
     if ($null -ne $archive) {
         $archive.Dispose()
     }

@@ -26,7 +26,9 @@ async function requireFile(file) {
 
 async function fileExists(file) {
   return stat(file).then(() => true).catch(error => {
-    if (error.code === 'ENOENT') return false;
+    if (error.code === 'ENOENT') {
+      return false;
+    }
     throw error;
   });
 }
@@ -38,9 +40,13 @@ export async function stageRuntime({
   run = runCommand,
 } = {}) {
   const runtime = path.join(desktop, '.runtime');
+
   // Never follow a substituted generated-output directory into source or user data.
   const existingRuntime = await lstat(runtime).catch(error => {
-    if (error.code !== 'ENOENT') throw error;
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
+
     return null;
   });
   if (existingRuntime && (!existingRuntime.isDirectory() || existingRuntime.isSymbolicLink())) {
@@ -66,8 +72,10 @@ export async function stageRuntime({
     const spa = path.join(work, 'spa');
     const publish = path.join(work, 'backend');
     await mkdir(work, { recursive: true });
+
     // Build the SPA against the desktop app's same-origin API route.
     const env = { ...process.env, VITE_API_BASE_PATH: '/api' };
+
     // Run the existing build's type checks separately so their incremental files stay desktop-owned.
     for (const config of ['app', 'node']) {
       await run(process.execPath, [
@@ -83,6 +91,8 @@ export async function stageRuntime({
     ], { cwd: web, env });
     await requireFile(path.join(spa, 'index.html'));
 
+    // Windows uses an embedded single-file runtime. Other targets retain the
+    // runtime sidecars that package validation inspects before distribution.
     const singleFileWindows = platform === 'win32';
     await run('dotnet', [
       'publish', project, '-c', 'Release', '-r', target.rid,
@@ -100,7 +110,10 @@ export async function stageRuntime({
       'ServiceBusViewer.deps.json',
       'ServiceBusViewer.runtimeconfig.json',
     ];
-    const sidecarsExist = await Promise.all(runtimeSidecars.map(file => fileExists(path.join(publish, file))));
+    const sidecarsExist = await Promise.all(
+      runtimeSidecars.map(file => fileExists(path.join(publish, file))),
+    );
+
     // Single-file Windows publishes embed these runtime files; partial sidecar sets still indicate bad output.
     if (!singleFileWindows || sidecarsExist.some(Boolean)) {
       for (const file of runtimeSidecars) {
@@ -109,8 +122,10 @@ export async function stageRuntime({
     }
     await cp(spa, path.join(publish, 'wwwroot'), { recursive: true });
     await requireFile(path.join(publish, 'wwwroot/index.html'));
+
     // Publish the staged runtime only after both backend and SPA outputs are complete.
     await rename(publish, backend);
+
     return { backend, ...target };
   } catch (error) {
     await rm(backend, { recursive: true, force: true });
