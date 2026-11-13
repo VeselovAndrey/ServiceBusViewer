@@ -9,6 +9,13 @@ on:
       source_sha:
         required: true
         type: string
+      release_tag:
+        required: true
+        type: string
+      allow_tag_recovery:
+        required: false
+        default: false
+        type: boolean
     outputs:
       image_reference:
         description: Versioned container image reference
@@ -47,13 +54,14 @@ jobs:
     - name: Verify release identity and app version
       id: identity
       env:
-        RELEASE_TAG: ${{ github.ref_name }}
+        RELEASE_TAG: ${{ inputs.release_tag }}
         RELEASE_VERSION: ${{ inputs.release_version }}
         SOURCE_SHA: ${{ inputs.source_sha }}
+        ALLOW_TAG_RECOVERY: ${{ inputs.allow_tag_recovery }}
       shell: bash
       run: |
-        if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
-          echo "Container release must be called from a version tag." >&2
+        if [[ "$GITHUB_REF_TYPE" != "tag" && "$ALLOW_TAG_RECOVERY" != "true" ]]; then
+          echo "Container release must be called from a version tag or an approved tag recovery." >&2
           exit 1
         fi
 
@@ -79,10 +87,17 @@ jobs:
           done
         fi
 
+        git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+        TAG_SHA="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
         CHECKED_OUT_SHA="$(git rev-parse HEAD)"
-        if [[ "$GITHUB_SHA" != "$SOURCE_SHA" || "$CHECKED_OUT_SHA" != "$SOURCE_SHA" ]]; then
-          echo "Caller, requested, and checked-out source commits must match." >&2
-          echo "github.sha=$GITHUB_SHA source_sha=$SOURCE_SHA checked_out=$CHECKED_OUT_SHA" >&2
+        if [[ "$TAG_SHA" != "$SOURCE_SHA" || "$CHECKED_OUT_SHA" != "$SOURCE_SHA" ]]; then
+          echo "The release tag, requested source, and checked-out source commits must match." >&2
+          echo "tag_sha=$TAG_SHA source_sha=$SOURCE_SHA checked_out=$CHECKED_OUT_SHA" >&2
+          exit 1
+        fi
+        if [[ "$ALLOW_TAG_RECOVERY" != "true" && "$GITHUB_SHA" != "$SOURCE_SHA" ]]; then
+          echo "The normal tag-triggered caller and source commits must match." >&2
+          echo "github.sha=$GITHUB_SHA source_sha=$SOURCE_SHA" >&2
           exit 1
         fi
 
@@ -158,11 +173,31 @@ jobs:
       id: release-output
       env:
         RELEASE_VERSION: ${{ steps.identity.outputs.version }}
+        BUILD_DIGEST: ${{ steps.build.outputs.digest }}
       shell: bash
       run: |
         VERSIONED_IMAGE="$IMAGE:$RELEASE_VERSION"
-        DIGEST="$(docker buildx imagetools inspect "$VERSIONED_IMAGE" | awk '/^Digest:/ { print $2; exit }')"
+        DIGEST="$BUILD_DIGEST"
+        LAST_ERROR=""
         if ! [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+          for ATTEMPT in 1 2 3 4 5 6; do
+            if INSPECT_OUTPUT="$(docker buildx imagetools inspect "$VERSIONED_IMAGE" 2>&1)"; then
+              DIGEST="$(awk '/^Digest:[[:space:]]*/ { print $2; exit }' <<< "$INSPECT_OUTPUT")"
+              if [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                break
+              fi
+              LAST_ERROR="Registry inspection returned no valid digest: $INSPECT_OUTPUT"
+            else
+              LAST_ERROR="$INSPECT_OUTPUT"
+            fi
+            if (( ATTEMPT < 6 )); then
+              echo "Digest inspection attempt $ATTEMPT failed; retrying in 5 seconds." >&2
+              sleep 5
+            fi
+          done
+        fi
+        if ! [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+          echo "$LAST_ERROR" >&2
           echo "Registry did not return a valid immutable image digest for $VERSIONED_IMAGE." >&2
           exit 1
         fi

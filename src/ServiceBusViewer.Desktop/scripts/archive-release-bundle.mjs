@@ -44,17 +44,23 @@ export async function archiveBundle({ bundle, output, version, platform, arch, c
   const format = platform === 'win32' ? 'zip' : 'tar.gz';
   const archiveName = `ServiceBusViewer-${version}-${platform}-${arch}.${format}`;
   const destination = path.resolve(output, archiveName);
+  const archiveDirectory = path.dirname(destination);
+  let bundleParent = path.relative(archiveDirectory, path.dirname(path.resolve(bundle)));
+  if (platform === 'win32' && path.isAbsolute(bundleParent)) {
+    bundleParent = path.dirname(path.resolve(bundle));
+  }
   await runCommand(command, platform === 'win32'
-    ? ['-a', '-c', '-f', destination, '-C', path.dirname(bundle), expected]
-    : ['-czf', destination, '-C', path.dirname(bundle), expected]);
+    ? ['-a', '-c', '-f', archiveName, '-C', bundleParent, expected]
+    : ['-czf', archiveName, '-C', bundleParent, expected],
+    { cwd: archiveDirectory });
   const archive = await stat(destination).catch(() => null);
   if (!archive?.isFile() || !archive.size) throw new Error(`Archive was not created: ${destination}`);
   return destination;
 }
 
-function run(command, args) {
+function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { shell: false, stdio: 'inherit' });
+    const child = spawn(command, args, { shell: false, stdio: 'inherit', ...options });
     child.once('error', reject);
     child.once('close', code => code === 0 ? resolve() : reject(new Error(`${command} failed (exit ${code}).`)));
   });
