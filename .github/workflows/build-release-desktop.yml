@@ -205,7 +205,7 @@ jobs:
           test "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" = "$SOURCE_SHA"
 
       - name: Publish verified release
-        timeout-minutes: 90
+        timeout-minutes: 60
         working-directory: src/ServiceBusViewer.Desktop
         env:
           GH_TOKEN: ${{ github.token }}

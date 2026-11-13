@@ -23,6 +23,7 @@ export function bundleDirectoryName(version, platform, arch) {
     throw new Error('Desktop package version must be a safe, strict semantic version.');
   }
   resolveRuntimeTarget(platform, arch);
+
   return `${applicationName}-${version}-${platform}-${arch}`;
 }
 
@@ -42,11 +43,14 @@ export function parseBundleArguments(args, hostPlatform = process.platform, host
   if (options.crossBuild && !(hostPlatform === 'win32' && options.platform === 'linux')) {
     throw new Error('Only native builds and Windows-to-Linux cross-builds are supported.');
   }
+
   return options;
 }
 
 export async function stageBundleRuntime({ desktop, work, platform, arch, crossBuild, stage, run }) {
-  if (!crossBuild) return stage({ desktop, platform, arch, run });
+  if (!crossBuild) {
+    return stage({ desktop, platform, arch, run });
+  }
 
   // Route build paths through an isolated staging directory while sharing the
   // repository's existing frontend and backend source projects.
@@ -57,7 +61,9 @@ export async function stageBundleRuntime({ desktop, work, platform, arch, crossB
     actual: path.resolve(desktop, '..', name),
   }));
   const sourcePath = value => {
-    const source = sources.find(item => value === item.isolated || value.startsWith(`${item.isolated}${path.sep}`));
+    const source = sources.find(item => value === item.isolated
+      || value.startsWith(`${item.isolated}${path.sep}`));
+
     return source ? source.actual + value.slice(source.isolated.length) : value;
   };
   const runWithSources = (command, args, options) => run(command, args.map(sourcePath), {
@@ -68,11 +74,13 @@ export async function stageBundleRuntime({ desktop, work, platform, arch, crossB
   if (path.resolve(result.backend) !== path.join(isolatedDesktop, '.runtime', 'backend')) {
     throw new Error('Cross-build staging returned an unexpected output directory.');
   }
+
   return result;
 }
 
 export async function validateLinuxExecutable(file, arch) {
   const bytes = await readFile(file);
+
   // Confirm ELF64, little-endian format and the requested x86-64 or AArch64 machine.
   const machine = arch === 'x64' ? 62 : 183;
   if (bytes.length < 20
@@ -93,7 +101,10 @@ async function requireFile(file) {
 
 async function realDirectory(directory) {
   const info = await lstat(directory).catch(error => {
-    if (error.code !== 'ENOENT') throw error;
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
+
     return null;
   });
   if (info && (!info.isDirectory() || info.isSymbolicLink())) {
@@ -120,9 +131,12 @@ async function validateBackend(backend, target) {
   const sidecarsExist = await Promise.all(runtimeSidecars.map(async name => stat(path.join(backend, name))
     .then(() => true)
     .catch(error => {
-      if (error.code === 'ENOENT') return false;
+      if (error.code === 'ENOENT') {
+        return false;
+      }
       throw error;
     })));
+
   // Windows single-file publishes embed the runtime sidecars; reject incomplete folder publishes.
   if (target.rid.startsWith('win-') && !sidecarsExist.some(Boolean)) return;
   for (const name of runtimeSidecars) {
@@ -194,6 +208,7 @@ try {
     icon = path.join(work, 'app-logo.icns');
     await writeFile(icon, Buffer.concat([header, image]));
   }
+
   return icon;
 }
 
@@ -215,6 +230,9 @@ export async function packageApplication({
   await realDirectory(runtime);
   await realDirectory(out);
   const lock = path.join(runtime, '.package-lock');
+
+  // A directory lock prevents overlapping builds from deleting each other's
+  // staging tree. Its lifetime covers both packaging and final validation.
   await mkdir(lock).catch(error => {
     if (error.code === 'EEXIST') {
       throw new Error('Desktop packaging is already running, or .runtime/.package-lock remains from an interrupted build.');
@@ -228,6 +246,7 @@ export async function packageApplication({
     await rm(destination, { recursive: true, force: true });
     await rm(work, { recursive: true, force: true });
     await mkdir(work, { recursive: true });
+
     // Build a fresh backend/SPA pair for the requested platform.
     const staged = await stageBundleRuntime({
       desktop,
@@ -248,6 +267,7 @@ export async function packageApplication({
     if (crossBuild) {
       await validateLinuxExecutable(path.join(staged.backend, target.executable), arch);
     }
+
     // Publish can include ignored developer appsettings. Keep the base configuration,
     // but never distribute environment-specific local configuration or debug symbols.
     for (const name of await readdir(staged.backend)) {
@@ -283,6 +303,7 @@ export async function packageApplication({
     const packager = pack ?? (await import('@electron/packager')).packager;
     const temporaryOut = path.join(work, 'out');
     await mkdir(path.join(work, 'downloads'), { recursive: true });
+
     // Keep packager downloads and temporary files inside the desktop-owned runtime tree.
     const outputs = await packager({
       dir: app,
@@ -325,8 +346,11 @@ export async function packageApplication({
       await requireFile(path.join(resources, 'app', file));
     }
     await rename(expected, destination);
+
     return { bundle: destination, rid: target.rid };
   } finally {
+    // Keep only the validated delivery directory; intermediate files and the
+    // lock must be released on both success and failure.
     await rm(work, { recursive: true, force: true });
     await rm(lock, { recursive: true, force: true });
   }

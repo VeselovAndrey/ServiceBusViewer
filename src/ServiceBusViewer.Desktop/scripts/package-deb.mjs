@@ -47,6 +47,7 @@ export function debianVersion(version) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) {
     throw new Error('DEB packaging currently supports release versions only, without prerelease or build identifiers.');
   }
+
   return version;
 }
 
@@ -75,7 +76,10 @@ export function runDebCommand(command, args, options = {}) {
 
 async function realDirectory(directory) {
   const info = await lstat(directory).catch(error => {
-    if (error.code !== 'ENOENT') throw error;
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
+
     return null;
   });
   if (info && (!info.isDirectory() || info.isSymbolicLink())) {
@@ -152,6 +156,7 @@ export function validateDebContents(contents) {
       throw new Error(`Required DEB archive entry is missing: ${required}`);
     }
   }
+
   return found.size;
 }
 
@@ -207,6 +212,8 @@ export async function packageDeb({
   const version = debianVersion(metadata.version);
   const baseName = bundleDirectoryName(version, 'linux', 'x64');
   const linux = args => {
+    // Keep the same argument boundaries on both native Linux and WSL; paths
+    // containing spaces must never be interpolated into shell commands.
     if (platform === 'win32') {
       return run(
         'wsl.exe',
@@ -214,8 +221,10 @@ export async function packageDeb({
         { cwd: desktop },
       );
     }
+
     return run(args[0], args.slice(1), { cwd: desktop });
   };
+
   // Verify the Linux assembly host before creating or replacing package output.
   const host = await linux([
     'sh', '-c',
@@ -238,9 +247,12 @@ export async function packageDeb({
   const work = path.join(runtime, 'deb');
   const destination = path.join(out, `${baseName}.deb`);
   try {
+    // Remove this version's previous output first so a failed rebuild cannot
+    // accidentally leave an old installer available for publication.
     await rm(destination, { force: true });
     await rm(work, { recursive: true, force: true });
     await mkdir(work, { recursive: true });
+
     // Produce and validate the Linux bundle before assembling its Debian archive.
     const bundled = await build({
       desktop,
@@ -283,6 +295,7 @@ export async function packageDeb({
     const script = path.join(work, 'assemble.sh');
     await writeFile(script, assemblyScript);
     const temporaryDeb = path.join(work, 'application.deb');
+
     // WSL receives Linux paths as arguments; checkout paths never become shell text.
     const linuxPath = async file => platform === 'win32'
       ? (await linux(['wslpath', '-a', '-u', file])).trim()
@@ -303,8 +316,11 @@ export async function packageDeb({
       throw new Error('DEB package metadata validation failed.');
     }
     await rename(temporaryDeb, destination);
+
     return { deb: destination, version, architecture: 'amd64', entries };
   } finally {
+    // The published package lives under out; assembly metadata and locks are
+    // disposable even if validation or the final rename fails.
     await rm(work, { recursive: true, force: true });
     await rm(lock, { recursive: true, force: true });
   }
@@ -315,6 +331,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (process.argv.length !== 2) {
       throw new Error('package:deb does not accept target switches; its target is Ubuntu 24.04 x64.');
     }
+
     return packageDeb();
   }).then(({ deb, entries }) =>
     console.log(`Packaged Ubuntu 24.04 amd64 installer at ${deb} (${entries} verified root-owned entries)`)

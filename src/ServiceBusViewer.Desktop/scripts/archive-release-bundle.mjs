@@ -14,17 +14,32 @@ export async function validateBundle(bundle, { version, platform, arch }) {
     throw new Error(`Expected a fresh bundle directory named ${expected}.`);
   }
   const root = platform === 'darwin' ? path.join(bundle, 'ServiceBusViewer.app', 'Contents') : bundle;
-  const executable = path.join(root, platform === 'darwin' ? 'MacOS/ServiceBusViewer' : `ServiceBusViewer${platform === 'win32' ? '.exe' : ''}`);
-  const backendExecutable = path.join(root, platform === 'darwin' ? 'Resources/backend/ServiceBusViewer' : `resources/backend/ServiceBusViewer${platform === 'win32' ? '.exe' : ''}`);
+
+  // macOS places executables and resources inside the .app directory; Windows
+  // and Linux place them directly under the versioned bundle root.
+  const executable = path.join(
+    root,
+    platform === 'darwin' ? 'MacOS/ServiceBusViewer' : `ServiceBusViewer${platform === 'win32' ? '.exe' : ''}`,
+  );
+  const backendExecutable = path.join(
+    root,
+    platform === 'darwin' ? 'Resources/backend/ServiceBusViewer' : `resources/backend/ServiceBusViewer${platform === 'win32' ? '.exe' : ''}`,
+  );
   const resources = path.join(root, platform === 'darwin' ? 'Resources' : 'resources');
   for (const file of [executable, backendExecutable, path.join(resources, 'app/package.json')]) {
     const entry = await stat(file).catch(() => null);
-    if (!entry?.isFile() || !entry.size) throw new Error(`Required runnable bundle file is missing or empty: ${file}`);
+    if (!entry?.isFile() || !entry.size) {
+      throw new Error(`Required runnable bundle file is missing or empty: ${file}`);
+    }
   }
   const packageInfo = JSON.parse(await readFile(path.join(resources, 'app/package.json'), 'utf8'));
-  if (packageInfo.version !== version) throw new Error(`Bundle version ${packageInfo.version} does not match ${version}.`);
+  if (packageInfo.version !== version) {
+    throw new Error(`Bundle version ${packageInfo.version} does not match ${version}.`);
+  }
   const entries = await readdir(resources);
-  if (!entries.includes('app') || !entries.includes('backend')) throw new Error('Bundle resources are incomplete.');
+  if (!entries.includes('app') || !entries.includes('backend')) {
+    throw new Error('Bundle resources are incomplete.');
+  }
   if (platform !== 'win32') {
     for (const file of [executable, backendExecutable]) {
       if (((await stat(file)).mode & 0o111) === 0) {
@@ -34,12 +49,23 @@ export async function validateBundle(bundle, { version, platform, arch }) {
   }
   if (platform === 'darwin') {
     const infoPlist = await stat(path.join(root, 'Info.plist')).catch(() => null);
-    if (!infoPlist?.isFile() || !infoPlist.size) throw new Error('macOS application bundle is missing Contents/Info.plist.');
+    if (!infoPlist?.isFile() || !infoPlist.size) {
+      throw new Error('macOS application bundle is missing Contents/Info.plist.');
+    }
   }
+
   return { expected, executable };
 }
 
-export async function archiveBundle({ bundle, output, version, platform, arch, command = 'tar', runCommand = run }) {
+export async function archiveBundle({
+  bundle,
+  output,
+  version,
+  platform,
+  arch,
+  command = 'tar',
+  runCommand = run,
+}) {
   const { expected } = await validateBundle(bundle, { version, platform, arch });
   const format = platform === 'win32' ? 'zip' : 'tar.gz';
   const archiveName = `ServiceBusViewer-${version}-${platform}-${arch}.${format}`;
@@ -47,6 +73,8 @@ export async function archiveBundle({ bundle, output, version, platform, arch, c
   const archiveDirectory = path.dirname(destination);
   let bundleParent = path.relative(archiveDirectory, path.dirname(path.resolve(bundle)));
   if (platform === 'win32') {
+    // GNU tar's auto-compression option does not create ZIP files. The Windows
+    // helper writes ZIP entries explicitly with portable forward-slash paths.
     const archiveScript = path.join(path.dirname(fileURLToPath(import.meta.url)), 'archive-windows-bundle.ps1');
     await runCommand('powershell.exe', [
       '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
@@ -55,10 +83,15 @@ export async function archiveBundle({ bundle, output, version, platform, arch, c
       '-Destination', destination,
     ], { cwd: archiveDirectory });
   } else {
+    // Relative archive paths avoid tar interpreting a Windows drive letter as a
+    // remote-host prefix when invoked from a Windows development environment.
     await runCommand(command, ['-czf', archiveName, '-C', bundleParent, expected], { cwd: archiveDirectory });
   }
   const archive = await stat(destination).catch(() => null);
-  if (!archive?.isFile() || !archive.size) throw new Error(`Archive was not created: ${destination}`);
+  if (!archive?.isFile() || !archive.size) {
+    throw new Error(`Archive was not created: ${destination}`);
+  }
+
   return destination;
 }
 
@@ -74,5 +107,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const [bundle, output, version, platform, arch] = process.argv.slice(2);
   archiveBundle({ bundle, output, version, platform, arch })
     .then(file => console.log(`Archived ${file}.`))
-    .catch(error => { console.error(error.message); process.exitCode = 1; });
+    .catch(error => {
+      console.error(error.message);
+      process.exitCode = 1;
+    });
 }
