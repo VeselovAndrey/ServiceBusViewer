@@ -113,7 +113,7 @@ test('archiveBundle uses the Windows ZIP helper with separate path arguments', a
     const archivePath = commandArgs[commandArgs.indexOf('-Destination') + 1];
     assert.equal(path.basename(archive), 'ServiceBusViewer-1.2.0-win32-x64.zip');
     assert.equal(commandName, 'powershell.exe');
-    assert.ok(commandArgs.includes('archive-windows-bundle.ps1'));
+    assert.equal(path.basename(commandArgs[commandArgs.indexOf('-File') + 1]), 'archive-windows-bundle.ps1');
     assert.equal(path.resolve(bundlePath), path.resolve(bundle));
     assert.equal(path.resolve(archivePath), path.resolve(archive));
     assert.ok((await readFile(archive)).length > 0);

@@ -199,7 +199,7 @@ jobs:
       - name: Publish verified release
         working-directory: src/ServiceBusViewer.Desktop
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.validate-release.outputs.tag }}
           RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
           SOURCE_SHA: ${{ needs.validate-release.outputs.commit }}
