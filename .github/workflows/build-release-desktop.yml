@@ -3,25 +3,32 @@ name: Build desktop bundles and publish linked release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag to recover without moving the tag or replacing its image
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-release-${{ github.ref }}
+  group: desktop-release-${{ inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   validate-release:
     runs-on: ubuntu-24.04
     outputs:
+      tag: ${{ steps.identity.outputs.tag }}
       version: ${{ steps.identity.outputs.version }}
       commit: ${{ steps.identity.outputs.commit }}
     steps:
       - name: Check out release tag
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ inputs.release_tag || github.ref }}
           fetch-depth: 0
 
       - name: Set up .NET
@@ -38,9 +45,16 @@ jobs:
         id: identity
         working-directory: src/ServiceBusViewer.Desktop
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+          WORKFLOW_EVENT: ${{ github.event_name }}
+          WORKFLOW_REF: ${{ github.ref }}
         run: |
+          if [[ "$WORKFLOW_EVENT" == "workflow_dispatch" && "$WORKFLOW_REF" != "refs/heads/release" ]]; then
+            echo "Release recovery must be dispatched from the release branch." >&2
+            exit 1
+          fi
           node scripts/release-info.mjs "$RELEASE_TAG" release-info.json
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$(node -p "require('./release-info.json').version")" >> "$GITHUB_OUTPUT"
           echo "commit=$(node -p "require('./release-info.json').commit")" >> "$GITHUB_OUTPUT"
 
@@ -53,6 +67,8 @@ jobs:
     with:
       release_version: ${{ needs.validate-release.outputs.version }}
       source_sha: ${{ needs.validate-release.outputs.commit }}
+      release_tag: ${{ needs.validate-release.outputs.tag }}
+      allow_tag_recovery: ${{ github.event_name == 'workflow_dispatch' }}
 
   build-bundles:
     needs: validate-release
@@ -72,6 +88,13 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.validate-release.outputs.commit }}
+
+      - name: Check out recovery tooling
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: recovery-tools
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
@@ -109,19 +132,25 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
           RELEASE_COMMIT: ${{ needs.validate-release.outputs.commit }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.validate-release.outputs.tag }}
           TARGET_PLATFORM: ${{ matrix.platform }}
           TARGET_ARCH: ${{ matrix.arch }}
+          RECOVERY_MODE: ${{ github.event_name == 'workflow_dispatch' }}
+          RECOVERY_ARCHIVER: ${{ github.workspace }}/recovery-tools/src/ServiceBusViewer.Desktop/scripts/archive-release-bundle.mjs
         run: |
           mkdir -p artifacts
-          node scripts/archive-release-bundle.mjs "out/ServiceBusViewer-${RELEASE_VERSION}-${TARGET_PLATFORM}-${TARGET_ARCH}" artifacts "$RELEASE_VERSION" "$TARGET_PLATFORM" "$TARGET_ARCH"
+          ARCHIVER="scripts/archive-release-bundle.mjs"
+          if [[ "$RECOVERY_MODE" == "true" ]]; then
+            ARCHIVER="$RECOVERY_ARCHIVER"
+          fi
+          node "$ARCHIVER" "out/ServiceBusViewer-${RELEASE_VERSION}-${TARGET_PLATFORM}-${TARGET_ARCH}" artifacts "$RELEASE_VERSION" "$TARGET_PLATFORM" "$TARGET_ARCH"
           node -e 'require("node:fs").writeFileSync("artifacts/verification.json", JSON.stringify({tag: process.env.RELEASE_TAG, version: process.env.RELEASE_VERSION, commit: process.env.RELEASE_COMMIT, platform: process.env.TARGET_PLATFORM, arch: process.env.TARGET_ARCH}, null, 2) + "\n")'
 
       - name: Upload verified platform asset
         uses: actions/upload-artifact@v7
         with:
           # Keep successful matrix artifacts discoverable across failed-job reruns.
-          name: desktop-${{ github.run_id }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-${{ matrix.platform }}-${{ matrix.arch }}
+          name: desktop-${{ github.run_id }}-${{ needs.validate-release.outputs.tag }}-${{ needs.validate-release.outputs.commit }}-${{ matrix.platform }}-${{ matrix.arch }}
           overwrite: true
           path: src/ServiceBusViewer.Desktop/artifacts/*
           if-no-files-found: error
@@ -150,18 +179,18 @@ jobs:
       - name: Download verified Windows asset
         uses: actions/download-artifact@v7
         with:
-          name: desktop-${{ github.run_id }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-win32-x64
+          name: desktop-${{ github.run_id }}-${{ needs.validate-release.outputs.tag }}-${{ needs.validate-release.outputs.commit }}-win32-x64
           path: release-artifacts/win32-x64
 
       - name: Download verified Linux asset
         uses: actions/download-artifact@v7
         with:
-          name: desktop-${{ github.run_id }}-${{ github.ref_name }}-${{ needs.validate-release.outputs.commit }}-linux-x64
+          name: desktop-${{ github.run_id }}-${{ needs.validate-release.outputs.tag }}-${{ needs.validate-release.outputs.commit }}-linux-x64
           path: release-artifacts/linux-x64
 
       - name: Recheck tag still points to validated commit
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.validate-release.outputs.tag }}
           SOURCE_SHA: ${{ needs.validate-release.outputs.commit }}
         run: |
           git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
@@ -171,7 +200,7 @@ jobs:
         working-directory: src/ServiceBusViewer.Desktop
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.validate-release.outputs.tag }}
           RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
           SOURCE_SHA: ${{ needs.validate-release.outputs.commit }}
           IMAGE_REFERENCE: ${{ needs.build-container.outputs.image_reference }}
