@@ -135,7 +135,10 @@ export async function inspectReleaseArchive(file, { platform, arch }, version, r
     `${root}/resources/backend/ServiceBusViewer${platform === 'win32' ? '.exe' : ''}`,
     `${root}/resources/app/package.json`,
   ];
-  if (names.some(name => !name.startsWith(`${root}/`))) throw new Error(`Archive ${path.basename(file)} contains entries outside its expected root.`);
+  const outsideRoot = names.filter(name => !name.startsWith(`${root}/`));
+  if (outsideRoot.length) {
+    throw new Error(`Archive ${path.basename(file)} contains entries outside its expected root: ${outsideRoot.slice(0, 5).join(', ')}`);
+  }
   for (const name of required) if (!names.includes(name)) throw new Error(`Archive ${path.basename(file)} is missing ${name}.`);
   if (platform !== 'win32') {
     const verboseListing = await runCommand('tar', ['-tvzf', file]);
