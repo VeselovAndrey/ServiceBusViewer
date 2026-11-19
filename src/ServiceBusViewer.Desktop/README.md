@@ -20,7 +20,7 @@ Dependency versions are managed in `package.json` and `package-lock.json`. Versi
 
 | Target | Bundle directory | Launch file |
 | --- | --- | --- |
-| Windows | `ServiceBusViewer-<version>-win32-<arch>` | `ServiceBusViewer.exe` |
+| Windows | `ServiceBusViewer-<version>-win-<arch>` | `ServiceBusViewer.exe` |
 | Linux | `ServiceBusViewer-<version>-linux-<arch>` | `ServiceBusViewer` |
 | macOS | `ServiceBusViewer-<version>-darwin-arm64` | `ServiceBusViewer.app` |
 
@@ -36,11 +36,11 @@ From `src/ServiceBusViewer.Desktop`, build and archive the Windows bundle:
 npm run bundle
 $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
 $arch = "x64" # Set to "arm64" for an arm64 build.
-$bundle = "out/ServiceBusViewer-$version-win32-$arch"
+$bundle = "out/ServiceBusViewer-$version-win-$arch"
 Compress-Archive -LiteralPath $bundle -DestinationPath "$bundle.zip" -Force
 ```
 
-The archive is written to `out/ServiceBusViewer-<version>-win32-<arch>.zip`.
+The archive is written to `out/ServiceBusViewer-<version>-win-<arch>.zip`.
 
 ### Build Linux on Windows
 
@@ -113,7 +113,7 @@ Pushing a tag such as `v1.2.0` starts the coordinated release workflow. The tag 
 
 | Platform | Download |
 | --- | --- |
-| Windows x64 | `ServiceBusViewer-<version>-win32-x64.zip` |
+| Windows x64 | `ServiceBusViewer-<version>-win-x64.zip` |
 | Linux x64 | `ServiceBusViewer-<version>-linux-x64.tar.gz` |
 | Ubuntu 24.04 amd64 installer | `ServiceBusViewer-<version>-linux-x64.deb` |
 
@@ -121,8 +121,8 @@ Each release identifies the exact source commit and the versioned GHCR image dig
 
 Release publication uses a draft until all three downloads and their source/image identity checks succeed. Linux runs `npm run package:deb` once, then archives the same generated bundle. The publisher checks Debian package name/version/architecture, ownership, permissions and required files using `dpkg-deb`. Installer releases currently require stable versions (`X.Y.Z`); prerelease/build identifiers are rejected by the existing Debian packager.
 
-Release notes start with GitHub-generated changes and a comparison link, followed by source identity, downloads, VirusTotal reports and container identity. Add a repository Actions secret named `VIRUSTOTAL_API_KEY` to enable submissions. Only the three release packages are submitted; reports identify their SHA-256 hashes. Package scans may not inspect every embedded executable. Uploaded files are submitted to VirusTotal's public scanning service, so use an account/API plan appropriate for this public release workflow.
+Release notes start with GitHub-generated changes and a comparison link, followed by source identity, downloads, VirusTotal reports and container identity.
 
-VirusTotal calls run sequentially, at least 61 seconds apart, including uploads and polling. The optional repository variable `VIRUSTOTAL_REQUEST_INTERVAL_MS` can increase that interval for stricter quotas. Each asset receives at most one analysis-status lookup after submission to conserve monthly lookup quota; pending reports remain available through their links. Upload URL requests and uploads may have additional account-specific quota costs. An HTTP 429 stops further submissions for this release. Missing credentials, API errors and pending analyses are explicitly reported with hash-lookup links, rather than described as successful scans. Detections and incomplete scans do not block publication. Report status/counts are a snapshot at release creation; follow the links for later results. Draft recovery preserves the original report snapshot.
+**VirusTotal:** Set the Actions secret `VIRUSTOTAL_API_KEY` to publicly scan release packages. Scans run sequentially: up to 15 minutes per file, then a 15-second pause. API calls are at least 61 seconds apart (adjust with `VIRUSTOTAL_REQUEST_INTERVAL_MS`). HTTP 429 stops submissions; other failures continue to the next file. Scanning never blocks publication. Release notes contain SHA-256 report links; Actions logs contain status and errors. Archive scans may not cover every embedded executable.
 
 A rerun may complete a partial draft only when its tag, commit, image identity and existing asset bytes match. Published releases and tags are immutable; mismatched or unverifiable existing assets stop recovery and require maintainer investigation rather than replacement. Native launch validation still requires matching operating systems and their documented libraries.

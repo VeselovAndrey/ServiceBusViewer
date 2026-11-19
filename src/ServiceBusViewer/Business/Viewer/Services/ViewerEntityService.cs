@@ -58,6 +58,5 @@ internal sealed class ViewerEntityService : IViewerEntityService
 			QueueEntityId => "Queue",
 			TopicEntityId => "Topic",
 			SubscriptionEntityId => "Subscription",
-			_ => throw new ArgumentException($"Unknown entity type: {entityId.GetType().FullName}", nameof(entityId))
 		};
 }

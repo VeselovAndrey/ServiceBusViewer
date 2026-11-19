@@ -17,12 +17,57 @@ async function fixture(t) {
 }
 const response = data => ({ ok: true, json: async () => data });
 
+test('each file gets a 15-minute deadline and timed-out scans allow the next upload', async t => {
+  const asset = await fixture(t);
+  let clock = 0;
+  const uploads = [];
+  const results = await scanReleaseAssets([asset, { ...asset, name: 'second.deb' }], {
+    apiKey: 'test', now: () => clock, sleep: async ms => { clock += ms; },
+    fetchImpl: async (_url, options) => {
+      if (options.method === 'POST') {
+        uploads.push(clock);
+        return response({ data: { id: 'pending' } });
+      }
+      return response({ data: { attributes: { status: 'queued' } } });
+    },
+  });
+  assert.deepEqual(uploads, [0, 915000]);
+  assert.equal(clock, 1815000);
+  assert.deepEqual(results.map(result => result.status), ['timed-out', 'timed-out']);
+});
+
+test('next file waits for completed analysis and a 15-second inter-file pause', async t => {
+  const asset = await fixture(t);
+  let clock = 0;
+  const events = [];
+  let analyses = 0;
+  await scanReleaseAssets([asset, { ...asset, name: 'second.deb' }], {
+    apiKey: 'test', now: () => clock,
+    sleep: async ms => { events.push(`wait:${ms}`); clock += ms; },
+    fetchImpl: async (_url, options) => {
+      if (options.method === 'POST') {
+        events.push('upload');
+        return response({ data: { id: 'analysis' } });
+      }
+      analyses++;
+      events.push(analyses === 1 ? 'queued' : 'completed');
+      return response({ data: { attributes: { status: analyses === 1 ? 'queued' : 'completed', stats: { malicious: 0, suspicious: 0 } } }, meta: { file_info: { sha256: asset.digest } } });
+    },
+  });
+  assert.equal(events.filter(event => event === 'upload').length, 2);
+  const firstCompleted = events.indexOf('completed');
+  const interFilePause = events.indexOf('wait:15000');
+  const secondUpload = events.lastIndexOf('upload');
+  assert.ok(firstCompleted > events.indexOf('queued'));
+  assert.ok(interFilePause > firstCompleted && interFilePause < secondUpload);
+});
+
 test('missing key produces honest lookup links without API calls', async () => {
   const [result] = await scanReleaseAssets([{ name: 'bundle.zip', digest: 'a'.repeat(64) }], {
     apiKey: '', fetchImpl: () => assert.fail('Unexpected API call'),
   });
   assert.equal(result.status, 'not-submitted');
-  assert.match(scanNotes([result]), /not evidence of a scan/);
+  assert.doesNotMatch(scanNotes([result]), /not-submitted|checked /);
 });
 
 test('submission streams exact bytes and requests are spaced for one lookup per minute', async t => {
@@ -46,24 +91,25 @@ test('submission streams exact bytes and requests are spaced for one lookup per 
   });
   assert.deepEqual(times, [0, 61000]);
   assert.equal(results[0].status, 'completed');
-  assert.match(scanNotes(results), /1 malicious/);
+  assert.doesNotMatch(scanNotes(results), /1 malicious|completed;|checked /);
   assert.doesNotMatch(scanNotes(results), /test-secret/);
 });
 
-test('pending analysis is reported without repeated polling', async t => {
+test('pending analysis reaches the polling bound and continues with the next file', async t => {
   const asset = await fixture(t);
   let calls = 0;
-  const [result] = await scanReleaseAssets([asset], {
-    apiKey: 'test', sleep: async () => {},
+  const [result, skipped] = await scanReleaseAssets([asset, { ...asset, name: 'second.deb' }], {
+    apiKey: 'test', sleep: async () => {}, pollAttempts: 2,
     fetchImpl: async (_url, options) => {
       calls++;
       if (options.method === 'POST') return response({ data: { id: 'pending' } });
       return response({ data: { attributes: { status: 'queued' } } });
     },
   });
-  assert.equal(calls, 2);
-  assert.equal(result.status, 'queued');
-  assert.match(scanNotes([result]), /has not completed/);
+  assert.equal(calls, 6);
+  assert.equal(result.status, 'timed-out');
+  assert.equal(skipped.status, 'timed-out');
+  assert.doesNotMatch(scanNotes([result]), /queued/);
 });
 
 test('quota exhaustion stops subsequent file submissions and does not throw', async t => {

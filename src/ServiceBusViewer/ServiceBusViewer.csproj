@@ -1,17 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFramework>net11.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<Product>ServiceBusViewer</Product>
-		<VersionPrefix>1.2.1</VersionPrefix>
+		<VersionPrefix>1.2.2</VersionPrefix>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2025-2026 Andrey Veselov</Copyright>
 		<Description>HTTP API for the Service Bus Viewer.</Description>
 
-		<AnalysisLevel>10.0-recommended</AnalysisLevel>
+		<AnalysisLevel>11.0-recommended</AnalysisLevel>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
 		<!-- Disable warning CA1848:Use the LoggerMessage delegates. Reason: Logging performance optimization is not required for this project. -->
