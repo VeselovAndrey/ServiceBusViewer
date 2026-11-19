@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { inspectReleaseArchive, previousReleaseTag, publishRelease, releaseNotes } from '../scripts/publish-release.mjs';
+import { distributionTargetName } from '../scripts/runtime-targets.mjs';
 
 const version = '1.2.0';
 const tag = `v${version}`;
@@ -23,7 +24,7 @@ async function fixture() {
   for (const { platform, arch, extension } of targets) {
     const directory = path.join(artifactDirectory, `${platform}-${arch}`);
     await mkdir(directory, { recursive: true });
-    const name = `ServiceBusViewer-${version}-${platform}-${arch}.${extension}`;
+    const name = `ServiceBusViewer-${version}-${distributionTargetName(platform, arch)}.${extension}`;
     await writeFile(path.join(directory, name), `archive:${platform}:${arch}`);
     await writeFile(path.join(directory, 'verification.json'), JSON.stringify({ tag, version, commit, platform, arch }));
   }
@@ -197,7 +198,7 @@ test('same-identity rerun reuses matching assets and publishes a recoverable dra
 
 test('published release refuses to replace an asset with different bytes', async () => {
   const artifactDirectory = await fixture();
-  const expectedNames = targets.map(({ platform, arch, extension }) => `ServiceBusViewer-${version}-${platform}-${arch}.${extension}`);
+  const expectedNames = targets.map(({ platform, arch, extension }) => `ServiceBusViewer-${version}-${distributionTargetName(platform, arch)}.${extension}`);
   const existing = {
     id: 7, tag_name: tag, target_commitish: commit, draft: false,
     body: releaseNotes({ tag, version, commit, imageReference, imageDigest, repository }),

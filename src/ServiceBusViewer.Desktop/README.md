@@ -20,7 +20,7 @@ Dependency versions are managed in `package.json` and `package-lock.json`. Versi
 
 | Target | Bundle directory | Launch file |
 | --- | --- | --- |
-| Windows | `ServiceBusViewer-<version>-win32-<arch>` | `ServiceBusViewer.exe` |
+| Windows | `ServiceBusViewer-<version>-win-<arch>` | `ServiceBusViewer.exe` |
 | Linux | `ServiceBusViewer-<version>-linux-<arch>` | `ServiceBusViewer` |
 | macOS | `ServiceBusViewer-<version>-darwin-arm64` | `ServiceBusViewer.app` |
 
@@ -36,11 +36,11 @@ From `src/ServiceBusViewer.Desktop`, build and archive the Windows bundle:
 npm run bundle
 $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
 $arch = "x64" # Set to "arm64" for an arm64 build.
-$bundle = "out/ServiceBusViewer-$version-win32-$arch"
+$bundle = "out/ServiceBusViewer-$version-win-$arch"
 Compress-Archive -LiteralPath $bundle -DestinationPath "$bundle.zip" -Force
 ```
 
-The archive is written to `out/ServiceBusViewer-<version>-win32-<arch>.zip`.
+The archive is written to `out/ServiceBusViewer-<version>-win-<arch>.zip`.
 
 ### Build Linux on Windows
 
@@ -113,7 +113,7 @@ Pushing a tag such as `v1.2.0` starts the coordinated release workflow. The tag 
 
 | Platform | Download |
 | --- | --- |
-| Windows x64 | `ServiceBusViewer-<version>-win32-x64.zip` |
+| Windows x64 | `ServiceBusViewer-<version>-win-x64.zip` |
 | Linux x64 | `ServiceBusViewer-<version>-linux-x64.tar.gz` |
 | Ubuntu 24.04 amd64 installer | `ServiceBusViewer-<version>-linux-x64.deb` |
 

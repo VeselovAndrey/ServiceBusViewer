@@ -2,15 +2,19 @@ import { spawn } from 'node:child_process';
 import { lstat, readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { distributionTargetName } from './runtime-targets.mjs';
 
 export async function validateBundle(bundle, { version, platform, arch }) {
-  const expected = `ServiceBusViewer-${version}-${platform}-${arch}`;
   if (!['win32', 'linux', 'darwin'].includes(platform)
     || !({ win32: ['x64'], linux: ['x64'], darwin: ['arm64'] }[platform] ?? []).includes(arch)) {
     throw new Error(`Unsupported release target: ${platform}/${arch}.`);
   }
+  const expected = `ServiceBusViewer-${version}-${distributionTargetName(platform, arch)}`;
+  const legacyWindowsName = `ServiceBusViewer-${version}-${platform}-${arch}`;
+  const acceptedNames = platform === 'win32' ? [expected, legacyWindowsName] : [expected];
+  const bundleName = path.basename(bundle);
   const info = await lstat(bundle).catch(() => null);
-  if (!info?.isDirectory() || info.isSymbolicLink() || path.basename(bundle) !== expected) {
+  if (!info?.isDirectory() || info.isSymbolicLink() || !acceptedNames.includes(bundleName)) {
     throw new Error(`Expected a fresh bundle directory named ${expected}.`);
   }
   const root = platform === 'darwin' ? path.join(bundle, 'ServiceBusViewer.app', 'Contents') : bundle;
@@ -54,7 +58,7 @@ export async function validateBundle(bundle, { version, platform, arch }) {
     }
   }
 
-  return { expected, executable };
+  return { expected: bundleName, executable };
 }
 
 export async function archiveBundle({
@@ -68,7 +72,7 @@ export async function archiveBundle({
 }) {
   const { expected } = await validateBundle(bundle, { version, platform, arch });
   const format = platform === 'win32' ? 'zip' : 'tar.gz';
-  const archiveName = `ServiceBusViewer-${version}-${platform}-${arch}.${format}`;
+  const archiveName = `${expected}.${format}`;
   const destination = path.resolve(output, archiveName);
   const archiveDirectory = path.dirname(destination);
   let bundleParent = path.relative(archiveDirectory, path.dirname(path.resolve(bundle)));

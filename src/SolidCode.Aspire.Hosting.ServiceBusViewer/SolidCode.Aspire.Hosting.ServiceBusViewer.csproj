@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+		<TargetFrameworks>net10.0;net11.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<RootNamespace>SolidCode.Aspire.Hosting</RootNamespace>
@@ -10,7 +10,7 @@
 		<Description>A reusable .NET Aspire hosting integration for the Service Bus Viewer container.</Description>
 		<Authors>Andrey Veselov</Authors>
 		<Copyright>Copyright © 2026 Andrey Veselov</Copyright>
-		<Version>13.6.5</Version>
+		<Version>17.0.0</Version>
 
 		<PackageId>SolidCode.Aspire.Hosting.ServiceBusViewer</PackageId>
 		<Title>Aspire Hosting for Service Bus Viewer</Title>
@@ -31,7 +31,7 @@
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<EnablePackageValidation>true</EnablePackageValidation>
 
-		<AnalysisLevel>10.0-recommended</AnalysisLevel>
+		<AnalysisLevel>11.0-recommended</AnalysisLevel>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<!-- NU1902: MessagePack (transitive via Aspire.Hosting) has a moderate advisory; keep the warning visible without failing the build. -->
 		<WarningsNotAsErrors>NU1902</WarningsNotAsErrors>
@@ -46,7 +46,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Aspire.Hosting" Version="13.6.5" />
+		<PackageReference Include="Aspire.Hosting" Version="17.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>

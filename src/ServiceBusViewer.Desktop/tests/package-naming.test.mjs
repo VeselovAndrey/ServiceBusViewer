@@ -17,7 +17,8 @@ async function fixture(t, version) {
 for (const platform of ['win32', 'linux', 'darwin']) {
   for (const arch of ['x64', 'arm64']) {
     test(`${platform}/${arch} delivery directory includes the application version`, () => {
-      assert.equal(bundleDirectoryName('1.2.0', platform, arch), `ServiceBusViewer-1.2.0-${platform}-${arch}`);
+      const targetPlatform = platform === 'win32' ? 'win' : platform;
+      assert.equal(bundleDirectoryName('1.2.0', platform, arch), `ServiceBusViewer-1.2.0-${targetPlatform}-${arch}`);
     });
   }
 }
@@ -38,11 +39,11 @@ for (const version of ['../1.2.0', '1.2.0/../other', '1.2.0\\other', '1.2.0 ', '
 
 test('failed rebuild invalidates only the current version and preserves other deliveries', async t => {
   const desktop = await fixture(t, '1.2.0');
-  for (const name of ['ServiceBusViewer-1.2.0-win32-x64', 'ServiceBusViewer-1.1.0-win32-x64', 'ServiceBusViewer-win32-x64']) {
+  for (const name of ['ServiceBusViewer-1.2.0-win-x64', 'ServiceBusViewer-1.1.0-win32-x64', 'ServiceBusViewer-win32-x64']) {
     await mkdir(path.join(desktop, 'out', name), { recursive: true });
     await writeFile(path.join(desktop, 'out', name, 'sentinel'), name);
   }
   await assert.rejects(packageApplication({ desktop, platform: 'win32', arch: 'x64', stage: async () => { throw new Error('controlled build failure'); } }), /controlled build failure/);
-  assert.equal(await stat(path.join(desktop, 'out/ServiceBusViewer-1.2.0-win32-x64')).catch(() => null), null);
+  assert.equal(await stat(path.join(desktop, 'out/ServiceBusViewer-1.2.0-win-x64')).catch(() => null), null);
   for (const name of ['ServiceBusViewer-1.1.0-win32-x64', 'ServiceBusViewer-win32-x64']) assert.equal(await readFile(path.join(desktop, 'out', name, 'sentinel'), 'utf8'), name);
 });

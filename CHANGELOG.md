@@ -1,5 +1,11 @@
 # Service Bus Viewer Version History
 
+## 1.2.2 (2026-11-19)
+
+- **Changed:** Updated the backend, AppHost, and test projects to .NET 11, and moved the container runtime and CI SDK to .NET 11.
+- **Changed:** Added .NET 11 support to the Aspire hosting package while retaining its .NET 10 target.
+- **Changed:** Windows desktop bundles and downloads now use `win-<arch>` names (such as `win-x64`) instead of `win32-<arch>`.
+
 ## 1.2.1 (2026-11-13)
 
 - **Added:** Release notes begin with GitHub-generated changes and include VirusTotal report links and scan status for each download. Scans run sequentially and do not block publication.

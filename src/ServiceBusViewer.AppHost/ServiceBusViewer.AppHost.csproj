@@ -1,8 +1,8 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFramework>net11.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<UserSecretsId>3e4f8198-1258-4c3f-8be5-6de3d7a005b1</UserSecretsId>
@@ -20,18 +20,20 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Aspire.Hosting.JavaScript" Version="13.6.5" />
-		<PackageReference Include="Aspire.Hosting.Azure.ServiceBus" Version="13.6.5" />
+		<PackageReference Include="Aspire.Hosting.AppHost" Version="17.0.0" />
+		<PackageReference Include="Aspire.Hosting.Dotnet" Version="17.0.0" />
+		<PackageReference Include="Aspire.Hosting.JavaScript" Version="17.0.0" />
+		<PackageReference Include="Aspire.Hosting.Azure.ServiceBus" Version="17.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\ServiceBusViewer\ServiceBusViewer.csproj" />
 	</ItemGroup>
-
 	<ItemGroup>
-		<ProjectReference Include="..\SolidCode.Aspire.Hosting.ServiceBusViewer\SolidCode.Aspire.Hosting.ServiceBusViewer.csproj" IsAspireProjectResource="false" />
+		<ProjectReference
+			Include="..\SolidCode.Aspire.Hosting.ServiceBusViewer\SolidCode.Aspire.Hosting.ServiceBusViewer.csproj"
+			IsAspireProjectResource="false" />
 	</ItemGroup>
-
 	<ItemGroup>
 		<None Update="ServiceBusConfig.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -39,3 +41,4 @@
 	</ItemGroup>
 
 </Project>
+

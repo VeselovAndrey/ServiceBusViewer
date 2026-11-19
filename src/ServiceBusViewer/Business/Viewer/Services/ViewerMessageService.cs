@@ -90,7 +90,7 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			bool requiresDuplicateDetection = target switch {
 				QueueEntityProperties queue => queue.RequiresDuplicateDetection,
 				TopicEntityProperties topic => topic.RequiresDuplicateDetection,
-				_ => false
+				SubscriptionEntityProperties => false
 			};
 
 			if (strategy is RepublishMessageIdStrategy.Manual && string.IsNullOrWhiteSpace(messageId))
@@ -283,7 +283,7 @@ internal sealed class ViewerMessageService(ILogger<ViewerMessageService> logger)
 			EntityId? refreshId = entity switch {
 				QueueEntityProperties queue => new QueueEntityId(queue.Name),
 				TopicEntityProperties topic => new TopicEntityId(topic.Name),
-				_ => null
+				SubscriptionEntityProperties => null
 			};
 
 			if (refreshId is not null)

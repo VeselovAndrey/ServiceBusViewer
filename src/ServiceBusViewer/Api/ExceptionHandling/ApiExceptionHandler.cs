@@ -29,56 +29,67 @@ internal sealed class ApiExceptionHandler(
 
 		ExceptionResponse response = ClassifyException(exception);
 
-		if (response.IsUnexpected)
+		if (response is UnexpectedExceptionResponse)
 			_logger.LogError(exception, "An unexpected exception occurred while processing an API request.");
 
-		httpContext.Response.StatusCode = response.Status;
+		ProblemDetails problemDetails = response switch {
+			KnownExceptionResponse known => new ProblemDetails {
+				Status = known.Status,
+				Title = known.Title,
+				Detail = known.Detail
+			},
+			UnexpectedExceptionResponse unexpected => new ProblemDetails {
+				Status = unexpected.Status,
+				Title = unexpected.Title,
+				Detail = unexpected.Detail
+			}
+		};
+
+		httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
 
 		return await _problemDetailsService.TryWriteAsync(new ProblemDetailsContext {
 			HttpContext = httpContext,
-			ProblemDetails = new ProblemDetails {
-				Status = response.Status,
-				Title = response.Title,
-				Detail = response.Detail
-			}
+			ProblemDetails = problemDetails
 		});
 	}
 
 	private static ExceptionResponse ClassifyException(Exception exception)
 	{
-		ExceptionResponse? response = TryClassifyKnownException(exception);
+		KnownExceptionResponse? response = TryClassifyKnownException(exception);
 		if (response is not null)
-			return response.Value;
+			return response;
 
 		if (exception is AggregateException aggregateException) {
 			foreach (Exception innerException in aggregateException.Flatten().InnerExceptions) {
 				response = TryClassifyKnownException(innerException);
 				if (response is not null)
-					return response.Value;
+					return response;
 			}
 		}
 
-		return new ExceptionResponse(
+		return new UnexpectedExceptionResponse(
 			StatusCodes.Status500InternalServerError,
 			"Request failed",
-			"An unexpected error occurred while processing the request.",
-			true);
+			"An unexpected error occurred while processing the request.");
 	}
 
-	private static ExceptionResponse? TryClassifyKnownException(Exception exception)
+	private static KnownExceptionResponse? TryClassifyKnownException(Exception exception)
 		=> exception switch {
-			ViewerAlreadyConnectedException => new ExceptionResponse(StatusCodes.Status409Conflict, "Already connected", exception.Message, false),
-			ViewerNotConnectedException => new ExceptionResponse(StatusCodes.Status409Conflict, "Not connected", exception.Message, false),
-			SendMessageValidationException => new ExceptionResponse(StatusCodes.Status400BadRequest, "Invalid request", exception.Message, false),
-			OperationCanceledException => new ExceptionResponse(StatusCodes.Status409Conflict, "Operation cancelled", "The Service Bus operation was cancelled because the viewer disconnected.", false),
-			ArgumentException or FormatException or JsonException or BadHttpRequestException => new ExceptionResponse(StatusCodes.Status400BadRequest, "Invalid request", exception.Message, false),
-			RequestFailedException or ServiceBusException => new ExceptionResponse(
+			ViewerAlreadyConnectedException => new KnownExceptionResponse(StatusCodes.Status409Conflict, "Already connected", exception.Message),
+			ViewerNotConnectedException => new KnownExceptionResponse(StatusCodes.Status409Conflict, "Not connected", exception.Message),
+			SendMessageValidationException => new KnownExceptionResponse(StatusCodes.Status400BadRequest, "Invalid request", exception.Message),
+			OperationCanceledException => new KnownExceptionResponse(StatusCodes.Status409Conflict, "Operation cancelled", "The Service Bus operation was cancelled because the viewer disconnected."),
+			ArgumentException or FormatException or JsonException or BadHttpRequestException => new KnownExceptionResponse(StatusCodes.Status400BadRequest, "Invalid request", exception.Message),
+			RequestFailedException or ServiceBusException => new KnownExceptionResponse(
 				StatusCodes.Status400BadRequest,
 				"Service Bus request failed",
-				exception.Message,
-				false),
+				exception.Message),
 			_ => null
 		};
 
-	private readonly record struct ExceptionResponse(int Status, string Title, string Detail, bool IsUnexpected);
+	private union ExceptionResponse(KnownExceptionResponse, UnexpectedExceptionResponse);
+
+	private sealed record KnownExceptionResponse(int Status, string Title, string Detail);
+
+	private sealed record UnexpectedExceptionResponse(int Status, string Title, string Detail);
 }

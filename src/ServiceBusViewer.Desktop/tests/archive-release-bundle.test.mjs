@@ -8,7 +8,8 @@ import { archiveBundle, validateBundle } from '../scripts/archive-release-bundle
 
 async function fixture(platform = 'linux', arch = 'x64') {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'desktop-release-'));
-  const bundle = path.join(directory, `ServiceBusViewer-1.2.0-${platform}-${arch}`);
+  const targetPlatform = platform === 'win32' ? 'win' : platform;
+  const bundle = path.join(directory, `ServiceBusViewer-1.2.0-${targetPlatform}-${arch}`);
   const root = platform === 'darwin' ? path.join(bundle, 'ServiceBusViewer.app/Contents') : bundle;
   const resources = path.join(root, platform === 'darwin' ? 'Resources' : 'resources');
   await mkdir(path.join(resources, 'app'), { recursive: true });
@@ -70,19 +71,20 @@ test('validateBundle rejects wrong archive root name and mismatched app version'
 test('archiveBundle emits the platform archive with the runnable bundle as its root', async () => {
   const platform = process.platform === 'win32' ? 'win32' : 'linux';
   const arch = 'x64';
+  const targetPlatform = platform === 'win32' ? 'win' : platform;
   const { directory, bundle } = await fixture(platform, arch);
   const output = path.join(directory, 'artifacts');
   await mkdir(output);
   try {
     const archive = await archiveBundle({ bundle, output, version: '1.2.0', platform, arch });
-    assert.equal(path.basename(archive), `ServiceBusViewer-1.2.0-${platform}-${arch}.${platform === 'win32' ? 'zip' : 'tar.gz'}`);
+    assert.equal(path.basename(archive), `ServiceBusViewer-1.2.0-${targetPlatform}-${arch}.${platform === 'win32' ? 'zip' : 'tar.gz'}`);
     const archiveBytes = await readFile(archive);
     assert.ok(archiveBytes.length > 0);
     if (platform === 'win32') assert.deepEqual([...archiveBytes.subarray(0, 4)], [0x50, 0x4b, 0x03, 0x04]);
     const listing = platform === 'win32'
       ? listWindowsArchive(archive)
       : execFileSync('tar', ['-tvzf', path.basename(archive)], { cwd: path.dirname(archive), encoding: 'utf8' });
-    assert.match(listing, new RegExp(`ServiceBusViewer-1\\.2\\.0-${platform}-${arch}\\/ServiceBusViewer${platform === 'win32' ? '\\.exe' : ''}$`, 'm'));
+    assert.match(listing, new RegExp(`ServiceBusViewer-1\\.2\\.0-${targetPlatform}-${arch}\\/ServiceBusViewer${platform === 'win32' ? '\\.exe' : ''}$`, 'm'));
     if (platform !== 'win32') {
       assert.match(listing, /-rwxr-xr-x .*ServiceBusViewer-1\.2\.0-linux-x64\/ServiceBusViewer$/m);
       assert.match(listing, /-rwxr-xr-x .*ServiceBusViewer-1\.2\.0-linux-x64\/resources\/backend\/ServiceBusViewer$/m);
@@ -111,7 +113,7 @@ test('archiveBundle uses the Windows ZIP helper with separate path arguments', a
     });
     const bundlePath = commandArgs[commandArgs.indexOf('-Bundle') + 1];
     const archivePath = commandArgs[commandArgs.indexOf('-Destination') + 1];
-    assert.equal(path.basename(archive), 'ServiceBusViewer-1.2.0-win32-x64.zip');
+    assert.equal(path.basename(archive), 'ServiceBusViewer-1.2.0-win-x64.zip');
     assert.equal(commandName, 'powershell.exe');
     assert.equal(path.basename(commandArgs[commandArgs.indexOf('-File') + 1]), 'archive-windows-bundle.ps1');
     assert.equal(path.resolve(bundlePath), path.resolve(bundle));

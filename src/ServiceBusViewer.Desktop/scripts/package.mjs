@@ -2,7 +2,7 @@ import { cp, lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { stageRuntime, runCommand } from './stage-runtime.mjs';
-import { resolveRuntimeTarget } from './runtime-targets.mjs';
+import { distributionTargetName, resolveRuntimeTarget } from './runtime-targets.mjs';
 
 const desktopDirectory = fileURLToPath(new URL('..', import.meta.url));
 const applicationFiles = [
@@ -22,9 +22,7 @@ export function bundleDirectoryName(version, platform, arch) {
     || semver[4]?.split('.').some(identifier => /^\d+$/.test(identifier) && !/^(0|[1-9]\d*)$/.test(identifier))) {
     throw new Error('Desktop package version must be a safe, strict semantic version.');
   }
-  resolveRuntimeTarget(platform, arch);
-
-  return `${applicationName}-${version}-${platform}-${arch}`;
+  return `${applicationName}-${version}-${distributionTargetName(platform, arch)}`;
 }
 
 export function parseBundleArguments(args, hostPlatform = process.platform, hostArch = process.arch) {

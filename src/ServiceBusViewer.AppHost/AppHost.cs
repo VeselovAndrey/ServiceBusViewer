@@ -1,7 +1,7 @@
 #pragma warning disable ASPIREJAVASCRIPT001
 
+using Aspire.Hosting.Dotnet;
 using Microsoft.Extensions.Configuration;
-using Projects;
 using SolidCode.Aspire.Hosting;
 
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
@@ -46,7 +46,7 @@ else {
 // Add Service Bus Viewer
 if (appHostSettings?.UsePublishedServiceBusViewerContainer == true) {
 	// Use published Service Bus Viewer container
-	builder.AddServiceBusViewer("ServiceBusViewer-ContainerApp", httpPort: 5173)
+	builder.AddServiceBusViewer("ServiceBusViewer-ContainerApp")
 		.WithContainerName("servicebusviewer-app")
 		.WithServiceBusEmulatorReference(serviceBusEmulator);
 }
@@ -55,7 +55,7 @@ else {
 	ReferenceExpression serviceBusEmulatorConnectionString = CreateServiceBusEmulatorConnectionString(serviceBusEmulator.GetEndpoint(serviceBusEmulatorMessagingEndpointName));
 	ReferenceExpression serviceBusEmulatorManagementConnectionString = CreateServiceBusEmulatorConnectionString(serviceBusEmulator.GetEndpoint(serviceBusEmulatorManagementEndpointName));
 
-	IResourceBuilder<ProjectResource> serviceBusViewerApi = builder.AddProject<ServiceBusViewer>("ServiceBusViewer-API")
+	IResourceBuilder<DotnetProjectResource> serviceBusViewerApi = builder.AddDotnetProject("ServiceBusViewer-API", "../ServiceBusViewer/ServiceBusViewer.csproj")
 		.WithEnvironment("SERVICEBUSVIEWER_CONNECTION_STRING", serviceBusEmulatorConnectionString)
 		.WithEnvironment("SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING", serviceBusEmulatorManagementConnectionString)
 		.WithEnvironment("ServiceBusViewer__EntityCountAutoRefresh__Enabled", "true")
@@ -63,7 +63,6 @@ else {
 		.WaitFor(serviceBusEmulator, WaitBehavior.WaitOnResourceUnavailable);
 
 	builder.AddViteApp("ServiceBusViewer-Frontend", @"..\ServiceBusViewer.Web")
-		.WithHttpEndpoint(port: 5173, env: "PORT")
 	 	.WithExternalHttpEndpoints()
 		.WithReference(serviceBusViewerApi)
 	 	.WaitFor(serviceBusViewerApi, WaitBehavior.WaitOnResourceUnavailable)
