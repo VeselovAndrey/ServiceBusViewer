@@ -7,7 +7,7 @@ By default, the package uses the published GitHub Container Registry image:
 - `ghcr.io/veselovandrey/servicebusviewer:latest`
 
 It targets container-based Aspire AppHosts and wraps the published Service Bus Viewer image with typed registration and configuration helpers.
-The package ships assemblies for both .NET 8 and .NET 10, so it can be consumed by Aspire AppHosts targeting either runtime.
+The package ships assemblies for .NET 10 and .NET 11, so it can be consumed by Aspire AppHosts targeting either runtime.
 
 ## Install
 

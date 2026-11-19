@@ -34,7 +34,7 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -99,7 +99,7 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -148,7 +148,14 @@ jobs:
           if [[ "$RECOVERY_MODE" == "true" ]]; then
             ARCHIVER="$RECOVERY_ARCHIVER"
           fi
-          node "$ARCHIVER" "out/ServiceBusViewer-${RELEASE_VERSION}-${TARGET_PLATFORM}-${TARGET_ARCH}" artifacts "$RELEASE_VERSION" "$TARGET_PLATFORM" "$TARGET_ARCH"
+          BUNDLE_PATH="out/ServiceBusViewer-${RELEASE_VERSION}-${TARGET_PLATFORM}-${TARGET_ARCH}"
+          if [[ "$TARGET_PLATFORM" == "win32" ]]; then
+            NEW_WINDOWS_BUNDLE="out/ServiceBusViewer-${RELEASE_VERSION}-win-${TARGET_ARCH}"
+            if [[ -d "$NEW_WINDOWS_BUNDLE" ]]; then
+              BUNDLE_PATH="$NEW_WINDOWS_BUNDLE"
+            fi
+          fi
+          node "$ARCHIVER" "$BUNDLE_PATH" artifacts "$RELEASE_VERSION" "$TARGET_PLATFORM" "$TARGET_ARCH"
           if [[ "$TARGET_PLATFORM" == "linux" ]]; then
             cp "out/ServiceBusViewer-${RELEASE_VERSION}-linux-x64.deb" artifacts/
           fi

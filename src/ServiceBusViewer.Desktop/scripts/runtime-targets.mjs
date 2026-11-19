@@ -20,3 +20,9 @@ export function resolveRuntimeTarget(platform = process.platform, arch = process
         : 'libcoreclr.so',
   };
 }
+
+export function distributionTargetName(platform, arch) {
+  resolveRuntimeTarget(platform, arch);
+
+  return `${platform === 'win32' ? 'win' : platform}-${arch}`;
+}

@@ -35,8 +35,7 @@ internal static class BusinessModelMapping
 		=> entity switch {
 			QueueEntityId queue => new EntityId("Queue", queue.Name, null),
 			TopicEntityId topic => new EntityId("Topic", topic.Name, null),
-			SubscriptionEntityId subscription => new EntityId("Subscription", subscription.Name, subscription.TopicName),
-			_ => throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}", nameof(entity))
+			SubscriptionEntityId subscription => new EntityId("Subscription", subscription.Name, subscription.TopicName)
 		};
 
 	/// <summary>Maps business-contract entity properties to an available-entity API response model, including message counts.</summary>
@@ -46,7 +45,6 @@ internal static class BusinessModelMapping
 			QueueEntityProperties queue => new EntityId("Queue", queue.Name, null),
 			TopicEntityProperties => new EntityId("Topic", entity.Name, null),
 			SubscriptionEntityProperties subscription => new EntityId("Subscription", subscription.Name, subscription.TopicName),
-			_ => throw new ArgumentException($"Unknown entity type: {entity.GetType().FullName}", nameof(entity))
 		};
 
 		return new AvailableEntity(id.Type, id.Name, id.TopicName, entity.MessageCounts?.ToApiModel());

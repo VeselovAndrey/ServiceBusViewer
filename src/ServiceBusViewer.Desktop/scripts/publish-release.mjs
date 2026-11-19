@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseVersionTag } from './release-info.mjs';
 import { validateDebContents } from './package-deb.mjs';
+import { distributionTargetName } from './runtime-targets.mjs';
 import { scanReleaseAssets, scanNotes } from './scan-release-assets.mjs';
 
 const targets = [
@@ -56,7 +57,10 @@ export function releaseNotes({
     `Service Bus Viewer **${version}** was built from [${commit}](${sourceUrl}).`,
     '',
     '## Downloads',
-    ...targets.map(({ platform, arch, extension }) => `- ${platform}/${arch}${extension === 'deb' ? ' (Ubuntu 24.04 installer)' : ''}: \`ServiceBusViewer-${version}-${platform}-${arch}.${extension}\``),
+    ...targets.map(({ platform, arch, extension }) => {
+      const displayTarget = platform === 'win32' ? `Windows ${arch}` : `${platform}/${arch}`;
+      return `- ${displayTarget}${extension === 'deb' ? ' (Ubuntu 24.04 installer)' : ''}: \`ServiceBusViewer-${version}-${distributionTargetName(platform, arch)}.${extension}\``;
+    }),
     ...(scans.length ? ['', scanNotes(scans)] : []),
     '',
     '## Container image',
@@ -84,7 +88,7 @@ export async function prepareReleaseAssets({
   const assets = [];
   for (const target of targets) {
     const { platform, arch, extension } = target;
-    const name = `ServiceBusViewer-${version}-${platform}-${arch}.${extension}`;
+    const name = `ServiceBusViewer-${version}-${distributionTargetName(platform, arch)}.${extension}`;
     const directory = path.join(artifactDirectory, `${platform}-${arch}`);
     const file = path.join(directory, name);
     const metadataFile = path.join(directory, 'verification.json');
@@ -97,7 +101,7 @@ export async function prepareReleaseAssets({
     const files = await readdir(directory);
     const expectedFiles = targets
       .filter(item => item.platform === platform && item.arch === arch)
-      .map(item => `ServiceBusViewer-${version}-${platform}-${arch}.${item.extension}`)
+      .map(item => `ServiceBusViewer-${version}-${distributionTargetName(platform, arch)}.${item.extension}`)
       .concat('verification.json');
     if (files.length !== expectedFiles.length || expectedFiles.some(expected => !files.includes(expected))) {
       throw new Error(`Unexpected files in release artifact set for ${platform}/${arch}.`);
@@ -246,7 +250,7 @@ export async function inspectReleaseArchive(file, { platform, arch, extension },
 
     return;
   }
-  const root = `ServiceBusViewer-${version}-${platform}-${arch}`;
+  const root = `ServiceBusViewer-${version}-${distributionTargetName(platform, arch)}`;
   const listing = platform === 'win32'
     ? await runCommand('unzip', ['-Z1', file])
     : await runCommand('tar', ['-tzf', file]);

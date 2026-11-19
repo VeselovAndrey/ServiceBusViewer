@@ -87,8 +87,7 @@ internal static class DetailsRequestHandler
 			subscription.RequiresSession,
 			null,
 			subscription.AutoDeleteOnIdle.ToString("c", CultureInfo.InvariantCulture),
-			[.. subscription.Rules.Select(ToSubscriptionRuleResponse)]),
-		_ => throw new ArgumentException($"Unknown entity type: {properties.GetType().FullName}", nameof(properties))
+			[.. subscription.Rules.Select(ToSubscriptionRuleResponse)])
 	};
 
 	private static SubscriptionRule ToSubscriptionRuleResponse(Business.Viewer.Contracts.ServiceBus.SubscriptionFilterRule rule) => rule switch {
@@ -114,6 +113,5 @@ internal static class DetailsRequestHandler
 			unknownRule.Name,
 			unknownRule.FilterTypeName,
 			unknownRule.FilterExpression),
-		_ => throw new ArgumentException($"Unknown subscription rule type: {rule.GetType().FullName}", nameof(rule))
 	};
 }

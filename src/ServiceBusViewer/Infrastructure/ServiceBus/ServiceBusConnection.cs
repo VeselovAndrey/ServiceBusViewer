@@ -110,7 +110,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			long? count = entity switch {
 				QueueEntityProperties queue => await GetQueueCountAsync(queue.Name),
 				SubscriptionEntityProperties subscription => await GetSubscriptionCountAsync(subscription.TopicName, subscription.Name),
-				_ => null
+				TopicEntityProperties => null
 			};
 
 			return count;
@@ -553,14 +553,14 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 		=> entity switch {
 			SubscriptionEntityProperties subscription => _client.CreateReceiver(subscription.TopicName, subscription.Name, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock }),
 			QueueEntityProperties queue => _client.CreateReceiver(queue.Name, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock }),
-			_ => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
+			TopicEntityProperties => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
 		};
 
 	private ServiceBusReceiver GetDeadLetterReceiver(EntityProperties entity)
 		=> entity switch {
 			SubscriptionEntityProperties subscription => _client.CreateReceiver(subscription.TopicName, subscription.Name, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock, SubQueue = SubQueue.DeadLetter }),
 			QueueEntityProperties queue => _client.CreateReceiver(queue.Name, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock, SubQueue = SubQueue.DeadLetter }),
-			_ => throw new InvalidOperationException("Topics do not support dead-letter peeks. Please select a queue or a subscription.")
+			TopicEntityProperties => throw new InvalidOperationException("Topics do not support dead-letter peeks. Please select a queue or a subscription.")
 		};
 
 	private static async Task<(bool Succeeded, string? FailureDetail)> RepublishMessageAsync(
@@ -744,7 +744,7 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 				QueueEntityProperties queue => string.IsNullOrWhiteSpace(sessionId)
 					? await _client.AcceptNextSessionAsync(queue.Name, cancellationToken: linkedCancellationSource.Token)
 					: await _client.AcceptSessionAsync(queue.Name, sessionId, cancellationToken: linkedCancellationSource.Token),
-				_ => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
+				TopicEntityProperties => throw new InvalidOperationException("Topics do not support receiving messages directly. Please select a subscription.")
 			};
 		}
 		catch (OperationCanceledException) when (timeoutCancellationSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested) {
@@ -760,15 +760,13 @@ internal sealed class ServiceBusConnection : IServiceBusConnection
 			QueueEntityProperties queue => _client.CreateSender(queue.Name),
 			SubscriptionEntityProperties subscription => _client.CreateSender(subscription.TopicName),
 			TopicEntityProperties topic => _client.CreateSender(topic.Name),
-			_ => throw new InvalidOperationException($"Cannot create sender for entity type '{entity.GetType().Name}'.")
 		};
 
 	private EntityProperties? FindEntity(EntityId entityId)
 		=> entityId switch {
 			QueueEntityId queueId => _availableEntities.FirstOrDefault(p => p is QueueEntityProperties && p.Name == queueId.Name),
 			TopicEntityId topicId => _availableEntities.FirstOrDefault(p => p is TopicEntityProperties && p.Name == topicId.Name),
-			SubscriptionEntityId subscriptionId => _availableEntities.FirstOrDefault(p => p is SubscriptionEntityProperties subscription && subscription.Name == subscriptionId.Name && subscription.TopicName == subscriptionId.TopicName),
-			_ => throw new ArgumentException($"Unknown entity type: {entityId.GetType().FullName}", nameof(entityId))
+			SubscriptionEntityId subscriptionId => _availableEntities.FirstOrDefault(p => p is SubscriptionEntityProperties subscription && subscription.Name == subscriptionId.Name && subscription.TopicName == subscriptionId.TopicName)
 		};
 
 	private static ReceivedMessage ConvertToReceivedMessage(ServiceBusReceivedMessage message)
